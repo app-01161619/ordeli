@@ -42,18 +42,22 @@ export async function initAuth() {
   });
 }
 
-export async function signInWithGoogle() {
-  return supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin + window.location.pathname },
-  });
+export async function signInWithPassword(email, password) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  return { error: error?.message ?? null };
 }
 
-export async function signInWithApple() {
-  return supabase.auth.signInWithOAuth({
-    provider: 'apple',
-    options: { redirectTo: window.location.origin + window.location.pathname },
-  });
+/**
+ * Returns { session, error }. `session` is null if your Supabase project
+ * has "Confirm email" turned on — there's no session until the user clicks
+ * the link in their inbox and comes back to sign in for real.
+ */
+export async function signUpWithPassword(email, password) {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) {
+    return { session: null, error: error.message };
+  }
+  return { session: data.session, error: null, userId: data.user?.id ?? null };
 }
 
 export async function signOut() {

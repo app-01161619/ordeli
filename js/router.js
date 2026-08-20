@@ -2,6 +2,7 @@ import { getSession } from './auth.js';
 import { getMyShop } from './shop.js';
 
 import * as SignInPage from './pages/sign-in.js';
+import * as SignUpPage from './pages/sign-up.js';
 import * as OnboardingPage from './pages/onboarding.js';
 import * as HomePage from './pages/home.js';
 import * as OrdersPage from './pages/orders.js';
@@ -11,6 +12,7 @@ import * as MorePage from './pages/more.js';
 
 const PAGES = {
   'sign-in': SignInPage,
+  'sign-up': SignUpPage,
   onboarding: OnboardingPage,
   home: HomePage,
   orders: OrdersPage,
@@ -29,6 +31,8 @@ export const TABS = [
 
 const TAB_ROUTES = new Set(TABS.map((t) => t.route));
 
+const AUTH_ROUTES = new Set(['sign-in', 'sign-up']);
+
 function currentRoute() {
   return (window.location.hash || '#/sign-in').replace(/^#\//, '');
 }
@@ -46,9 +50,10 @@ export async function initRouter({ pageContainer, onTabBarVisibility, onActiveTa
 
     if (!session) {
       onTabBarVisibility(false);
-      await renderRoute('sign-in', pageContainer);
-      if (requested !== 'sign-in') {
-        window.location.hash = '#/sign-in';
+      const target = AUTH_ROUTES.has(requested) ? requested : 'sign-in';
+      await renderRoute(target, pageContainer);
+      if (requested !== target) {
+        window.location.hash = `#/${target}`;
       }
       return;
     }
