@@ -7,5 +7,5 @@
 // value hidden. Never put your service_role / secret key here or anywhere
 // in this frontend project.
 
-export const SUPABASE_URL = 'https://your-project-ref.supabase.co';
-export const SUPABASE_KEY = 'your-publishable-or-anon-key';
+export const SUPABASE_URL = 'https://jftxrpgyaepozejndvtx.supabase.co';
+export const SUPABASE_KEY = 'sb_publishable_xul5bFbhQyu88oYnDAn0tQ_zBIoq971';
