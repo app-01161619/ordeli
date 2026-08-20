@@ -1,0 +1,382 @@
+/* ==========================================================================
+   Design tokens
+   Mirrors the token names used in the earlier Expo build (background,
+   backgroundElement, backgroundSelected, text, textSecondary) so the two
+   codebases stay conceptually consistent.
+   ========================================================================== */
+
+:root {
+  /* Tells the browser this page supports BOTH schemes and to render native
+     form controls (inputs, buttons) with correct built-in contrast for
+     whichever one is active. This is the fix for the "black text I can't
+     see" class of bug — without it, some browsers apply a dark-mode tint to
+     inputs without adjusting the text color to match. */
+  color-scheme: light dark;
+
+  --color-bg: #ffffff;
+  --color-bg-element: #f2f2f7;
+  --color-bg-selected: #e5e5ea;
+  --color-text: #11181c;
+  --color-text-secondary: #6b7280;
+  --color-border: #c7c7cc;
+  --color-accent: #208aef;
+  --color-danger: #ff3b30;
+  --color-success: #34c759;
+  --color-warning: #f5a623;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0e1113;
+    --color-bg-element: #1c1f22;
+    --color-bg-selected: #2a2d30;
+    --color-text: #f2f2f2;
+    --color-text-secondary: #9aa0a6;
+    --color-border: #3a3d40;
+  }
+}
+
+/* ==========================================================================
+   Reset / base
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+/* ==========================================================================
+   Layout primitives
+   ========================================================================== */
+
+.screen {
+  flex: 1;
+  padding: var(--space-5) var(--space-4);
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.screen--centered {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100dvh;
+}
+
+.card {
+  background: var(--color-bg-element);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 var(--space-1) 0;
+}
+
+.subtitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 var(--space-4) 0;
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-small {
+  font-size: 13px;
+}
+
+.text-small-bold {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stack > * + * {
+  margin-top: var(--space-3);
+}
+
+/* ==========================================================================
+   Forms
+   ========================================================================== */
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+input[type='text'],
+input[type='email'],
+input[type='password'] {
+  width: 100%;
+  font-size: 16px;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+input::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 1;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--color-accent);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.button--danger {
+  background: var(--color-danger);
+}
+
+.button--outline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.button-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.oauth-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.oauth-button svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.error-text {
+  color: var(--color-danger);
+  font-size: 13px;
+  margin-top: var(--space-3);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 15px;
+  padding: 0;
+}
+
+/* ==========================================================================
+   Connection status card
+   ========================================================================== */
+
+.connection-card {
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  background: var(--color-bg-element);
+  margin-bottom: var(--space-5);
+}
+
+.connection-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.connection-dot--checking {
+  background: var(--color-warning);
+}
+.connection-dot--connected {
+  background: var(--color-success);
+}
+.connection-dot--error {
+  background: var(--color-danger);
+}
+.connection-dot--not-configured {
+  background: var(--color-text-secondary);
+}
+
+.connection-message {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: var(--space-1);
+  line-height: 1.4;
+}
+
+.spinner {
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   Bottom tab bar
+   ========================================================================== */
+
+.tab-bar {
+  display: flex;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab-bar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.tab-bar-item svg {
+  width: 22px;
+  height: 22px;
+}
+
+.tab-bar-item.active {
+  color: var(--color-accent);
+}
+
+/* ==========================================================================
+   Orders list
+   ========================================================================== */
+
+.order-row {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) 0;
+}
+
+.order-row:last-child {
+  border-bottom: none;
+}
+
+.empty-state {
+  color: var(--color-text-secondary);
+  padding: var(--space-4) 0;
+}
+
+/* ==========================================================================
+   Update-available toast
+   ========================================================================== */
+
+.update-toast {
+  position: fixed;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+}
+
+.update-toast button {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}

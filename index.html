@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Ordeli</title>
+
+  <meta name="theme-color" content="#208aef" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/icon-192.png" />
+
+  <!-- iOS PWA support: Safari ignores manifest.json for a lot of this,
+       so these meta tags + apple-touch-icon are what actually matter for
+       "Add to Home Screen" behaving like an app. -->
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Ordeli" />
+
+  <link rel="stylesheet" href="/css/styles.css" />
+
+  <!--
+    Loaded as a classic UMD script (populates window.supabase), not as an
+    ES module import from a CDN. jsDelivr's `+esm` conversion of
+    @supabase/supabase-js has an open bug where the auth module resolves to
+    null at runtime — see js/supabase-client.js for the full explanation.
+    Pinned to an exact version for reproducibility.
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
