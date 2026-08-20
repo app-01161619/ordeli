@@ -31,7 +31,7 @@ export async function render(container) {
     ${
       shop
         ? `<div class="card stack">
-             <p class="text-small-bold">${role === 'owner' ? 'Shop owner' : 'Production team member'}</p>
+             <p class="text-small-bold">${role === 'owner' ? 'Shop owner name' : 'Production team member'}</p>
              <p class="text-small text-secondary">${escapeHtml(shop.address)}</p>
            </div>`
         : ''
