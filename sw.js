@@ -1,7 +1,9 @@
-// Bump this on every deploy that changes any cached file — it's what
-// forces old clients to fetch the new versions instead of serving stale
-// cached copies forever.
-const CACHE_NAME = 'ordeli-shell-v1';
+// Only needs bumping if a file is ever *removed* from APP_SHELL — content
+// changes to existing files now refresh automatically in the background
+// (see the fetch handler below), so this isn't the freshness mechanism
+// anymore. It still forces this exact transition once, for anyone whose
+// phone is stuck on the old cache-first version.
+const CACHE_NAME = 'ordeli-shell-v2';
 
 const APP_SHELL = [
   '/',
@@ -60,17 +62,23 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-      return fetch(request)
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(request);
+
+      // Always refresh in the background, cache hit or not — this is what
+      // lets a normal deploy show up on the next load without depending on
+      // CACHE_NAME being bumped by hand. event.waitUntil keeps the worker
+      // alive long enough for the cache.put to finish even though the
+      // response itself doesn't wait for it.
+      const refreshed = fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          cache.put(request, response.clone());
           return response;
         })
-        .catch(() => caches.match('/index.html'));
+        .catch(() => null);
+      event.waitUntil(refreshed);
+
+      return cached || (await refreshed) || caches.match('/index.html');
     })
   );
 });
