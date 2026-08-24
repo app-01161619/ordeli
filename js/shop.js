@@ -1,13 +1,15 @@
 import { supabase } from './supabase-client.js';
 
 /**
- * Returns { shop, role } — role is 'owner' | 'production_member' | null.
+ * Returns { shop, role, memberId } — role is 'owner' | 'production_member' | null.
+ * memberId is the caller's own production_members.id when role is
+ * 'production_member' (needed for order_item_stages.finished_by), else null.
  * shop is null if the signed-in user (a first-time sign-in) hasn't
  * finished onboarding yet.
  */
 export async function resolveMyShop(session) {
   if (!session) {
-    return { shop: null, role: null, error: null };
+    return { shop: null, role: null, memberId: null, error: null };
   }
 
   const owned = await supabase
@@ -17,28 +19,28 @@ export async function resolveMyShop(session) {
     .maybeSingle();
 
   if (owned.error) {
-    return { shop: null, role: null, error: owned.error.message };
+    return { shop: null, role: null, memberId: null, error: owned.error.message };
   }
   if (owned.data) {
-    return { shop: owned.data, role: 'owner', error: null };
+    return { shop: owned.data, role: 'owner', memberId: null, error: null };
   }
 
   const membership = await supabase
     .from('production_members')
-    .select('shops(*)')
+    .select('id, shops(*)')
     .eq('user_id', session.user.id)
     .maybeSingle();
 
   if (membership.error) {
-    return { shop: null, role: null, error: membership.error.message };
+    return { shop: null, role: null, memberId: null, error: membership.error.message };
   }
 
   const memberShop = membership.data?.shops ?? null;
   if (memberShop) {
-    return { shop: memberShop, role: 'production_member', error: null };
+    return { shop: memberShop, role: 'production_member', memberId: membership.data.id, error: null };
   }
 
-  return { shop: null, role: null, error: null };
+  return { shop: null, role: null, memberId: null, error: null };
 }
 
 // The router's auth guard needs to know "does this user have a shop yet"
@@ -49,7 +51,7 @@ let cache = { userId: null, result: null };
 export async function getMyShop(session) {
   if (!session) {
     cache = { userId: null, result: null };
-    return { shop: null, role: null, error: null };
+    return { shop: null, role: null, memberId: null, error: null };
   }
 
   if (cache.userId === session.user.id && cache.result) {

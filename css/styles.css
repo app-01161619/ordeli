@@ -336,6 +336,76 @@ button {
 }
 
 /* ==========================================================================
+   Scan / QR
+   ========================================================================== */
+
+.scan-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #000;
+}
+
+.scan-viewport video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scan-frame {
+  position: absolute;
+  inset: 12%;
+  border: 3px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+.scan-hint {
+  text-align: center;
+  margin-top: var(--space-4);
+}
+
+.stage-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.stage-row-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+.stage-row-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.stage-row--finished .stage-row-icon {
+  color: var(--color-success);
+}
+
+.stage-row--next .stage-row-icon,
+.stage-row--pending .stage-row-icon {
+  color: var(--color-text-secondary);
+}
+
+.stage-row--pending {
+  color: var(--color-text-secondary);
+}
+
+input[type='file'] {
+  width: 100%;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+/* ==========================================================================
    Update-available toast
    ========================================================================== */
 

@@ -82,8 +82,14 @@ export async function initRouter({ pageContainer, onTabBarVisibility, onActiveTa
   return resolveAndRender;
 }
 
+let currentPage = null;
+
 async function renderRoute(route, pageContainer) {
+  currentPage?.onLeave?.();
+
   const page = PAGES[route];
+  currentPage = page ?? null;
+
   if (!page) {
     pageContainer.innerHTML = '<div class="screen"><p>Not found.</p></div>';
     return;
