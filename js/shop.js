@@ -2,7 +2,7 @@ import { supabase } from './supabase-client.js';
 
 /**
  * Returns { shop, role } — role is 'owner' | 'production_member' | null.
- * shop is null if the signed-in user (a first-time OAuth login) hasn't
+ * shop is null if the signed-in user (a first-time sign-in) hasn't
  * finished onboarding yet.
  */
 export async function resolveMyShop(session) {

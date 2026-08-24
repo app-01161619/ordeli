@@ -30,8 +30,9 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      // true (the default) — needed so a session that comes back from a
-      // Google/Apple OAuth redirect is picked up automatically on load.
+      // true (the default) — needed so a session that comes back from an
+      // email-confirmation link (or, later, an OAuth redirect) is picked
+      // up automatically on load.
       detectSessionInUrl: true,
     },
   }

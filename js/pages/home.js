@@ -27,7 +27,7 @@ export async function render(container) {
 
   body.innerHTML = `
     <h1 class="title">${shop ? escapeHtml(shop.name) : 'Welcome'}</h1>
-    <p class="text-secondary" style="margin: 0 0 16px 0;">Signed in (test) as ${escapeHtml(session.user.email ?? session.user.id)}</p>
+    <p class="text-secondary" style="margin: 0 0 16px 0;">Signed in as ${escapeHtml(session.user.email ?? session.user.id)}</p>
     ${
       shop
         ? `<div class="card stack">

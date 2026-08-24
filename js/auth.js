@@ -43,21 +43,15 @@ export async function initAuth() {
 }
 
 export async function signInWithPassword(email, password) {
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  return { error: error?.message ?? null };
+  return supabase.auth.signInWithPassword({ email, password });
 }
 
-/**
- * Returns { session, error }. `session` is null if your Supabase project
- * has "Confirm email" turned on — there's no session until the user clicks
- * the link in their inbox and comes back to sign in for real.
- */
 export async function signUpWithPassword(email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) {
-    return { session: null, error: error.message };
-  }
-  return { session: data.session, error: null, userId: data.user?.id ?? null };
+  return supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: window.location.origin + window.location.pathname },
+  });
 }
 
 export async function signOut() {

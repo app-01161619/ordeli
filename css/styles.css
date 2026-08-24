@@ -210,6 +210,12 @@ button {
   margin-top: var(--space-3);
 }
 
+.info-text {
+  color: var(--color-success);
+  font-size: 13px;
+  margin-top: var(--space-3);
+}
+
 .link-button {
   background: none;
   border: none;
