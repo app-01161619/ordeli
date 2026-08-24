@@ -48,7 +48,7 @@ export async function render(container) {
       (order) => `
       <div class="order-row">
         <p class="text-small-bold">${escapeHtml(order.customer_name)}</p>
-        <p class="text-small text-secondary">Production: ${order.production_status} · Payment: ${order.payment_status}</p>
+        <p class="text-small text-secondary">Production: ${escapeHtml(order.production_status)} · Payment: ${escapeHtml(order.payment_status)}</p>
       </div>
     `
     )
