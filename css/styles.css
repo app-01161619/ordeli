@@ -148,7 +148,9 @@ label {
 
 input[type='text'],
 input[type='email'],
-input[type='password'] {
+input[type='password'],
+input[type='number'],
+select {
   width: 100%;
   font-size: 16px;
   padding: 10px var(--space-3);
@@ -403,6 +405,13 @@ input[type='file'] {
   width: 100%;
   font-size: 14px;
   color: var(--color-text-secondary);
+}
+
+.cart-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 /* ==========================================================================

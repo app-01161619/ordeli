@@ -1,13 +1,7 @@
 import { supabase } from '../supabase-client.js';
 import { getSession } from '../auth.js';
 import { getMyShop } from '../shop.js';
-
-// Loaded lazily (only when this page is actually opened) as a classic
-// script, same reasoning as the Supabase UMD tag in index.html: jsQR is a
-// tiny, dependency-free UMD build, and a plain <script> sidesteps any risk
-// from jsDelivr's ESM conversion rather than trusting it for a second
-// package. See README "Why the Supabase script tag looks unusual".
-const JSQR_SRC = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+import { startQrScanner, cameraErrorMessage, extractToken } from '../qr-camera.js';
 
 const ITEM_SELECT = `
   id,
@@ -18,42 +12,16 @@ const ITEM_SELECT = `
   order_item_stages ( id, stage_order, stage_name, status, finished_at, note )
 `;
 
-let activeStream = null;
-let rafHandle = null;
-let jsQRPromise = null;
+let scanner = null;
 
 /** Called by the router before it renders the next page (see router.js). */
 export function onLeave() {
-  stopCamera();
-}
-
-function stopCamera() {
-  if (rafHandle) {
-    cancelAnimationFrame(rafHandle);
-    rafHandle = null;
-  }
-  if (activeStream) {
-    for (const track of activeStream.getTracks()) track.stop();
-    activeStream = null;
-  }
-}
-
-function loadJsQR() {
-  if (window.jsQR) return Promise.resolve(window.jsQR);
-  if (jsQRPromise) return jsQRPromise;
-
-  jsQRPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = JSQR_SRC;
-    script.onload = () => resolve(window.jsQR);
-    script.onerror = () => reject(new Error('Could not load the QR scanner library.'));
-    document.head.appendChild(script);
-  });
-  return jsQRPromise;
+  scanner?.stop();
+  scanner = null;
 }
 
 export async function render(container) {
-  stopCamera(); // defensive — in case render() runs again without onLeave
+  onLeave(); // defensive — in case render() runs again without onLeave
 
   container.innerHTML = '';
   const screen = document.createElement('div');
@@ -75,19 +43,14 @@ export async function render(container) {
     return;
   }
 
-  setView({ name: 'starting' });
+  setView({ name: 'scanning' });
 
   // --- view state machine -------------------------------------------------
 
   function setView(next) {
     switch (next.name) {
-      case 'starting':
-        body.innerHTML = '<p class="text-secondary">Starting camera…</p>';
-        startScanning();
-        break;
-
       case 'scanning':
-        renderScanning(next.stream, next.jsQR);
+        renderScanning();
         break;
 
       case 'resolving':
@@ -99,7 +62,7 @@ export async function render(container) {
           <p class="error-text">${escapeHtml(next.message)}</p>
           <div class="button-row"><button type="button" class="button" data-retry>Try again</button></div>
         `;
-        body.querySelector('[data-retry]').addEventListener('click', () => setView({ name: 'starting' }));
+        body.querySelector('[data-retry]').addEventListener('click', () => setView({ name: 'scanning' }));
         break;
 
       case 'not-found':
@@ -107,7 +70,7 @@ export async function render(container) {
           <p class="empty-state">That code isn't recognized for this shop.</p>
           <div class="button-row"><button type="button" class="button" data-again>Scan another</button></div>
         `;
-        body.querySelector('[data-again]').addEventListener('click', () => setView({ name: 'starting' }));
+        body.querySelector('[data-again]').addEventListener('click', () => setView({ name: 'scanning' }));
         break;
 
       case 'qr-state':
@@ -115,7 +78,7 @@ export async function render(container) {
           <p class="empty-state">${escapeHtml(next.message)}</p>
           <div class="button-row"><button type="button" class="button" data-again>Scan another</button></div>
         `;
-        body.querySelector('[data-again]').addEventListener('click', () => setView({ name: 'starting' }));
+        body.querySelector('[data-again]').addEventListener('click', () => setView({ name: 'scanning' }));
         break;
 
       case 'item':
@@ -124,27 +87,9 @@ export async function render(container) {
     }
   }
 
-  // --- camera + decode loop ------------------------------------------------
+  // --- camera --------------------------------------------------------------
 
-  async function startScanning() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setView({ name: 'error', message: 'Camera access is not available in this browser.' });
-      return;
-    }
-
-    try {
-      const [stream, jsQR] = await Promise.all([
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }),
-        loadJsQR(),
-      ]);
-      activeStream = stream;
-      setView({ name: 'scanning', stream, jsQR });
-    } catch (err) {
-      setView({ name: 'error', message: cameraErrorMessage(err) });
-    }
-  }
-
-  function renderScanning(stream, jsQR) {
+  async function renderScanning() {
     body.innerHTML = `
       <div class="scan-viewport">
         <video autoplay playsinline muted></video>
@@ -153,34 +98,14 @@ export async function render(container) {
       <p class="scan-hint text-secondary">Point the camera at a QR code.</p>
     `;
 
-    const video = body.querySelector('video');
-    video.srcObject = stream;
-    video.play().catch((err) => {
-      stopCamera();
+    try {
+      scanner = await startQrScanner(body.querySelector('video'), (text) => {
+        scanner = null; // startQrScanner already stopped itself before calling back
+        resolveScan(text);
+      });
+    } catch (err) {
       setView({ name: 'error', message: cameraErrorMessage(err) });
-    });
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-    const tick = () => {
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const result = jsQR(frame.data, frame.width, frame.height);
-
-        if (result?.data) {
-          stopCamera();
-          resolveScan(result.data);
-          return;
-        }
-      }
-      rafHandle = requestAnimationFrame(tick);
-    };
-    rafHandle = requestAnimationFrame(tick);
+    }
   }
 
   // --- resolving a scanned code against the database -----------------------
@@ -210,7 +135,7 @@ export async function render(container) {
       if (qrRow.status === 'available') {
         setView({
           name: 'qr-state',
-          message: `QR ${qrRow.display_code} hasn't been assigned to an order yet — order creation isn't built yet, so there's nothing to open.`,
+          message: `QR ${qrRow.display_code} hasn't been assigned to an order yet.`,
         });
         return;
       }
@@ -320,7 +245,7 @@ export async function render(container) {
       </div>
     `;
 
-    body.querySelector('[data-again]').addEventListener('click', () => setView({ name: 'starting' }));
+    body.querySelector('[data-again]').addEventListener('click', () => setView({ name: 'scanning' }));
 
     if (nextStage) {
       body.querySelector('[data-finish]').addEventListener('click', () => finishStage(nextStage, item));
@@ -383,34 +308,6 @@ export async function render(container) {
 }
 
 // --- small helpers -----------------------------------------------------------
-
-// Accepts either a bare token or a URL ending in the token (the customer
-// card is documented to carry a full tracking URL — see the business-rules
-// doc's "QR written URL" section — so the seller card may end up printed
-// the same way; support both rather than assuming one).
-function extractToken(scannedText) {
-  const trimmed = scannedText.trim();
-  try {
-    const url = new URL(trimmed);
-    const segments = url.pathname.split('/').filter(Boolean);
-    return segments[segments.length - 1] || trimmed;
-  } catch {
-    return trimmed;
-  }
-}
-
-function cameraErrorMessage(err) {
-  if (err?.name === 'NotAllowedError') {
-    return 'Camera access was denied. Allow camera access in your browser settings, then try again.';
-  }
-  if (err?.name === 'NotFoundError') {
-    return 'No camera was found on this device.';
-  }
-  if (err?.name === 'NotReadableError') {
-    return 'The camera is already in use by another app.';
-  }
-  return err?.message || 'Could not start the camera.';
-}
 
 function formatDate(iso) {
   if (!iso) return '';
