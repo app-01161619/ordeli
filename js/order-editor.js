@@ -485,7 +485,7 @@ export function renderOrderForm(container, { shop, onCancel, onCreated }) {
 // --- small helpers -----------------------------------------------------------
 
 function formatMoney(amount) {
-  return `₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₱${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function escapeHtml(str) {
