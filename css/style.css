@@ -1262,13 +1262,10 @@ button:disabled {
    MOBILE PREVIEW
 ===================================== */
 
-@media (
-  max-width: 760px
-) {
+@media (max-width: 760px) {
 
   .print-toolbar {
     flex-direction: column;
-
     align-items: stretch;
   }
 
@@ -1283,10 +1280,143 @@ button:disabled {
   }
 
 
-  .print-card-grid {
-    align-items: center;
+  /*
+   * Mobile PREVIEW only.
+   *
+   * The real printed size remains
+   * 85.6mm × 54mm through the
+   * @media print rules above.
+   */
 
-    overflow-x: auto;
+  .print-card-grid {
+    width: 100%;
+
+    padding:
+      16px
+      8px;
+
+    gap: 16px;
+
+    overflow-x: hidden;
+
+    align-items: center;
+  }
+
+
+  /*
+   * Keep the seller/customer pair together,
+   * but make the pair fit inside the phone.
+   */
+
+  .qr-print-pair {
+    width: 100%;
+
+    max-width: 100%;
+
+    display: flex;
+
+    flex-direction: row;
+
+    gap: 4px;
+
+    justify-content: center;
+
+    align-items: stretch;
+
+    overflow: hidden;
+  }
+
+
+  /*
+   * Each preview card becomes half of the
+   * available screen width.
+   */
+
+  .print-card {
+    width: calc(
+      (100vw - 28px) / 2
+    );
+
+    height: auto;
+
+    aspect-ratio:
+      85.6 / 54;
+
+    max-width: none;
+
+    padding: 7px;
+
+    flex:
+      0 0
+      calc(
+        (100vw - 28px) / 2
+      );
+  }
+
+
+  /*
+   * Scale the preview QR appropriately.
+   */
+
+  .print-card-qr {
+    width: 31%;
+
+    height: auto;
+
+    aspect-ratio: 1 / 1;
+  }
+
+
+  .print-card-qr canvas {
+    width: 100% !important;
+
+    height: 100% !important;
+
+    max-width: 100%;
+
+    max-height: 100%;
+  }
+
+
+  .print-card-shop {
+    font-size: 7px;
+  }
+
+
+  .print-card-copy {
+    font-size: 5px;
+  }
+
+
+  .print-card-product {
+    min-height: 0;
+
+    font-size: 9px;
+
+    line-height: 1;
+
+    padding:
+      2px
+      0;
+  }
+
+
+  .print-card-instruction {
+    font-size: 6px;
+  }
+
+
+  .print-card-url {
+    font-size: 4px;
+
+    line-height: 1;
+  }
+
+
+  .print-card-code {
+    font-size: 3.5px;
+
+    line-height: 1;
   }
 
 }
