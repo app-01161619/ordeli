@@ -17,6 +17,9 @@ const shopProfileScreen =
 const homeScreen =
   document.getElementById("homeScreen");
 
+const productsScreen =
+  document.getElementById("productsScreen");
+
 
 const loginForm =
   document.getElementById("loginForm");
@@ -26,6 +29,9 @@ const registerForm =
 
 const shopProfileForm =
   document.getElementById("shopProfileForm");
+
+const productForm =
+  document.getElementById("productForm");
 
 
 const loginShopName =
@@ -65,6 +71,29 @@ const shopLogoPreview =
   document.getElementById("shopLogoPreview");
 
 
+const productList =
+  document.getElementById("productList");
+
+const emptyProductsState =
+  document.getElementById(
+    "emptyProductsState"
+  );
+
+const productEditor =
+  document.getElementById("productEditor");
+
+const productEditorTitle =
+  document.getElementById(
+    "productEditorTitle"
+  );
+
+const productName =
+  document.getElementById("productName");
+
+const productPrice =
+  document.getElementById("productPrice");
+
+
 const loginButton =
   document.getElementById("loginButton");
 
@@ -74,6 +103,11 @@ const registerButton =
 const saveShopProfileButton =
   document.getElementById(
     "saveShopProfileButton"
+  );
+
+const saveProductButton =
+  document.getElementById(
+    "saveProductButton"
   );
 
 
@@ -88,6 +122,11 @@ const registerMessage =
 const shopProfileMessage =
   document.getElementById(
     "shopProfileMessage"
+  );
+
+const productMessage =
+  document.getElementById(
+    "productMessage"
   );
 
 
@@ -112,10 +151,47 @@ const shopProfileLogoutButton =
     "shopProfileLogoutButton"
   );
 
+const productsLogoutButton =
+  document.getElementById(
+    "productsLogoutButton"
+  );
+
 const editShopProfileButton =
   document.getElementById(
     "editShopProfileButton"
   );
+
+const productsButton =
+  document.getElementById(
+    "productsButton"
+  );
+
+const productsBackButton =
+  document.getElementById(
+    "productsBackButton"
+  );
+
+const addProductButton =
+  document.getElementById(
+    "addProductButton"
+  );
+
+const emptyAddProductButton =
+  document.getElementById(
+    "emptyAddProductButton"
+  );
+
+const cancelProductButton =
+  document.getElementById(
+    "cancelProductButton"
+  );
+
+
+// ============================================
+// STATE
+// ============================================
+
+let editingProductId = null;
 
 
 // ============================================
@@ -134,7 +210,8 @@ function getRoute() {
     route === "login" ||
     route === "register" ||
     route === "shop-profile" ||
-    route === "home"
+    route === "home" ||
+    route === "products"
   ) {
     return route;
   }
@@ -163,6 +240,9 @@ function showScreen(route) {
 
   homeScreen.hidden =
     route !== "home";
+
+  productsScreen.hidden =
+    route !== "products";
 }
 
 
@@ -189,7 +269,7 @@ async function getSession() {
 
 
 // ============================================
-// LOAD PROFILE
+// SELLER PROFILE
 // ============================================
 
 async function loadSellerProfile(userId) {
@@ -218,10 +298,6 @@ async function loadSellerProfile(userId) {
 }
 
 
-// ============================================
-// PROFILE COMPLETION
-// ============================================
-
 function isShopProfileComplete(profile) {
 
   return Boolean(
@@ -232,7 +308,7 @@ function isShopProfileComplete(profile) {
 
 
 // ============================================
-// RENDER APPLICATION
+// APPLICATION
 // ============================================
 
 async function renderApplication() {
@@ -243,9 +319,7 @@ async function renderApplication() {
 
   if (!session) {
 
-    if (
-      getRoute() === "register"
-    ) {
+    if (getRoute() === "register") {
 
       showScreen("register");
 
@@ -284,9 +358,21 @@ async function renderApplication() {
     profile.shop_address;
 
 
-  if (
-    getRoute() === "shop-profile"
-  ) {
+  const route =
+    getRoute();
+
+
+  if (route === "products") {
+
+    showScreen("products");
+
+    await loadProducts();
+
+    return;
+  }
+
+
+  if (route === "shop-profile") {
 
     populateShopProfile(profile);
 
@@ -598,11 +684,6 @@ shopProfileForm.addEventListener(
       let logoPath = null;
 
 
-      /*
-       * Keep the existing logo if the
-       * seller does not choose a new one.
-       */
-
       const existingProfile =
         await loadSellerProfile(
           session.user.id
@@ -612,10 +693,6 @@ shopProfileForm.addEventListener(
       logoPath =
         existingProfile.shop_logo_path;
 
-
-      // ------------------------------
-      // Upload new logo
-      // ------------------------------
 
       if (selectedLogo) {
 
@@ -698,11 +775,6 @@ shopProfileForm.addEventListener(
           filePath;
 
 
-        /*
-         * Delete the old logo only after
-         * the new one has uploaded successfully.
-         */
-
         if (
           existingProfile.shop_logo_path &&
           existingProfile.shop_logo_path !==
@@ -720,10 +792,6 @@ shopProfileForm.addEventListener(
 
       }
 
-
-      // ------------------------------
-      // Update database
-      // ------------------------------
 
       const {
         error: updateError
@@ -779,7 +847,7 @@ shopProfileForm.addEventListener(
 
 
 // ============================================
-// LOGO PREVIEW
+// SHOP LOGO PREVIEW
 // ============================================
 
 shopLogo.addEventListener(
@@ -826,29 +894,459 @@ function populateShopProfile(profile) {
   shopName.value =
     profile?.shop_name || "";
 
-
   shopAddress.value =
     profile?.shop_address || "";
 
-
   shopLogo.value = "";
-
 
   shopLogoPreviewContainer.hidden =
     true;
+}
+
+
+// ============================================
+// PRODUCTS
+// ============================================
+
+async function loadProducts() {
+
+  productList.innerHTML = "";
+
+  emptyProductsState.hidden = true;
+
+
+  const session =
+    await getSession();
+
+
+  if (!session) {
+
+    navigate("login");
+
+    return;
+
+  }
+
+
+  const {
+    data,
+    error
+  } =
+    await supabase
+      .from("products")
+      .select(`
+        id,
+        name,
+        default_price,
+        created_at,
+        updated_at
+      `)
+      .eq(
+        "seller_id",
+        session.user.id
+      )
+      .order(
+        "name",
+        {
+          ascending: true
+        }
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  if (!data.length) {
+
+    emptyProductsState.hidden =
+      false;
+
+    return;
+
+  }
+
+
+  for (const product of data) {
+
+    productList.appendChild(
+      createProductCard(product)
+    );
+
+  }
+
+}
+
+
+function createProductCard(product) {
+
+  const card =
+    document.createElement("article");
+
+  card.className =
+    "product-card";
+
+
+  const info =
+    document.createElement("div");
+
+  info.className =
+    "product-card-info";
+
+
+  const title =
+    document.createElement("h2");
+
+  title.textContent =
+    product.name;
+
+
+  const price =
+    document.createElement("p");
+
+  price.className =
+    "product-price";
+
+  price.textContent =
+    formatPrice(
+      product.default_price
+    );
+
+
+  info.appendChild(title);
+
+  info.appendChild(price);
+
+
+  const actions =
+    document.createElement("div");
+
+  actions.className =
+    "product-card-actions";
+
+
+  const editButton =
+    document.createElement("button");
+
+  editButton.type =
+    "button";
+
+  editButton.className =
+    "secondary-button";
+
+  editButton.textContent =
+    "Edit";
+
+
+  editButton.addEventListener(
+    "click",
+    () => {
+
+      openProductEditor(product);
+
+    }
+  );
+
+
+  actions.appendChild(editButton);
+
+
+  card.appendChild(info);
+
+  card.appendChild(actions);
+
+
+  return card;
+}
+
+
+// ============================================
+// OPEN PRODUCT EDITOR
+// ============================================
+
+function openProductEditor(product = null) {
+
+  clearProductMessage();
+
+
+  if (product) {
+
+    editingProductId =
+      product.id;
+
+    productEditorTitle.textContent =
+      "Edit Product";
+
+    productName.value =
+      product.name;
+
+    productPrice.value =
+      Number(
+        product.default_price
+      ).toFixed(2);
+
+  } else {
+
+    editingProductId =
+      null;
+
+    productEditorTitle.textContent =
+      "Add Product";
+
+    productName.value =
+      "";
+
+    productPrice.value =
+      "";
+
+  }
+
+
+  productEditor.hidden =
+    false;
+
+
+  productName.focus();
 
 }
 
 
 // ============================================
-// SHOP PROFILE NAVIGATION
+// CLOSE PRODUCT EDITOR
 // ============================================
 
-editShopProfileButton.addEventListener(
+function closeProductEditor() {
+
+  editingProductId =
+    null;
+
+  productEditor.hidden =
+    true;
+
+  productName.value =
+    "";
+
+  productPrice.value =
+    "";
+
+  clearProductMessage();
+
+}
+
+
+// ============================================
+// ADD PRODUCT
+// ============================================
+
+addProductButton.addEventListener(
   "click",
   () => {
 
-    navigate("shop-profile");
+    openProductEditor();
+
+  }
+);
+
+
+emptyAddProductButton.addEventListener(
+  "click",
+  () => {
+
+    openProductEditor();
+
+  }
+);
+
+
+// ============================================
+// SAVE PRODUCT
+// ============================================
+
+productForm.addEventListener(
+  "submit",
+  async (event) => {
+
+    event.preventDefault();
+
+    clearProductMessage();
+
+
+    const session =
+      await getSession();
+
+
+    if (!session) {
+
+      navigate("login");
+
+      return;
+
+    }
+
+
+    const name =
+      productName.value.trim();
+
+
+    const price =
+      Number(
+        productPrice.value
+      );
+
+
+    if (!name) {
+
+      productMessage.textContent =
+        "Product name is required.";
+
+      return;
+
+    }
+
+
+    if (
+      !Number.isFinite(price) ||
+      price < 0
+    ) {
+
+      productMessage.textContent =
+        "Enter a valid price.";
+
+      return;
+
+    }
+
+
+    saveProductButton.disabled =
+      true;
+
+    saveProductButton.textContent =
+      "Saving...";
+
+
+    try {
+
+      if (editingProductId) {
+
+        const {
+          error
+        } =
+          await supabase
+            .from("products")
+            .update({
+
+              name,
+
+              default_price:
+                price,
+
+              updated_at:
+                new Date().toISOString()
+
+            })
+            .eq(
+              "id",
+              editingProductId
+            )
+            .eq(
+              "seller_id",
+              session.user.id
+            );
+
+
+        if (error) {
+          throw error;
+        }
+
+      } else {
+
+        const {
+          error
+        } =
+          await supabase
+            .from("products")
+            .insert({
+
+              seller_id:
+                session.user.id,
+
+              name,
+
+              default_price:
+                price
+
+            });
+
+
+        if (error) {
+          throw error;
+        }
+
+      }
+
+
+      closeProductEditor();
+
+      await loadProducts();
+
+
+    } catch (error) {
+
+      console.error(
+        "Product save failed:",
+        error
+      );
+
+
+      productMessage.textContent =
+        getProductErrorMessage(error);
+
+    } finally {
+
+      saveProductButton.disabled =
+        false;
+
+      saveProductButton.textContent =
+        "Save Product";
+
+    }
+
+  }
+);
+
+
+// ============================================
+// PRODUCT NAVIGATION
+// ============================================
+
+productsButton.addEventListener(
+  "click",
+  () => {
+
+    navigate("products");
+
+  }
+);
+
+
+productsBackButton.addEventListener(
+  "click",
+  () => {
+
+    closeProductEditor();
+
+    navigate("home");
+
+  }
+);
+
+
+cancelProductButton.addEventListener(
+  "click",
+  () => {
+
+    closeProductEditor();
 
   }
 );
@@ -872,6 +1370,8 @@ async function logout() {
       throw error;
     }
 
+
+    closeProductEditor();
 
     navigate("login");
 
@@ -904,6 +1404,26 @@ shopProfileLogoutButton.addEventListener(
 );
 
 
+productsLogoutButton.addEventListener(
+  "click",
+  logout
+);
+
+
+// ============================================
+// PROFILE NAVIGATION
+// ============================================
+
+editShopProfileButton.addEventListener(
+  "click",
+  () => {
+
+    navigate("shop-profile");
+
+  }
+);
+
+
 // ============================================
 // AUTH STATE
 // ============================================
@@ -918,6 +1438,7 @@ supabase.auth.onAuthStateChange(
         showScreen("login");
 
         return;
+
       }
 
 
@@ -966,7 +1487,7 @@ window.addEventListener(
 
 
 // ============================================
-// CLEAR MESSAGES
+// MESSAGES
 // ============================================
 
 function clearMessages() {
@@ -979,6 +1500,62 @@ function clearMessages() {
 
   shopProfileMessage.textContent =
     "";
+
+}
+
+
+function clearProductMessage() {
+
+  productMessage.textContent =
+    "";
+
+}
+
+
+// ============================================
+// PRODUCT ERROR
+// ============================================
+
+function getProductErrorMessage(error) {
+
+  if (
+    error?.code === "42501"
+  ) {
+
+    return "You don't have permission to modify this product.";
+
+  }
+
+
+  return (
+    error?.message ||
+    "Unable to save product."
+  );
+
+}
+
+
+// ============================================
+// PRICE
+// ============================================
+
+function formatPrice(value) {
+
+  const number =
+    Number(value);
+
+
+  return new Intl.NumberFormat(
+    "en-PH",
+    {
+      style: "currency",
+      currency: "PHP"
+    }
+  ).format(
+    Number.isFinite(number)
+      ? number
+      : 0
+  );
 
 }
 

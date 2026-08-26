@@ -376,18 +376,29 @@
               Shop
             </h1>
 
-            <p id="homeShopAddress">
-            </p>
+            <p id="homeShopAddress"></p>
 
           </div>
 
-          <button
-            id="editShopProfileButton"
-            class="secondary-button"
-            type="button"
-          >
-            Shop Profile
-          </button>
+          <div class="header-actions">
+
+            <button
+              id="productsButton"
+              class="secondary-button"
+              type="button"
+            >
+              Products
+            </button>
+
+            <button
+              id="editShopProfileButton"
+              class="secondary-button"
+              type="button"
+            >
+              Shop Profile
+            </button>
+
+          </div>
 
         </header>
 
@@ -416,33 +427,221 @@
     </section>
 
 
+
+    <!-- ==================================
+         PRODUCTS
+    =================================== -->
+
+    <section
+      id="productsScreen"
+      class="screen"
+      hidden
+    >
+
+      <div class="app-container">
+
+        <header class="page-header">
+
+          <div>
+
+            <button
+              id="productsBackButton"
+              class="back-button"
+              type="button"
+            >
+              ← Back
+            </button>
+
+            <h1>Products</h1>
+
+            <p class="page-subtitle">
+              Manage the products you offer.
+            </p>
+
+          </div>
+
+          <button
+            id="addProductButton"
+            type="button"
+          >
+            Add Product
+          </button>
+
+        </header>
+
+
+        <section
+          id="productList"
+          class="product-list"
+        >
+        </section>
+
+
+        <section
+          id="emptyProductsState"
+          class="empty-state"
+          hidden
+        >
+
+          <h2>No Products Yet</h2>
+
+          <p>
+            Add your first product to get started.
+          </p>
+
+          <button
+            id="emptyAddProductButton"
+            type="button"
+          >
+            Add Product
+          </button>
+
+        </section>
+
+
+        <section
+          id="productEditor"
+          class="product-editor"
+          hidden
+        >
+
+          <div class="editor-card">
+
+            <h2 id="productEditorTitle">
+              Add Product
+            </h2>
+
+
+            <form id="productForm">
+
+              <div class="form-group">
+
+                <label for="productName">
+                  Product Name
+                </label>
+
+                <input
+                  id="productName"
+                  type="text"
+                  required
+                  maxlength="100"
+                >
+
+              </div>
+
+
+              <div class="form-group">
+
+                <label for="productPrice">
+                  Default Price
+                </label>
+
+                <div class="price-input">
+
+                  <span>₱</span>
+
+                  <input
+                    id="productPrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputmode="decimal"
+                    required
+                  >
+
+                </div>
+
+              </div>
+
+
+              <div class="editor-actions">
+
+                <button
+                  id="cancelProductButton"
+                  class="secondary-button"
+                  type="button"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  id="saveProductButton"
+                  type="submit"
+                >
+                  Save Product
+                </button>
+
+              </div>
+
+
+              <p
+                id="productMessage"
+                class="form-message"
+                role="alert"
+              ></p>
+
+            </form>
+
+          </div>
+
+        </section>
+
+
+        <button
+          id="productsLogoutButton"
+          class="secondary-button products-logout-button"
+          type="button"
+        >
+          Log Out
+        </button>
+
+      </div>
+
+    </section>
+
+
   </main>
 
-<script
-  type="module"
-  src="./js/app.js"
-></script>
 
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker
-        .register("./sw.js")
-        .then((registration) => {
-          console.log(
-            "Service worker registered:",
-            registration.scope
-          );
-        })
-        .catch((error) => {
-          console.error(
-            "Service worker registration failed:",
-            error
-          );
-        });
-    });
-  }
-</script>
+  <script
+    type="module"
+    src="./js/app.js"
+  ></script>
+
+
+  <script>
+
+    if ("serviceWorker" in navigator) {
+
+      window.addEventListener(
+        "load",
+        () => {
+
+          navigator.serviceWorker
+            .register("./sw.js")
+            .then((registration) => {
+
+              console.log(
+                "Service worker registered:",
+                registration.scope
+              );
+
+            })
+            .catch((error) => {
+
+              console.error(
+                "Service worker registration failed:",
+                error
+              );
+
+            });
+
+        }
+      );
+
+    }
+
+  </script>
 
 </body>
 

@@ -24,10 +24,21 @@ body {
 }
 
 
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+
 .screen {
   min-height: 100vh;
 }
 
+
+/* =====================================
+   AUTH
+===================================== */
 
 .auth-container {
   min-height: 100vh;
@@ -77,6 +88,10 @@ body {
 }
 
 
+/* =====================================
+   FORMS
+===================================== */
+
 .form-group {
   margin-bottom: 18px;
 }
@@ -102,7 +117,9 @@ body {
 
   border-radius: 8px;
 
-  font: inherit;
+  background: #fff;
+
+  color: #222;
 }
 
 
@@ -120,12 +137,9 @@ body {
 }
 
 
-.optional {
-  font-weight: 400;
-
-  color: #777;
-}
-
+/* =====================================
+   BUTTONS
+===================================== */
 
 button {
   width: 100%;
@@ -139,8 +153,6 @@ button {
   background: #222;
 
   color: #fff;
-
-  font-size: 16px;
 
   cursor: pointer;
 }
@@ -160,6 +172,26 @@ button:disabled {
 }
 
 
+.back-button {
+  width: auto;
+
+  padding:
+    0
+    0
+    12px;
+
+  background: transparent;
+
+  color: #555;
+
+  text-align: left;
+}
+
+
+/* =====================================
+   MESSAGES
+===================================== */
+
 .form-message {
   min-height: 20px;
 
@@ -169,12 +201,27 @@ button:disabled {
 }
 
 
+/* =====================================
+   AUTH LINKS
+===================================== */
+
 .auth-link {
   margin-top: 20px;
 
   text-align: center;
 }
 
+
+.optional {
+  font-weight: 400;
+
+  color: #777;
+}
+
+
+/* =====================================
+   SHOP LOGO
+===================================== */
 
 .logo-preview-container {
   margin:
@@ -203,17 +250,17 @@ button:disabled {
 
 
 /* =====================================
-   HOME
+   APP
 ===================================== */
 
 .app-container {
   min-height: 100vh;
 
-  padding: 20px;
-
   max-width: 900px;
 
   margin: 0 auto;
+
+  padding: 20px;
 }
 
 
@@ -247,8 +294,291 @@ button:disabled {
 }
 
 
+.header-actions {
+  display: flex;
+
+  gap: 8px;
+}
+
+
+.header-actions .secondary-button {
+  width: auto;
+}
+
+
 .home-content {
   padding:
     30px
     0;
+}
+
+
+/* =====================================
+   PAGE HEADER
+===================================== */
+
+.page-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-start;
+
+  gap: 20px;
+
+  padding:
+    20px
+    0
+    30px;
+}
+
+
+.page-header h1 {
+  margin:
+    0
+    0
+    6px;
+}
+
+
+.page-subtitle {
+  margin: 0;
+
+  color: #666;
+}
+
+
+.page-header > button {
+  width: auto;
+
+  white-space: nowrap;
+}
+
+
+/* =====================================
+   PRODUCTS
+===================================== */
+
+.product-list {
+  display: grid;
+
+  gap: 12px;
+}
+
+
+.product-card {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+
+  padding: 18px;
+
+  background: #fff;
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 2px 10px
+    rgba(0, 0, 0, 0.06);
+}
+
+
+.product-card-info h2 {
+  margin:
+    0
+    0
+    6px;
+
+  font-size: 18px;
+}
+
+
+.product-price {
+  margin: 0;
+
+  color: #555;
+
+  font-weight: 600;
+}
+
+
+.product-card-actions {
+  flex-shrink: 0;
+}
+
+
+.product-card-actions button {
+  width: auto;
+
+  min-width: 72px;
+}
+
+
+/* =====================================
+   EMPTY STATE
+===================================== */
+
+.empty-state {
+  padding:
+    50px
+    20px;
+
+  text-align: center;
+
+  background: #fff;
+
+  border-radius: 12px;
+}
+
+
+.empty-state h2 {
+  margin:
+    0
+    0
+    8px;
+}
+
+
+.empty-state p {
+  margin:
+    0
+    20px;
+
+  color: #666;
+}
+
+
+.empty-state button {
+  width: auto;
+}
+
+
+/* =====================================
+   PRODUCT EDITOR
+===================================== */
+
+.product-editor {
+  margin-top: 20px;
+}
+
+
+.editor-card {
+  max-width: 520px;
+
+  margin: 0 auto;
+
+  padding: 24px;
+
+  background: #fff;
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 4px 20px
+    rgba(0, 0, 0, 0.08);
+}
+
+
+.editor-card h2 {
+  margin:
+    0
+    0
+    20px;
+}
+
+
+.price-input {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+
+.price-input span {
+  font-weight: 600;
+}
+
+
+.price-input input {
+  flex: 1;
+}
+
+
+.editor-actions {
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    1fr;
+
+  gap: 10px;
+}
+
+
+.products-logout-button {
+  margin-top: 30px;
+}
+
+
+/* =====================================
+   RESPONSIVE
+===================================== */
+
+@media (max-width: 640px) {
+
+  .auth-card {
+    padding: 24px;
+  }
+
+
+  .app-container {
+    padding: 16px;
+  }
+
+
+  .app-header,
+  .page-header {
+    flex-direction: column;
+  }
+
+
+  .header-actions {
+    width: 100%;
+  }
+
+
+  .header-actions button {
+    flex: 1;
+  }
+
+
+  .page-header > button {
+    width: 100%;
+  }
+
+
+  .product-card {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+
+  .product-card-actions,
+  .product-card-actions button {
+    width: 100%;
+  }
+
+
+  .editor-actions {
+    grid-template-columns:
+      1fr;
+  }
+
 }
