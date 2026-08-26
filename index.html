@@ -106,9 +106,7 @@
 
             Don't have an account?
 
-            <a
-              href="#register"
-            >
+            <a href="#register">
               Create one
             </a>
 
@@ -217,13 +215,133 @@
 
             Already have an account?
 
-            <a
-              href="#login"
-            >
+            <a href="#login">
               Log In
             </a>
 
           </p>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- ==================================
+         SHOP PROFILE
+    =================================== -->
+
+    <section
+      id="shopProfileScreen"
+      class="screen"
+      hidden
+    >
+
+      <div class="auth-container">
+
+        <div class="auth-card">
+
+          <h1>Shop Profile</h1>
+
+          <p class="auth-subtitle">
+            Complete your shop information.
+          </p>
+
+
+          <form id="shopProfileForm">
+
+
+            <div class="form-group">
+
+              <label for="shopName">
+                Shop Name
+              </label>
+
+              <input
+                id="shopName"
+                type="text"
+                autocomplete="organization"
+                required
+              >
+
+            </div>
+
+
+            <div class="form-group">
+
+              <label for="shopAddress">
+                Shop Address
+              </label>
+
+              <textarea
+                id="shopAddress"
+                rows="4"
+                autocomplete="street-address"
+                required
+              ></textarea>
+
+            </div>
+
+
+            <div class="form-group">
+
+              <label for="shopLogo">
+                Shop Logo
+                <span class="optional">
+                  Optional
+                </span>
+              </label>
+
+              <input
+                id="shopLogo"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+              >
+
+            </div>
+
+
+            <div
+              id="shopLogoPreviewContainer"
+              class="logo-preview-container"
+              hidden
+            >
+
+              <img
+                id="shopLogoPreview"
+                class="logo-preview"
+                alt="Shop logo preview"
+              >
+
+            </div>
+
+
+            <button
+              id="saveShopProfileButton"
+              type="submit"
+            >
+              Save Shop Profile
+            </button>
+
+
+            <p
+              id="shopProfileMessage"
+              class="form-message"
+              role="alert"
+            ></p>
+
+          </form>
+
+
+          <button
+            id="shopProfileLogoutButton"
+            class="secondary-button"
+            type="button"
+          >
+            Log Out
+          </button>
 
         </div>
 
@@ -243,26 +361,50 @@
       hidden
     >
 
-      <div class="auth-container">
+      <div class="app-container">
 
-        <div class="auth-card">
+        <header class="app-header">
 
-          <h1>Seller App</h1>
+          <div>
 
-          <p>
-            Welcome,
-            <strong id="homeShopName"></strong>
-          </p>
+            <h1 id="homeShopName">
+              Shop
+            </h1>
 
+            <p id="homeShopAddress">
+            </p>
+
+          </div>
 
           <button
-            id="logoutButton"
+            id="editShopProfileButton"
+            class="secondary-button"
             type="button"
           >
-            Log Out
+            Shop Profile
           </button>
 
-        </div>
+        </header>
+
+
+        <section class="home-content">
+
+          <h2>Welcome</h2>
+
+          <p>
+            Your seller account is ready.
+          </p>
+
+        </section>
+
+
+        <button
+          id="logoutButton"
+          class="secondary-button"
+          type="button"
+        >
+          Log Out
+        </button>
 
       </div>
 

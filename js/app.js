@@ -11,6 +11,9 @@ const loginScreen =
 const registerScreen =
   document.getElementById("registerScreen");
 
+const shopProfileScreen =
+  document.getElementById("shopProfileScreen");
+
 const homeScreen =
   document.getElementById("homeScreen");
 
@@ -20,6 +23,9 @@ const loginForm =
 
 const registerForm =
   document.getElementById("registerForm");
+
+const shopProfileForm =
+  document.getElementById("shopProfileForm");
 
 
 const loginShopName =
@@ -41,25 +47,75 @@ const registerConfirmPassword =
   );
 
 
+const shopName =
+  document.getElementById("shopName");
+
+const shopAddress =
+  document.getElementById("shopAddress");
+
+const shopLogo =
+  document.getElementById("shopLogo");
+
+const shopLogoPreviewContainer =
+  document.getElementById(
+    "shopLogoPreviewContainer"
+  );
+
+const shopLogoPreview =
+  document.getElementById("shopLogoPreview");
+
+
 const loginButton =
   document.getElementById("loginButton");
 
 const registerButton =
   document.getElementById("registerButton");
 
-const logoutButton =
-  document.getElementById("logoutButton");
+const saveShopProfileButton =
+  document.getElementById(
+    "saveShopProfileButton"
+  );
 
 
 const loginMessage =
   document.getElementById("loginMessage");
 
 const registerMessage =
-  document.getElementById("registerMessage");
+  document.getElementById(
+    "registerMessage"
+  );
+
+const shopProfileMessage =
+  document.getElementById(
+    "shopProfileMessage"
+  );
 
 
 const homeShopName =
-  document.getElementById("homeShopName");
+  document.getElementById(
+    "homeShopName"
+  );
+
+const homeShopAddress =
+  document.getElementById(
+    "homeShopAddress"
+  );
+
+
+const logoutButton =
+  document.getElementById(
+    "logoutButton"
+  );
+
+const shopProfileLogoutButton =
+  document.getElementById(
+    "shopProfileLogoutButton"
+  );
+
+const editShopProfileButton =
+  document.getElementById(
+    "editShopProfileButton"
+  );
 
 
 // ============================================
@@ -77,6 +133,7 @@ function getRoute() {
   if (
     route === "login" ||
     route === "register" ||
+    route === "shop-profile" ||
     route === "home"
   ) {
     return route;
@@ -100,6 +157,9 @@ function showScreen(route) {
 
   registerScreen.hidden =
     route !== "register";
+
+  shopProfileScreen.hidden =
+    route !== "shop-profile";
 
   homeScreen.hidden =
     route !== "home";
@@ -129,7 +189,7 @@ async function getSession() {
 
 
 // ============================================
-// LOAD SELLER PROFILE
+// LOAD PROFILE
 // ============================================
 
 async function loadSellerProfile(userId) {
@@ -140,7 +200,11 @@ async function loadSellerProfile(userId) {
   } =
     await supabase
       .from("seller_profiles")
-      .select("shop_name")
+      .select(`
+        shop_name,
+        shop_address,
+        shop_logo_path
+      `)
       .eq("id", userId)
       .single();
 
@@ -155,7 +219,20 @@ async function loadSellerProfile(userId) {
 
 
 // ============================================
-// RENDER ROUTE
+// PROFILE COMPLETION
+// ============================================
+
+function isShopProfileComplete(profile) {
+
+  return Boolean(
+    profile?.shop_name?.trim() &&
+    profile?.shop_address?.trim()
+  );
+}
+
+
+// ============================================
+// RENDER APPLICATION
 // ============================================
 
 async function renderApplication() {
@@ -166,7 +243,9 @@ async function renderApplication() {
 
   if (!session) {
 
-    if (getRoute() === "register") {
+    if (
+      getRoute() === "register"
+    ) {
 
       showScreen("register");
 
@@ -186,8 +265,35 @@ async function renderApplication() {
     );
 
 
+  if (
+    !isShopProfileComplete(profile)
+  ) {
+
+    populateShopProfile(profile);
+
+    showScreen("shop-profile");
+
+    return;
+  }
+
+
   homeShopName.textContent =
     profile.shop_name;
+
+  homeShopAddress.textContent =
+    profile.shop_address;
+
+
+  if (
+    getRoute() === "shop-profile"
+  ) {
+
+    populateShopProfile(profile);
+
+    showScreen("shop-profile");
+
+    return;
+  }
 
 
   showScreen("home");
@@ -207,7 +313,7 @@ registerForm.addEventListener(
     clearMessages();
 
 
-    const shopName =
+    const name =
       registerShopName.value.trim();
 
     const password =
@@ -217,19 +323,10 @@ registerForm.addEventListener(
       registerConfirmPassword.value;
 
 
-    if (shopName.length < 2) {
+    if (name.length < 2) {
 
       registerMessage.textContent =
         "Shop name must be at least 2 characters.";
-
-      return;
-    }
-
-
-    if (password !== confirmPassword) {
-
-      registerMessage.textContent =
-        "Passwords do not match.";
 
       return;
     }
@@ -244,6 +341,17 @@ registerForm.addEventListener(
     }
 
 
+    if (
+      password !== confirmPassword
+    ) {
+
+      registerMessage.textContent =
+        "Passwords do not match.";
+
+      return;
+    }
+
+
     registerButton.disabled = true;
 
     registerButton.textContent =
@@ -251,12 +359,6 @@ registerForm.addEventListener(
 
 
     try {
-
-      /*
-       * Generate a private technical identity.
-       *
-       * The seller never sees this value.
-       */
 
       const internalId =
         crypto.randomUUID();
@@ -280,7 +382,7 @@ registerForm.addEventListener(
 
             data: {
 
-              shop_name: shopName,
+              shop_name: name,
 
               login_identifier:
                 internalEmail
@@ -297,23 +399,16 @@ registerForm.addEventListener(
       }
 
 
-      /*
-       * Email confirmation must be disabled
-       * in Supabase for this authentication
-       * model.
-       */
-
       if (!data.session) {
 
         throw new Error(
-          "Account was created but no session was returned. Check that email confirmation is disabled in Supabase Auth."
+          "Account was created but no session was returned. Check that email confirmation is disabled."
         );
 
       }
 
 
-      navigate("home");
-
+      navigate("shop-profile");
 
     } catch (error) {
 
@@ -324,8 +419,7 @@ registerForm.addEventListener(
 
 
       registerMessage.textContent =
-        getFriendlyAuthError(error);
-
+        error.message;
 
     } finally {
 
@@ -353,20 +447,11 @@ loginForm.addEventListener(
     clearMessages();
 
 
-    const shopName =
+    const name =
       loginShopName.value.trim();
 
     const password =
       loginPassword.value;
-
-
-    if (!shopName) {
-
-      loginMessage.textContent =
-        "Enter your shop name.";
-
-      return;
-    }
 
 
     loginButton.disabled = true;
@@ -377,53 +462,44 @@ loginForm.addEventListener(
 
     try {
 
-      /*
-       * Find the hidden Supabase
-       * authentication identity.
-       */
-
       const {
-        data: loginData,
-        error: lookupError
+        data,
+        error
       } =
         await supabase.rpc(
           "get_login_identifier",
           {
             requested_shop_name:
-              shopName
+              name
           }
         );
 
 
-      if (lookupError) {
-        throw lookupError;
+      if (error) {
+        throw error;
       }
 
 
-      if (!loginData) {
+      if (!data) {
 
         throw new Error(
-          "Invalid shop name or password."
+          "Invalid credentials."
         );
 
       }
 
 
-      /*
-       * Use the hidden identity with
-       * Supabase's normal password auth.
-       */
-
       const {
         error: loginError
       } =
-        await supabase.auth.signInWithPassword({
+        await supabase.auth
+          .signInWithPassword({
 
-          email: loginData,
+            email: data,
 
-          password
+            password
 
-        });
+          });
 
 
       if (loginError) {
@@ -431,8 +507,7 @@ loginForm.addEventListener(
       }
 
 
-      navigate("home");
-
+      await renderApplication();
 
     } catch (error) {
 
@@ -442,14 +517,8 @@ loginForm.addEventListener(
       );
 
 
-      /*
-       * Don't reveal whether the shop
-       * exists.
-       */
-
       loginMessage.textContent =
         "Invalid shop name or password.";
-
 
     } finally {
 
@@ -465,54 +534,243 @@ loginForm.addEventListener(
 
 
 // ============================================
-// LOGOUT
+// SHOP PROFILE
 // ============================================
 
-logoutButton.addEventListener(
-  "click",
-  async () => {
+shopProfileForm.addEventListener(
+  "submit",
+  async (event) => {
 
-    logoutButton.disabled = true;
+    event.preventDefault();
 
-    logoutButton.textContent =
-      "Logging out...";
+    shopProfileMessage.textContent =
+      "";
+
+
+    const session =
+      await getSession();
+
+
+    if (!session) {
+
+      navigate("login");
+
+      return;
+    }
+
+
+    const name =
+      shopName.value.trim();
+
+    const address =
+      shopAddress.value.trim();
+
+    const selectedLogo =
+      shopLogo.files[0];
+
+
+    if (name.length < 2) {
+
+      shopProfileMessage.textContent =
+        "Shop name must be at least 2 characters.";
+
+      return;
+    }
+
+
+    if (!address) {
+
+      shopProfileMessage.textContent =
+        "Shop address is required.";
+
+      return;
+    }
+
+
+    saveShopProfileButton.disabled = true;
+
+    saveShopProfileButton.textContent =
+      "Saving...";
 
 
     try {
 
-      const {
-        error
-      } =
-        await supabase.auth.signOut();
+      let logoPath = null;
 
 
-      if (error) {
-        throw error;
+      /*
+       * Keep the existing logo if the
+       * seller does not choose a new one.
+       */
+
+      const existingProfile =
+        await loadSellerProfile(
+          session.user.id
+        );
+
+
+      logoPath =
+        existingProfile.shop_logo_path;
+
+
+      // ------------------------------
+      // Upload new logo
+      // ------------------------------
+
+      if (selectedLogo) {
+
+        const allowedTypes = [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ];
+
+
+        if (
+          !allowedTypes.includes(
+            selectedLogo.type
+          )
+        ) {
+
+          throw new Error(
+            "Please choose a PNG, JPEG, or WebP image."
+          );
+
+        }
+
+
+        const maxSize =
+          5 * 1024 * 1024;
+
+
+        if (
+          selectedLogo.size > maxSize
+        ) {
+
+          throw new Error(
+            "Shop logo must be 5 MB or smaller."
+          );
+
+        }
+
+
+        const extension =
+          getFileExtension(
+            selectedLogo.name
+          );
+
+
+        const fileName =
+          `${crypto.randomUUID()}.${extension}`;
+
+
+        const filePath =
+          `${session.user.id}/${fileName}`;
+
+
+        const {
+          error: uploadError
+        } =
+          await supabase
+            .storage
+            .from("shop-logos")
+            .upload(
+              filePath,
+              selectedLogo,
+              {
+                contentType:
+                  selectedLogo.type,
+
+                cacheControl:
+                  "3600",
+
+                upsert: false
+              }
+            );
+
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+
+        logoPath =
+          filePath;
+
+
+        /*
+         * Delete the old logo only after
+         * the new one has uploaded successfully.
+         */
+
+        if (
+          existingProfile.shop_logo_path &&
+          existingProfile.shop_logo_path !==
+            logoPath
+        ) {
+
+          await supabase
+            .storage
+            .from("shop-logos")
+            .remove([
+              existingProfile.shop_logo_path
+            ]);
+
+        }
+
       }
 
 
-      navigate("login");
+      // ------------------------------
+      // Update database
+      // ------------------------------
+
+      const {
+        error: updateError
+      } =
+        await supabase
+          .from("seller_profiles")
+          .update({
+
+            shop_name: name,
+
+            shop_address: address,
+
+            shop_logo_path: logoPath
+
+          })
+          .eq(
+            "id",
+            session.user.id
+          );
+
+
+      if (updateError) {
+        throw updateError;
+      }
+
+
+      await renderApplication();
 
 
     } catch (error) {
 
       console.error(
-        "Logout failed:",
+        "Shop profile save failed:",
         error
       );
 
 
-      alert(
-        "Unable to log out. Please try again."
-      );
-
+      shopProfileMessage.textContent =
+        error.message ||
+        "Unable to save shop profile.";
 
     } finally {
 
-      logoutButton.disabled = false;
+      saveShopProfileButton.disabled = false;
 
-      logoutButton.textContent =
-        "Log Out";
+      saveShopProfileButton.textContent =
+        "Save Shop Profile";
 
     }
 
@@ -521,7 +779,133 @@ logoutButton.addEventListener(
 
 
 // ============================================
-// AUTH STATE CHANGES
+// LOGO PREVIEW
+// ============================================
+
+shopLogo.addEventListener(
+  "change",
+  () => {
+
+    const file =
+      shopLogo.files[0];
+
+
+    if (!file) {
+
+      shopLogoPreviewContainer.hidden =
+        true;
+
+      shopLogoPreview.removeAttribute(
+        "src"
+      );
+
+      return;
+    }
+
+
+    const previewUrl =
+      URL.createObjectURL(file);
+
+
+    shopLogoPreview.src =
+      previewUrl;
+
+    shopLogoPreviewContainer.hidden =
+      false;
+
+  }
+);
+
+
+// ============================================
+// POPULATE SHOP PROFILE
+// ============================================
+
+function populateShopProfile(profile) {
+
+  shopName.value =
+    profile?.shop_name || "";
+
+
+  shopAddress.value =
+    profile?.shop_address || "";
+
+
+  shopLogo.value = "";
+
+
+  shopLogoPreviewContainer.hidden =
+    true;
+
+}
+
+
+// ============================================
+// SHOP PROFILE NAVIGATION
+// ============================================
+
+editShopProfileButton.addEventListener(
+  "click",
+  () => {
+
+    navigate("shop-profile");
+
+  }
+);
+
+
+// ============================================
+// LOGOUT
+// ============================================
+
+async function logout() {
+
+  try {
+
+    const {
+      error
+    } =
+      await supabase.auth.signOut();
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    navigate("login");
+
+  } catch (error) {
+
+    console.error(
+      "Logout failed:",
+      error
+    );
+
+
+    alert(
+      "Unable to log out. Please try again."
+    );
+
+  }
+
+}
+
+
+logoutButton.addEventListener(
+  "click",
+  logout
+);
+
+
+shopProfileLogoutButton.addEventListener(
+  "click",
+  logout
+);
+
+
+// ============================================
+// AUTH STATE
 // ============================================
 
 supabase.auth.onAuthStateChange(
@@ -529,20 +913,20 @@ supabase.auth.onAuthStateChange(
 
     try {
 
-      if (session) {
-
-        await renderApplication();
-
-      } else {
+      if (!session) {
 
         showScreen("login");
 
+        return;
       }
+
+
+      await renderApplication();
 
     } catch (error) {
 
       console.error(
-        "Auth state handling failed:",
+        "Auth state error:",
         error
       );
 
@@ -555,7 +939,7 @@ supabase.auth.onAuthStateChange(
 
 
 // ============================================
-// HASH NAVIGATION
+// ROUTING
 // ============================================
 
 window.addEventListener(
@@ -593,34 +977,30 @@ function clearMessages() {
   registerMessage.textContent =
     "";
 
+  shopProfileMessage.textContent =
+    "";
+
 }
 
 
 // ============================================
-// ERROR MESSAGE
+// FILE EXTENSION
 // ============================================
 
-function getFriendlyAuthError(error) {
+function getFileExtension(fileName) {
 
-  const message =
-    String(error?.message || "")
-      .toLowerCase();
+  const parts =
+    fileName.split(".");
 
 
-  if (
-    message.includes("already registered") ||
-    message.includes("already been registered")
-  ) {
-
-    return "Unable to create this account.";
-
+  if (parts.length < 2) {
+    return "jpg";
   }
 
 
-  return (
-    error?.message ||
-    "Unable to create the account."
-  );
+  return parts
+    .pop()
+    .toLowerCase();
 
 }
 

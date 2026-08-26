@@ -45,7 +45,7 @@ body {
 .auth-card {
   width: 100%;
 
-  max-width: 420px;
+  max-width: 460px;
 
   padding: 32px;
 
@@ -78,7 +78,7 @@ body {
 
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 
@@ -91,7 +91,8 @@ body {
 }
 
 
-.form-group input {
+.form-group input,
+.form-group textarea {
   width: 100%;
 
   padding: 12px;
@@ -101,14 +102,28 @@ body {
 
   border-radius: 8px;
 
-  font-size: 16px;
+  font: inherit;
 }
 
 
-.form-group input:focus {
-  outline: 2px solid #999;
+.form-group textarea {
+  resize: vertical;
+}
+
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline:
+    2px solid #999;
 
   outline-offset: 1px;
+}
+
+
+.optional {
+  font-weight: 400;
+
+  color: #777;
 }
 
 
@@ -138,6 +153,13 @@ button:disabled {
 }
 
 
+.secondary-button {
+  background: #eee;
+
+  color: #222;
+}
+
+
 .form-message {
   min-height: 20px;
 
@@ -151,4 +173,82 @@ button:disabled {
   margin-top: 20px;
 
   text-align: center;
+}
+
+
+.logo-preview-container {
+  margin:
+    0
+    0
+    20px;
+
+  text-align: center;
+}
+
+
+.logo-preview {
+  width: 120px;
+
+  height: 120px;
+
+  object-fit: contain;
+
+  border:
+    1px solid #ddd;
+
+  border-radius: 12px;
+
+  background: #fafafa;
+}
+
+
+/* =====================================
+   HOME
+===================================== */
+
+.app-container {
+  min-height: 100vh;
+
+  padding: 20px;
+
+  max-width: 900px;
+
+  margin: 0 auto;
+}
+
+
+.app-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-start;
+
+  gap: 20px;
+
+  padding:
+    20px
+    0;
+}
+
+
+.app-header h1 {
+  margin:
+    0
+    0
+    6px;
+}
+
+
+.app-header p {
+  margin: 0;
+
+  color: #666;
+}
+
+
+.home-content {
+  padding:
+    30px
+    0;
 }
