@@ -942,6 +942,59 @@
 
     </section>
 
+    <!-- =====================================
+     QR PRINT
+====================================== -->
+
+<section
+  id="qrPrintScreen"
+  class="screen print-screen"
+  hidden
+>
+
+  <div class="print-toolbar">
+
+    <div>
+
+      <h1 id="printSeriesName">
+        QR Cards
+      </h1>
+
+      <p id="printSeriesInfo"></p>
+
+    </div>
+
+
+    <div class="print-toolbar-actions">
+
+      <button
+        id="printCardsButton"
+        type="button"
+      >
+        Print Cards
+      </button>
+
+
+      <button
+        id="closePrintButton"
+        class="secondary-button"
+        type="button"
+      >
+        Back
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <div
+    id="printCardGrid"
+    class="print-card-grid"
+  ></div>
+
+</section>
+
 
   </main>
 
@@ -949,6 +1002,8 @@
   <!-- =====================================
        APPLICATION JAVASCRIPT
   ====================================== -->
+
+  <script src="https://unpkg.com/@qrcode-js/browser"></script>
 
   <script
     type="module"

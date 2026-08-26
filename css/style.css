@@ -878,3 +878,309 @@ button:disabled {
   }
 
 }
+
+/* =====================================
+   QR PRINT SCREEN
+===================================== */
+
+.print-screen {
+  background: #fff;
+}
+
+
+.print-toolbar {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 20px;
+
+  padding: 20px;
+
+  border-bottom:
+    1px solid #ddd;
+}
+
+
+.print-toolbar h1 {
+  margin:
+    0
+    0
+    5px;
+}
+
+
+.print-toolbar p {
+  margin: 0;
+
+  color: #666;
+}
+
+
+.print-toolbar-actions {
+  display: flex;
+
+  gap: 8px;
+}
+
+
+.print-toolbar-actions button {
+  width: auto;
+
+  white-space: nowrap;
+}
+
+
+.print-card-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      85.6mm
+    );
+
+  gap: 6mm;
+
+  justify-content: center;
+
+  padding: 10mm;
+}
+
+
+.print-card {
+  width: 85.6mm;
+
+  height: 54mm;
+
+  padding:
+    4mm;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  border:
+    0.25mm solid #222;
+
+  background: #fff;
+
+  overflow: hidden;
+
+  break-inside: avoid;
+
+  page-break-inside: avoid;
+}
+
+
+.print-card-header {
+  width: 100%;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 3mm;
+}
+
+
+.print-card-product {
+  font-size: 14pt;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.print-card-copy {
+  font-size: 7pt;
+
+  font-weight: 700;
+
+  letter-spacing: 0.5pt;
+
+  white-space: nowrap;
+}
+
+
+.print-card-qr {
+  width: 29mm;
+
+  height: 29mm;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+}
+
+
+.print-card-qr canvas {
+  width: 29mm !important;
+
+  height: 29mm !important;
+}
+
+
+.print-card-instruction {
+  font-size: 8pt;
+
+  font-weight: 600;
+
+  text-align: center;
+}
+
+
+.print-card-url {
+  width: 100%;
+
+  font-size: 6.5pt;
+
+  line-height: 1.1;
+
+  text-align: center;
+
+  word-break: break-all;
+}
+
+
+.print-card-code {
+  width: 100%;
+
+  font-size: 5.5pt;
+
+  color: #555;
+
+  text-align: center;
+
+  word-break: break-all;
+}
+
+
+/* =====================================
+   PRINT
+===================================== */
+
+@media print {
+
+  @page {
+    size: A4;
+
+    margin: 8mm;
+  }
+
+
+  html,
+  body {
+    margin: 0;
+
+    background: #fff;
+  }
+
+
+  body {
+    min-height: auto;
+  }
+
+
+  .print-screen {
+    display: block !important;
+
+    min-height: auto;
+  }
+
+
+  .print-toolbar {
+    display: none;
+  }
+
+
+  .print-card-grid {
+    padding: 0;
+
+    margin: 0;
+
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        85.6mm
+      );
+
+    gap: 4mm;
+
+    justify-content:
+      space-between;
+  }
+
+
+  .print-card {
+    width: 85.6mm;
+
+    height: 54mm;
+
+    border:
+      0.25mm
+      solid
+      #222;
+  }
+
+
+  /*
+   * Hide every normal application screen
+   * when printing.
+   */
+
+  #app > .screen:not(
+    #qrPrintScreen
+  ) {
+    display: none !important;
+  }
+
+}
+
+
+@media (max-width: 700px) {
+
+  .print-toolbar {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+
+  .print-toolbar-actions {
+    width: 100%;
+  }
+
+
+  .print-toolbar-actions button {
+    flex: 1;
+  }
+
+
+  .print-card-grid {
+    grid-template-columns:
+      85.6mm;
+
+    justify-content: center;
+  }
+
+}
