@@ -12,10 +12,15 @@
 
   <meta
     name="theme-color"
-    content="#ffffff"
+    content="#208aef"
   >
 
-  <title>Seller App</title>
+  <link
+    rel="manifest"
+    href="./manifest.webmanifest"
+  >
+
+  <title>Ordeli</title>
 
   <link
     rel="stylesheet"
@@ -413,11 +418,31 @@
 
   </main>
 
+<script
+  type="module"
+  src="./js/app.js"
+></script>
 
-  <script
-    type="module"
-    src="./js/app.js"
-  ></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("./sw.js")
+        .then((registration) => {
+          console.log(
+            "Service worker registered:",
+            registration.scope
+          );
+        })
+        .catch((error) => {
+          console.error(
+            "Service worker registration failed:",
+            error
+          );
+        });
+    });
+  }
+</script>
 
 </body>
 
