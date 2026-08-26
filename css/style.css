@@ -884,6 +884,8 @@ button:disabled {
 ===================================== */
 
 .print-screen {
+  min-height: 100vh;
+
   background: #fff;
 }
 
@@ -933,22 +935,41 @@ button:disabled {
 }
 
 
-.print-card-grid {
-  display: grid;
+/* =====================================
+   PAIR CONTAINER
+===================================== */
 
-  grid-template-columns:
-    repeat(
-      2,
-      85.6mm
-    );
+.print-card-grid {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
 
   gap: 6mm;
-
-  justify-content: center;
 
   padding: 10mm;
 }
 
+
+.qr-print-pair {
+  display: flex;
+
+  flex-direction: row;
+
+  gap: 1.5mm;
+
+  align-items: stretch;
+
+  break-inside: avoid;
+
+  page-break-inside: avoid;
+}
+
+
+/* =====================================
+   CARD
+===================================== */
 
 .print-card {
   width: 85.6mm;
@@ -956,7 +977,7 @@ button:disabled {
   height: 54mm;
 
   padding:
-    4mm;
+    3.5mm;
 
   display: flex;
 
@@ -966,10 +987,12 @@ button:disabled {
 
   justify-content: space-between;
 
-  border:
-    0.25mm solid #222;
-
   background: #fff;
+
+  border:
+    0.25mm
+    solid
+    #222;
 
   overflow: hidden;
 
@@ -978,6 +1001,10 @@ button:disabled {
   page-break-inside: avoid;
 }
 
+
+/* =====================================
+   SHOP / COPY HEADER
+===================================== */
 
 .print-card-header {
   width: 100%;
@@ -992,12 +1019,14 @@ button:disabled {
 }
 
 
-.print-card-product {
-  font-size: 14pt;
+.print-card-shop {
+  min-width: 0;
+
+  flex: 1;
+
+  font-size: 9pt;
 
   font-weight: 700;
-
-  text-transform: uppercase;
 
   white-space: nowrap;
 
@@ -1008,15 +1037,50 @@ button:disabled {
 
 
 .print-card-copy {
-  font-size: 7pt;
+  flex-shrink: 0;
+
+  font-size: 6pt;
 
   font-weight: 700;
 
-  letter-spacing: 0.5pt;
+  letter-spacing: 0.3pt;
 
   white-space: nowrap;
 }
 
+
+/* =====================================
+   PRODUCT NAME
+===================================== */
+
+.print-card-product {
+  width: 100%;
+
+  min-height: 8mm;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  text-align: center;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  font-size: 13pt;
+
+  line-height: 1;
+
+  font-weight: 700;
+}
+
+
+/* =====================================
+   QR CODE
+===================================== */
 
 .print-card-qr {
   width: 29mm;
@@ -1028,18 +1092,32 @@ button:disabled {
   align-items: center;
 
   justify-content: center;
+
+  flex-shrink: 0;
 }
 
 
 .print-card-qr canvas {
+  display: block;
+
   width: 29mm !important;
 
   height: 29mm !important;
+
+  max-width: 29mm;
+
+  max-height: 29mm;
+
+  image-rendering: pixelated;
 }
 
 
+/* =====================================
+   INSTRUCTION
+===================================== */
+
 .print-card-instruction {
-  font-size: 8pt;
+  font-size: 7pt;
 
   font-weight: 600;
 
@@ -1047,12 +1125,16 @@ button:disabled {
 }
 
 
+/* =====================================
+   TRACKING URL
+===================================== */
+
 .print-card-url {
   width: 100%;
 
-  font-size: 6.5pt;
+  font-size: 5.5pt;
 
-  line-height: 1.1;
+  line-height: 1.05;
 
   text-align: center;
 
@@ -1060,16 +1142,33 @@ button:disabled {
 }
 
 
+/* =====================================
+   INTERNAL SELLER CODE
+===================================== */
+
 .print-card-code {
   width: 100%;
 
-  font-size: 5.5pt;
+  font-size: 4.5pt;
 
-  color: #555;
+  line-height: 1;
+
+  color: #666;
 
   text-align: center;
 
   word-break: break-all;
+}
+
+
+/* =====================================
+   PRINT BUTTON
+===================================== */
+
+.qr-print-button {
+  width: 100%;
+
+  margin-top: 12px;
 }
 
 
@@ -1090,12 +1189,21 @@ button:disabled {
   body {
     margin: 0;
 
+    padding: 0;
+
     background: #fff;
   }
 
 
-  body {
-    min-height: auto;
+  .print-toolbar {
+    display: none !important;
+  }
+
+
+  #app > .screen:not(
+    #qrPrintScreen
+  ) {
+    display: none !important;
   }
 
 
@@ -1106,28 +1214,33 @@ button:disabled {
   }
 
 
-  .print-toolbar {
-    display: none;
-  }
-
-
   .print-card-grid {
     padding: 0;
 
     margin: 0;
 
-    display: grid;
-
-    grid-template-columns:
-      repeat(
-        2,
-        85.6mm
-      );
-
     gap: 4mm;
 
-    justify-content:
-      space-between;
+    align-items: center;
+  }
+
+
+  /*
+   * Each pair remains physically together.
+   */
+
+  .qr-print-pair {
+    display: flex;
+
+    flex-direction: row;
+
+    gap: 1.5mm;
+
+    width: auto;
+
+    break-inside: avoid;
+
+    page-break-inside: avoid;
   }
 
 
@@ -1142,22 +1255,16 @@ button:disabled {
       #222;
   }
 
-
-  /*
-   * Hide every normal application screen
-   * when printing.
-   */
-
-  #app > .screen:not(
-    #qrPrintScreen
-  ) {
-    display: none !important;
-  }
-
 }
 
 
-@media (max-width: 700px) {
+/* =====================================
+   MOBILE PREVIEW
+===================================== */
+
+@media (
+  max-width: 760px
+) {
 
   .print-toolbar {
     flex-direction: column;
@@ -1177,10 +1284,9 @@ button:disabled {
 
 
   .print-card-grid {
-    grid-template-columns:
-      85.6mm;
+    align-items: center;
 
-    justify-content: center;
+    overflow-x: auto;
   }
 
 }

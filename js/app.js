@@ -2980,108 +2980,117 @@ qrBackButton.addEventListener(
 );
 
 
+//
 // ============================================
 // QR PRINTING
 // ============================================
+//
 
-async function openQrPrintScreen(
-  series
-) {
+async function openQrPrintScreen(series) {
 
-  printSeriesId =
-    series.id;
-
+  printSeriesId = series.id;
 
   printSeriesName.textContent =
     series.series_name;
 
+  printCardGrid.innerHTML = "";
 
-  printSeriesInfo.textContent =
-    `${
-      series.products?.name ||
-      "Product"
-    } · ${
-      series.quantity
-    } QR pairs`;
-
-
-  printCardGrid.innerHTML =
-    "";
-
-
-  navigate(
-    "qr-print"
-  );
-
+  navigate("qr-print");
 }
 
 
 async function loadPrintableQrCards() {
 
-  printCardGrid.innerHTML =
-    "";
+  printCardGrid.innerHTML = "";
 
+  const session =
+    await getSession();
 
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .from(
-      "qr_series"
-    )
-    .select(`
-      id,
-      series_name,
-      quantity,
-      products (
-        name
-      )
-    `)
-    .eq(
-      "id",
-      printSeriesId
-    )
-    .single();
-
-
-  if (error) {
-    throw error;
+  if (!session) {
+    navigate("login");
+    return;
   }
 
 
-  const {
-    data:
-      qrCodes,
-    error:
-      qrError
-  } =
-  await supabase
-    .from(
-      "qr_codes"
-    )
-    .select(`
-      id,
-      code,
-      public_token,
-      status,
-      created_at
-    `)
-    .eq(
-      "series_id",
-      printSeriesId
-    )
-    .eq(
-      "status",
-      "available"
-    )
-    .order(
-      "created_at",
-      {
-        ascending:
-          true
-      }
+  // ------------------------------------------
+  // Load shop name
+  // ------------------------------------------
+
+  const shopProfile =
+    await loadSellerProfile(
+      session.user.id
     );
+
+
+  const shopName =
+    shopProfile.shop_name;
+
+
+  // ------------------------------------------
+  // Load QR series
+  // ------------------------------------------
+
+  const {
+    data: series,
+    error: seriesError
+  } =
+    await supabase
+      .from("qr_series")
+      .select(`
+        id,
+        series_name,
+        quantity,
+        products (
+          name
+        )
+      `)
+      .eq(
+        "id",
+        printSeriesId
+      )
+      .single();
+
+
+  if (seriesError) {
+    throw seriesError;
+  }
+
+
+  // ------------------------------------------
+  // Load available QR codes
+  // ------------------------------------------
+
+  const {
+    data: qrCodes,
+    error: qrError
+  } =
+    await supabase
+      .from("qr_codes")
+      .select(`
+        id,
+        code,
+        public_token,
+        status,
+        created_at
+      `)
+      .eq(
+        "series_id",
+        printSeriesId
+      )
+      .eq(
+        "seller_id",
+        session.user.id
+      )
+      .eq(
+        "status",
+        "available"
+      )
+      .order(
+        "created_at",
+        {
+          ascending: true
+        }
+      );
 
 
   if (qrError) {
@@ -3089,9 +3098,16 @@ async function loadPrintableQrCards() {
   }
 
 
-  if (
-    !qrCodes?.length
-  ) {
+  const productName =
+    series.products?.name ||
+    "Product";
+
+
+  printSeriesInfo.textContent =
+    `${shopName} · ${productName} · ${qrCodes.length} available pairs`;
+
+
+  if (!qrCodes.length) {
 
     printCardGrid.innerHTML = `
       <div class="empty-state">
@@ -3104,35 +3120,33 @@ async function loadPrintableQrCards() {
     `;
 
     return;
-
   }
 
-
-  const productName =
-    data.products?.name ||
-    "Product";
-
-
-  /*
-   * The customer-facing route will eventually
-   * resolve:
-   *
-   * /t/<public-token>
-   *
-   * We intentionally do not expose a database ID.
-   */
 
   const trackingBase =
     `${window.location.origin}/t/`;
 
 
-  for (
-    const qr of qrCodes
-  ) {
+  // ------------------------------------------
+  // Create one visual group per QR pair
+  // ------------------------------------------
+
+  for (const qr of qrCodes) {
+
+    const pair =
+      document.createElement("div");
+
+    pair.className =
+      "qr-print-pair";
+
 
     const trackingUrl =
       `${trackingBase}${qr.public_token}`;
 
+
+    // ----------------------------------------
+    // Seller copy
+    // ----------------------------------------
 
     const sellerCard =
       await createPrintableQrCard({
@@ -3140,6 +3154,8 @@ async function loadPrintableQrCards() {
         copyType:
           "SELLER COPY",
 
+        shopName,
+
         productName,
 
         trackingUrl,
@@ -3149,6 +3165,10 @@ async function loadPrintableQrCards() {
 
       });
 
+
+    // ----------------------------------------
+    // Customer copy
+    // ----------------------------------------
 
     const customerCard =
       await createPrintableQrCard({
@@ -3156,6 +3176,8 @@ async function loadPrintableQrCards() {
         copyType:
           "CUSTOMER COPY",
 
+        shopName,
+
         productName,
 
         trackingUrl,
@@ -3166,61 +3188,60 @@ async function loadPrintableQrCards() {
       });
 
 
-    printCardGrid.appendChild(
+    pair.appendChild(
       sellerCard
     );
 
-
-    printCardGrid.appendChild(
+    pair.appendChild(
       customerCard
     );
 
-  }
 
+    printCardGrid.appendChild(
+      pair
+    );
+  }
 }
 
 
 async function createPrintableQrCard({
   copyType,
+  shopName,
   productName,
   trackingUrl,
   qrCode
 }) {
 
   const card =
-    document.createElement(
-      "article"
-    );
+    document.createElement("article");
 
   card.className =
     "print-card";
 
 
+  // ------------------------------------------
+  // Header
+  // ------------------------------------------
+
   const header =
-    document.createElement(
-      "div"
-    );
+    document.createElement("div");
 
   header.className =
     "print-card-header";
 
 
-  const product =
-    document.createElement(
-      "div"
-    );
+  const shop =
+    document.createElement("div");
 
-  product.className =
-    "print-card-product";
+  shop.className =
+    "print-card-shop";
 
-  product.textContent =
-    productName;
+  shop.textContent =
+    shopName;
 
 
   const copy =
-    document.createElement(
-      "div"
-    );
+    document.createElement("div");
 
   copy.className =
     "print-card-copy";
@@ -3230,28 +3251,48 @@ async function createPrintableQrCard({
 
 
   header.appendChild(
-    product
+    shop
   );
-
 
   header.appendChild(
     copy
   );
 
 
+  // ------------------------------------------
+  // Product name
+  // ------------------------------------------
+
+  const product =
+    document.createElement("div");
+
+  product.className =
+    "print-card-product";
+
+  product.textContent =
+    productName;
+
+
+  // ------------------------------------------
+  // QR
+  // ------------------------------------------
+
   const qrContainer =
-    document.createElement(
-      "div"
-    );
+    document.createElement("div");
 
   qrContainer.className =
     "print-card-qr";
 
 
   const canvas =
-    document.createElement(
-      "canvas"
-    );
+    document.createElement("canvas");
+
+
+  canvas.width =
+    420;
+
+  canvas.height =
+    420;
 
 
   qrContainer.appendChild(
@@ -3259,10 +3300,12 @@ async function createPrintableQrCard({
   );
 
 
+  // ------------------------------------------
+  // Instruction
+  // ------------------------------------------
+
   const instruction =
-    document.createElement(
-      "div"
-    );
+    document.createElement("div");
 
   instruction.className =
     "print-card-instruction";
@@ -3271,10 +3314,12 @@ async function createPrintableQrCard({
     "Scan to track your order";
 
 
+  // ------------------------------------------
+  // Written tracking URL
+  // ------------------------------------------
+
   const url =
-    document.createElement(
-      "div"
-    );
+    document.createElement("div");
 
   url.className =
     "print-card-url";
@@ -3283,10 +3328,12 @@ async function createPrintableQrCard({
     trackingUrl;
 
 
+  // ------------------------------------------
+  // Internal seller code
+  // ------------------------------------------
+
   const code =
-    document.createElement(
-      "div"
-    );
+    document.createElement("div");
 
   code.className =
     "print-card-code";
@@ -3295,8 +3342,16 @@ async function createPrintableQrCard({
     qrCode;
 
 
+  // ------------------------------------------
+  // Assemble card
+  // ------------------------------------------
+
   card.appendChild(
     header
+  );
+
+  card.appendChild(
+    product
   );
 
   card.appendChild(
@@ -3312,14 +3367,8 @@ async function createPrintableQrCard({
   );
 
 
-  /*
-   * The internal code is useful to the seller,
-   * but should not be exposed on the customer card.
-   */
-
   if (
-    copyType ===
-    "SELLER COPY"
+    copyType === "SELLER COPY"
   ) {
 
     card.appendChild(
@@ -3329,16 +3378,34 @@ async function createPrintableQrCard({
   }
 
 
+  // ------------------------------------------
+  // Generate actual QR
+  // ------------------------------------------
+
   await renderQrCode(
     canvas,
     trackingUrl
   );
 
 
-  return card;
+  // ------------------------------------------
+  // Automatically shrink long product names
+  // ------------------------------------------
 
+  fitProductName(
+    product
+  );
+
+
+  return card;
 }
 
+
+//
+// ============================================
+// ACTUAL QR GENERATION
+// ============================================
+//
 
 function renderQrCode(
   canvas,
@@ -3352,11 +3419,6 @@ function renderQrCode(
     ) => {
 
       try {
-
-        /*
-         * Requires the QRCode browser
-         * library to be loaded by index.html.
-         */
 
         if (
           typeof QRCode ===
@@ -3382,9 +3444,22 @@ function renderQrCode(
             value,
 
           size:
-            420
+            420,
+
+          qr: {
+
+            correctLevel:
+              2
+
+          }
 
         });
+
+
+        // IMPORTANT:
+        // The library does not draw merely from
+        // setOptions(). draw() is required.
+        qr.draw();
 
 
         resolve();
@@ -3399,9 +3474,36 @@ function renderQrCode(
 
     }
   );
-
 }
 
+
+//
+// ============================================
+// FIT LONG PRODUCT NAME
+// ============================================
+//
+
+function fitProductName(element) {
+
+  let fontSize = 13;
+
+
+  element.style.fontSize =
+    `${fontSize}pt`;
+
+
+  while (
+    element.scrollWidth >
+      element.clientWidth &&
+    fontSize > 5
+  ) {
+
+    fontSize -= 0.5;
+
+    element.style.fontSize =
+      `${fontSize}pt`;
+  }
+}
 
 // ============================================
 // PRINT BUTTON
