@@ -1,44 +1,78 @@
 import { supabase } from "./supabase.js";
 
 
-// =====================================
-// DOM ELEMENTS
-// =====================================
+// ============================================
+// DOM
+// ============================================
 
-const loginScreen = document.getElementById("loginScreen");
-const registerScreen = document.getElementById("registerScreen");
-const homeScreen = document.getElementById("homeScreen");
+const loginScreen =
+  document.getElementById("loginScreen");
 
-const loginForm = document.getElementById("loginForm");
-const registerForm = document.getElementById("registerForm");
+const registerScreen =
+  document.getElementById("registerScreen");
 
-const loginEmail = document.getElementById("loginEmail");
-const loginPassword = document.getElementById("loginPassword");
+const homeScreen =
+  document.getElementById("homeScreen");
 
-const registerEmail = document.getElementById("registerEmail");
-const registerPassword = document.getElementById("registerPassword");
+
+const loginForm =
+  document.getElementById("loginForm");
+
+const registerForm =
+  document.getElementById("registerForm");
+
+
+const loginShopName =
+  document.getElementById("loginShopName");
+
+const loginPassword =
+  document.getElementById("loginPassword");
+
+
+const registerShopName =
+  document.getElementById("registerShopName");
+
+const registerPassword =
+  document.getElementById("registerPassword");
+
 const registerConfirmPassword =
-  document.getElementById("registerConfirmPassword");
+  document.getElementById(
+    "registerConfirmPassword"
+  );
 
-const loginButton = document.getElementById("loginButton");
-const registerButton = document.getElementById("registerButton");
 
-const loginMessage = document.getElementById("loginMessage");
-const registerMessage = document.getElementById("registerMessage");
+const loginButton =
+  document.getElementById("loginButton");
 
-const currentUserEmail =
-  document.getElementById("currentUserEmail");
+const registerButton =
+  document.getElementById("registerButton");
 
 const logoutButton =
   document.getElementById("logoutButton");
 
 
-// =====================================
+const loginMessage =
+  document.getElementById("loginMessage");
+
+const registerMessage =
+  document.getElementById("registerMessage");
+
+
+const homeShopName =
+  document.getElementById("homeShopName");
+
+
+// ============================================
 // ROUTING
-// =====================================
+// ============================================
 
 function getRoute() {
-  const route = window.location.hash.replace("#", "");
+
+  const route =
+    window.location.hash
+      .replace("#", "")
+      .toLowerCase();
+
 
   if (
     route === "login" ||
@@ -48,72 +82,121 @@ function getRoute() {
     return route;
   }
 
+
   return "login";
 }
 
 
-function showScreen(screen) {
-  loginScreen.hidden = screen !== "login";
-  registerScreen.hidden = screen !== "register";
-  homeScreen.hidden = screen !== "home";
-}
-
-
 function navigate(route) {
+
   window.location.hash = route;
 }
 
 
-function renderRoute(session) {
-  const requestedRoute = getRoute();
+function showScreen(route) {
 
-  if (session) {
-    // Authenticated users belong in the application.
-    // For Step 1, "home" is only a temporary screen.
-    if (
-      requestedRoute === "login" ||
-      requestedRoute === "register"
-    ) {
-      navigate("home");
-      return;
-    }
+  loginScreen.hidden =
+    route !== "login";
 
-    showScreen("home");
-    return;
-  }
+  registerScreen.hidden =
+    route !== "register";
 
-  // No authenticated session.
-  // Only login and register are available.
-  if (requestedRoute === "register") {
-    showScreen("register");
-    return;
-  }
-
-  showScreen("login");
+  homeScreen.hidden =
+    route !== "home";
 }
 
 
-// =====================================
+// ============================================
 // SESSION
-// =====================================
+// ============================================
 
-async function getCurrentSession() {
+async function getSession() {
+
   const {
     data,
     error
-  } = await supabase.auth.getSession();
+  } =
+    await supabase.auth.getSession();
+
 
   if (error) {
     throw error;
   }
 
+
   return data.session;
 }
 
 
-// =====================================
+// ============================================
+// LOAD SELLER PROFILE
+// ============================================
+
+async function loadSellerProfile(userId) {
+
+  const {
+    data,
+    error
+  } =
+    await supabase
+      .from("seller_profiles")
+      .select("shop_name")
+      .eq("id", userId)
+      .single();
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  return data;
+}
+
+
+// ============================================
+// RENDER ROUTE
+// ============================================
+
+async function renderApplication() {
+
+  const session =
+    await getSession();
+
+
+  if (!session) {
+
+    if (getRoute() === "register") {
+
+      showScreen("register");
+
+    } else {
+
+      showScreen("login");
+
+    }
+
+    return;
+  }
+
+
+  const profile =
+    await loadSellerProfile(
+      session.user.id
+    );
+
+
+  homeShopName.textContent =
+    profile.shop_name;
+
+
+  showScreen("home");
+}
+
+
+// ============================================
 // REGISTER
-// =====================================
+// ============================================
 
 registerForm.addEventListener(
   "submit",
@@ -123,79 +206,143 @@ registerForm.addEventListener(
 
     clearMessages();
 
-    const email = registerEmail.value.trim();
-    const password = registerPassword.value;
+
+    const shopName =
+      registerShopName.value.trim();
+
+    const password =
+      registerPassword.value;
+
     const confirmPassword =
       registerConfirmPassword.value;
 
+
+    if (shopName.length < 2) {
+
+      registerMessage.textContent =
+        "Shop name must be at least 2 characters.";
+
+      return;
+    }
+
+
     if (password !== confirmPassword) {
+
       registerMessage.textContent =
         "Passwords do not match.";
 
       return;
     }
 
+
+    if (password.length < 8) {
+
+      registerMessage.textContent =
+        "Password must be at least 8 characters.";
+
+      return;
+    }
+
+
     registerButton.disabled = true;
-    registerButton.textContent = "Creating...";
+
+    registerButton.textContent =
+      "Creating...";
+
 
     try {
+
+      /*
+       * Generate a private technical identity.
+       *
+       * The seller never sees this value.
+       */
+
+      const internalId =
+        crypto.randomUUID();
+
+
+      const internalEmail =
+        `${internalId}@internal.invalid`;
+
 
       const {
         data,
         error
-      } = await supabase.auth.signUp({
-        email,
-        password
-      });
+      } =
+        await supabase.auth.signUp({
+
+          email: internalEmail,
+
+          password,
+
+          options: {
+
+            data: {
+
+              shop_name: shopName,
+
+              login_identifier:
+                internalEmail
+
+            }
+
+          }
+
+        });
+
 
       if (error) {
         throw error;
       }
 
+
       /*
-       * Depending on your Supabase Email Confirmation
-       * setting, a newly registered user may receive
-       * either:
-       *
-       * 1. A session immediately
-       * 2. No session until email confirmation
+       * Email confirmation must be disabled
+       * in Supabase for this authentication
+       * model.
        */
 
-      if (data.session) {
+      if (!data.session) {
 
-        navigate("home");
-
-      } else {
-
-        registerMessage.textContent =
-          "Account created. Please check your email to confirm your account.";
+        throw new Error(
+          "Account was created but no session was returned. Check that email confirmation is disabled in Supabase Auth."
+        );
 
       }
+
+
+      navigate("home");
+
 
     } catch (error) {
 
       console.error(
-        "Registration error:",
+        "Registration failed:",
         error
       );
 
+
       registerMessage.textContent =
-        error.message;
+        getFriendlyAuthError(error);
+
 
     } finally {
 
       registerButton.disabled = false;
+
       registerButton.textContent =
         "Create Account";
 
     }
+
   }
 );
 
 
-// =====================================
+// ============================================
 // LOGIN
-// =====================================
+// ============================================
 
 loginForm.addEventListener(
   "submit",
@@ -205,117 +352,211 @@ loginForm.addEventListener(
 
     clearMessages();
 
-    const email = loginEmail.value.trim();
-    const password = loginPassword.value;
+
+    const shopName =
+      loginShopName.value.trim();
+
+    const password =
+      loginPassword.value;
+
+
+    if (!shopName) {
+
+      loginMessage.textContent =
+        "Enter your shop name.";
+
+      return;
+    }
+
 
     loginButton.disabled = true;
-    loginButton.textContent = "Logging in...";
+
+    loginButton.textContent =
+      "Logging in...";
+
 
     try {
 
-      const {
-        error
-      } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      /*
+       * Find the hidden Supabase
+       * authentication identity.
+       */
 
-      if (error) {
-        throw error;
+      const {
+        data: loginData,
+        error: lookupError
+      } =
+        await supabase.rpc(
+          "get_login_identifier",
+          {
+            requested_shop_name:
+              shopName
+          }
+        );
+
+
+      if (lookupError) {
+        throw lookupError;
       }
 
+
+      if (!loginData) {
+
+        throw new Error(
+          "Invalid shop name or password."
+        );
+
+      }
+
+
+      /*
+       * Use the hidden identity with
+       * Supabase's normal password auth.
+       */
+
+      const {
+        error: loginError
+      } =
+        await supabase.auth.signInWithPassword({
+
+          email: loginData,
+
+          password
+
+        });
+
+
+      if (loginError) {
+        throw loginError;
+      }
+
+
       navigate("home");
+
 
     } catch (error) {
 
       console.error(
-        "Login error:",
+        "Login failed:",
         error
       );
 
+
+      /*
+       * Don't reveal whether the shop
+       * exists.
+       */
+
       loginMessage.textContent =
-        error.message;
+        "Invalid shop name or password.";
+
 
     } finally {
 
       loginButton.disabled = false;
-      loginButton.textContent = "Log In";
+
+      loginButton.textContent =
+        "Log In";
 
     }
+
   }
 );
 
 
-// =====================================
+// ============================================
 // LOGOUT
-// =====================================
+// ============================================
 
 logoutButton.addEventListener(
   "click",
   async () => {
 
     logoutButton.disabled = true;
-    logoutButton.textContent = "Logging out...";
+
+    logoutButton.textContent =
+      "Logging out...";
+
 
     try {
 
       const {
         error
-      } = await supabase.auth.signOut();
+      } =
+        await supabase.auth.signOut();
+
 
       if (error) {
         throw error;
       }
 
+
       navigate("login");
+
 
     } catch (error) {
 
       console.error(
-        "Logout error:",
+        "Logout failed:",
         error
       );
+
 
       alert(
         "Unable to log out. Please try again."
       );
 
+
     } finally {
 
       logoutButton.disabled = false;
-      logoutButton.textContent = "Log Out";
+
+      logoutButton.textContent =
+        "Log Out";
 
     }
+
   }
 );
 
 
-// =====================================
+// ============================================
 // AUTH STATE CHANGES
-// =====================================
+// ============================================
 
 supabase.auth.onAuthStateChange(
-  (_event, session) => {
+  async (_event, session) => {
 
-    if (session?.user) {
+    try {
 
-      currentUserEmail.textContent =
-        session.user.email || "";
+      if (session) {
 
-    } else {
+        await renderApplication();
 
-      currentUserEmail.textContent = "";
+      } else {
+
+        showScreen("login");
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Auth state handling failed:",
+        error
+      );
+
+      showScreen("login");
 
     }
 
-    renderRoute(session);
   }
 );
 
 
-// =====================================
-// HASH ROUTE CHANGES
-// =====================================
+// ============================================
+// HASH NAVIGATION
+// ============================================
 
 window.addEventListener(
   "hashchange",
@@ -323,53 +564,76 @@ window.addEventListener(
 
     try {
 
-      const session =
-        await getCurrentSession();
-
-      renderRoute(session);
+      await renderApplication();
 
     } catch (error) {
 
       console.error(
-        "Route/session error:",
+        "Navigation failed:",
         error
       );
 
       showScreen("login");
+
     }
+
   }
 );
 
 
-// =====================================
-// CLEAN MESSAGES
-// =====================================
+// ============================================
+// CLEAR MESSAGES
+// ============================================
 
 function clearMessages() {
-  loginMessage.textContent = "";
-  registerMessage.textContent = "";
+
+  loginMessage.textContent =
+    "";
+
+  registerMessage.textContent =
+    "";
+
 }
 
 
-// =====================================
-// INITIALIZE APPLICATION
-// =====================================
+// ============================================
+// ERROR MESSAGE
+// ============================================
+
+function getFriendlyAuthError(error) {
+
+  const message =
+    String(error?.message || "")
+      .toLowerCase();
+
+
+  if (
+    message.includes("already registered") ||
+    message.includes("already been registered")
+  ) {
+
+    return "Unable to create this account.";
+
+  }
+
+
+  return (
+    error?.message ||
+    "Unable to create the account."
+  );
+
+}
+
+
+// ============================================
+// INITIALIZE
+// ============================================
 
 async function initializeApp() {
 
   try {
 
-    const session =
-      await getCurrentSession();
-
-    if (session?.user) {
-
-      currentUserEmail.textContent =
-        session.user.email || "";
-
-    }
-
-    renderRoute(session);
+    await renderApplication();
 
   } catch (error) {
 
@@ -379,7 +643,9 @@ async function initializeApp() {
     );
 
     showScreen("login");
+
   }
+
 }
 
 
