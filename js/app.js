@@ -2,7 +2,7 @@ import { supabase } from "./supabase.js";
 
 
 // ============================================
-// DOM
+// DOM - SCREENS
 // ============================================
 
 const loginScreen =
@@ -23,6 +23,13 @@ const productsScreen =
 const workflowScreen =
   document.getElementById("workflowScreen");
 
+const qrScreen =
+  document.getElementById("qrScreen");
+
+
+// ============================================
+// DOM - FORMS
+// ============================================
 
 const loginForm =
   document.getElementById("loginForm");
@@ -36,6 +43,13 @@ const shopProfileForm =
 const productForm =
   document.getElementById("productForm");
 
+const qrSeriesForm =
+  document.getElementById("qrSeriesForm");
+
+
+// ============================================
+// DOM - AUTH
+// ============================================
 
 const loginShopName =
   document.getElementById("loginShopName");
@@ -43,17 +57,24 @@ const loginShopName =
 const loginPassword =
   document.getElementById("loginPassword");
 
+
 const registerShopName =
   document.getElementById("registerShopName");
 
 const registerPassword =
-  document.getElementById("registerPassword");
+  document.getElementById(
+    "registerPassword"
+  );
 
 const registerConfirmPassword =
   document.getElementById(
     "registerConfirmPassword"
   );
 
+
+// ============================================
+// DOM - SHOP PROFILE
+// ============================================
 
 const shopName =
   document.getElementById("shopName");
@@ -70,11 +91,19 @@ const shopLogoPreviewContainer =
   );
 
 const shopLogoPreview =
-  document.getElementById("shopLogoPreview");
+  document.getElementById(
+    "shopLogoPreview"
+  );
 
+
+// ============================================
+// DOM - PRODUCTS
+// ============================================
 
 const productList =
-  document.getElementById("productList");
+  document.getElementById(
+    "productList"
+  );
 
 const emptyProductsState =
   document.getElementById(
@@ -82,7 +111,9 @@ const emptyProductsState =
   );
 
 const productEditor =
-  document.getElementById("productEditor");
+  document.getElementById(
+    "productEditor"
+  );
 
 const productEditorTitle =
   document.getElementById(
@@ -90,11 +121,19 @@ const productEditorTitle =
   );
 
 const productName =
-  document.getElementById("productName");
+  document.getElementById(
+    "productName"
+  );
 
 const productPrice =
-  document.getElementById("productPrice");
+  document.getElementById(
+    "productPrice"
+  );
 
+
+// ============================================
+// DOM - WORKFLOW
+// ============================================
 
 const workflowProductName =
   document.getElementById(
@@ -102,7 +141,9 @@ const workflowProductName =
   );
 
 const stageList =
-  document.getElementById("stageList");
+  document.getElementById(
+    "stageList"
+  );
 
 const emptyStagesState =
   document.getElementById(
@@ -110,8 +151,44 @@ const emptyStagesState =
   );
 
 
+// ============================================
+// DOM - QR
+// ============================================
+
+const qrProduct =
+  document.getElementById(
+    "qrProduct"
+  );
+
+const qrSeriesName =
+  document.getElementById(
+    "qrSeriesName"
+  );
+
+const qrQuantity =
+  document.getElementById(
+    "qrQuantity"
+  );
+
+const qrSeriesList =
+  document.getElementById(
+    "qrSeriesList"
+  );
+
+const emptyQrState =
+  document.getElementById(
+    "emptyQrState"
+  );
+
+
+// ============================================
+// DOM - BUTTONS
+// ============================================
+
 const loginButton =
-  document.getElementById("loginButton");
+  document.getElementById(
+    "loginButton"
+  );
 
 const registerButton =
   document.getElementById(
@@ -128,9 +205,25 @@ const saveProductButton =
     "saveProductButton"
   );
 
+const saveWorkflowButton =
+  document.getElementById(
+    "saveWorkflowButton"
+  );
+
+const generateQrButton =
+  document.getElementById(
+    "generateQrButton"
+  );
+
+
+// ============================================
+// DOM - MESSAGES
+// ============================================
 
 const loginMessage =
-  document.getElementById("loginMessage");
+  document.getElementById(
+    "loginMessage"
+  );
 
 const registerMessage =
   document.getElementById(
@@ -152,6 +245,15 @@ const workflowMessage =
     "workflowMessage"
   );
 
+const qrMessage =
+  document.getElementById(
+    "qrMessage"
+  );
+
+
+// ============================================
+// DOM - HOME
+// ============================================
 
 const homeShopName =
   document.getElementById(
@@ -163,6 +265,10 @@ const homeShopAddress =
     "homeShopAddress"
   );
 
+
+// ============================================
+// DOM - NAVIGATION
+// ============================================
 
 const logoutButton =
   document.getElementById(
@@ -189,6 +295,16 @@ const productsButton =
     "productsButton"
   );
 
+const qrManagementButton =
+  document.getElementById(
+    "qrManagementButton"
+  );
+
+const qrManagementButtonFromProducts =
+  document.getElementById(
+    "qrManagementButtonFromProducts"
+  );
+
 const productsBackButton =
   document.getElementById(
     "productsBackButton"
@@ -208,7 +324,6 @@ const cancelProductButton =
   document.getElementById(
     "cancelProductButton"
   );
-
 
 const workflowBackButton =
   document.getElementById(
@@ -230,9 +345,9 @@ const cancelWorkflowButton =
     "cancelWorkflowButton"
   );
 
-const saveWorkflowButton =
+const qrBackButton =
   document.getElementById(
-    "saveWorkflowButton"
+    "qrBackButton"
   );
 
 
@@ -259,15 +374,23 @@ function getRoute() {
       .toLowerCase();
 
 
+  const allowedRoutes = [
+    "login",
+    "register",
+    "shop-profile",
+    "home",
+    "products",
+    "workflow",
+    "qr"
+  ];
+
+
   if (
-    route === "login" ||
-    route === "register" ||
-    route === "shop-profile" ||
-    route === "home" ||
-    route === "products" ||
-    route === "workflow"
+    allowedRoutes.includes(route)
   ) {
+
     return route;
+
   }
 
 
@@ -277,7 +400,9 @@ function getRoute() {
 
 function navigate(route) {
 
-  window.location.hash = route;
+  window.location.hash =
+    route;
+
 }
 
 
@@ -300,6 +425,10 @@ function showScreen(route) {
 
   workflowScreen.hidden =
     route !== "workflow";
+
+  qrScreen.hidden =
+    route !== "qr";
+
 }
 
 
@@ -322,6 +451,7 @@ async function getSession() {
 
 
   return data.session;
+
 }
 
 
@@ -329,7 +459,9 @@ async function getSession() {
 // SELLER PROFILE
 // ============================================
 
-async function loadSellerProfile(userId) {
+async function loadSellerProfile(
+  userId
+) {
 
   const {
     data,
@@ -342,7 +474,10 @@ async function loadSellerProfile(userId) {
         shop_address,
         shop_logo_path
       `)
-      .eq("id", userId)
+      .eq(
+        "id",
+        userId
+      )
       .single();
 
 
@@ -352,20 +487,24 @@ async function loadSellerProfile(userId) {
 
 
   return data;
+
 }
 
 
-function isShopProfileComplete(profile) {
+function isShopProfileComplete(
+  profile
+) {
 
   return Boolean(
     profile?.shop_name?.trim() &&
     profile?.shop_address?.trim()
   );
+
 }
 
 
 // ============================================
-// APPLICATION
+// APPLICATION RENDER
 // ============================================
 
 async function renderApplication() {
@@ -376,13 +515,19 @@ async function renderApplication() {
 
   if (!session) {
 
-    if (getRoute() === "register") {
+    if (
+      getRoute() === "register"
+    ) {
 
-      showScreen("register");
+      showScreen(
+        "register"
+      );
 
     } else {
 
-      showScreen("login");
+      showScreen(
+        "login"
+      );
 
     }
 
@@ -401,9 +546,13 @@ async function renderApplication() {
     !isShopProfileComplete(profile)
   ) {
 
-    populateShopProfile(profile);
+    populateShopProfile(
+      profile
+    );
 
-    showScreen("shop-profile");
+    showScreen(
+      "shop-profile"
+    );
 
     return;
 
@@ -421,9 +570,13 @@ async function renderApplication() {
     getRoute();
 
 
-  if (route === "products") {
+  if (
+    route === "products"
+  ) {
 
-    showScreen("products");
+    showScreen(
+      "products"
+    );
 
     await loadProducts();
 
@@ -432,9 +585,41 @@ async function renderApplication() {
   }
 
 
-  if (route === "workflow") {
+  if (
+    route === "workflow"
+  ) {
 
-    await renderWorkflowScreen();
+    if (!workflowProductId) {
+
+      navigate(
+        "products"
+      );
+
+      return;
+
+    }
+
+
+    showScreen(
+      "workflow"
+    );
+
+    await loadWorkflowStages();
+
+    return;
+
+  }
+
+
+  if (
+    route === "qr"
+  ) {
+
+    showScreen(
+      "qr"
+    );
+
+    await loadQrManagement();
 
     return;
 
@@ -445,16 +630,23 @@ async function renderApplication() {
     route === "shop-profile"
   ) {
 
-    populateShopProfile(profile);
+    populateShopProfile(
+      profile
+    );
 
-    showScreen("shop-profile");
+    showScreen(
+      "shop-profile"
+    );
 
     return;
 
   }
 
 
-  showScreen("home");
+  showScreen(
+    "home"
+  );
+
 }
 
 
@@ -481,7 +673,9 @@ registerForm.addEventListener(
       registerConfirmPassword.value;
 
 
-    if (name.length < 2) {
+    if (
+      name.length < 2
+    ) {
 
       registerMessage.textContent =
         "Shop name must be at least 2 characters.";
@@ -491,7 +685,9 @@ registerForm.addEventListener(
     }
 
 
-    if (password.length < 8) {
+    if (
+      password.length < 8
+    ) {
 
       registerMessage.textContent =
         "Password must be at least 8 characters.";
@@ -502,7 +698,8 @@ registerForm.addEventListener(
 
 
     if (
-      password !== confirmPassword
+      password !==
+      confirmPassword
     ) {
 
       registerMessage.textContent =
@@ -513,7 +710,8 @@ registerForm.addEventListener(
     }
 
 
-    registerButton.disabled = true;
+    registerButton.disabled =
+      true;
 
     registerButton.textContent =
       "Creating...";
@@ -535,7 +733,8 @@ registerForm.addEventListener(
       } =
         await supabase.auth.signUp({
 
-          email: internalEmail,
+          email:
+            internalEmail,
 
           password,
 
@@ -543,7 +742,8 @@ registerForm.addEventListener(
 
             data: {
 
-              shop_name: name,
+              shop_name:
+                name,
 
               login_identifier:
                 internalEmail
@@ -569,7 +769,10 @@ registerForm.addEventListener(
       }
 
 
-      navigate("shop-profile");
+      navigate(
+        "shop-profile"
+      );
+
 
     } catch (error) {
 
@@ -582,9 +785,11 @@ registerForm.addEventListener(
       registerMessage.textContent =
         error.message;
 
+
     } finally {
 
-      registerButton.disabled = false;
+      registerButton.disabled =
+        false;
 
       registerButton.textContent =
         "Create Account";
@@ -615,7 +820,8 @@ loginForm.addEventListener(
       loginPassword.value;
 
 
-    loginButton.disabled = true;
+    loginButton.disabled =
+      true;
 
     loginButton.textContent =
       "Logging in...";
@@ -651,12 +857,14 @@ loginForm.addEventListener(
 
 
       const {
-        error: loginError
+        error:
+          loginError
       } =
         await supabase.auth
           .signInWithPassword({
 
-            email: data,
+            email:
+              data,
 
             password
 
@@ -670,6 +878,7 @@ loginForm.addEventListener(
 
       await renderApplication();
 
+
     } catch (error) {
 
       console.error(
@@ -681,9 +890,11 @@ loginForm.addEventListener(
       loginMessage.textContent =
         "Invalid shop name or password.";
 
+
     } finally {
 
-      loginButton.disabled = false;
+      loginButton.disabled =
+        false;
 
       loginButton.textContent =
         "Log In";
@@ -714,7 +925,9 @@ shopProfileForm.addEventListener(
 
     if (!session) {
 
-      navigate("login");
+      navigate(
+        "login"
+      );
 
       return;
 
@@ -731,7 +944,9 @@ shopProfileForm.addEventListener(
       shopLogo.files[0];
 
 
-    if (name.length < 2) {
+    if (
+      name.length < 2
+    ) {
 
       shopProfileMessage.textContent =
         "Shop name must be at least 2 characters.";
@@ -751,7 +966,8 @@ shopProfileForm.addEventListener(
     }
 
 
-    saveShopProfileButton.disabled = true;
+    saveShopProfileButton.disabled =
+      true;
 
     saveShopProfileButton.textContent =
       "Saving...";
@@ -759,7 +975,8 @@ shopProfileForm.addEventListener(
 
     try {
 
-      let logoPath = null;
+      let logoPath =
+        null;
 
 
       const existingProfile =
@@ -795,11 +1012,14 @@ shopProfileForm.addEventListener(
 
 
         const maxSize =
-          5 * 1024 * 1024;
+          5 *
+          1024 *
+          1024;
 
 
         if (
-          selectedLogo.size > maxSize
+          selectedLogo.size >
+          maxSize
         ) {
 
           throw new Error(
@@ -820,11 +1040,14 @@ shopProfileForm.addEventListener(
 
 
         const {
-          error: uploadError
+          error:
+            uploadError
         } =
           await supabase
             .storage
-            .from("shop-logos")
+            .from(
+              "shop-logos"
+            )
             .upload(
               filePath,
               selectedLogo,
@@ -835,7 +1058,8 @@ shopProfileForm.addEventListener(
                 cacheControl:
                   "3600",
 
-                upsert: false
+                upsert:
+                  false
               }
             );
 
@@ -857,7 +1081,9 @@ shopProfileForm.addEventListener(
 
           await supabase
             .storage
-            .from("shop-logos")
+            .from(
+              "shop-logos"
+            )
             .remove([
               existingProfile.shop_logo_path
             ]);
@@ -868,10 +1094,13 @@ shopProfileForm.addEventListener(
 
 
       const {
-        error: updateError
+        error:
+          updateError
       } =
         await supabase
-          .from("seller_profiles")
+          .from(
+            "seller_profiles"
+          )
           .update({
 
             shop_name:
@@ -897,6 +1126,7 @@ shopProfileForm.addEventListener(
 
       await renderApplication();
 
+
     } catch (error) {
 
       console.error(
@@ -909,9 +1139,11 @@ shopProfileForm.addEventListener(
         error.message ||
         "Unable to save shop profile.";
 
+
     } finally {
 
-      saveShopProfileButton.disabled = false;
+      saveShopProfileButton.disabled =
+        false;
 
       saveShopProfileButton.textContent =
         "Save Shop Profile";
@@ -923,7 +1155,7 @@ shopProfileForm.addEventListener(
 
 
 // ============================================
-// LOGO PREVIEW
+// SHOP LOGO PREVIEW
 // ============================================
 
 shopLogo.addEventListener(
@@ -949,7 +1181,9 @@ shopLogo.addEventListener(
 
 
     shopLogoPreview.src =
-      URL.createObjectURL(file);
+      URL.createObjectURL(
+        file
+      );
 
     shopLogoPreviewContainer.hidden =
       false;
@@ -962,7 +1196,9 @@ shopLogo.addEventListener(
 // POPULATE SHOP PROFILE
 // ============================================
 
-function populateShopProfile(profile) {
+function populateShopProfile(
+  profile
+) {
 
   shopName.value =
     profile?.shop_name || "";
@@ -975,6 +1211,7 @@ function populateShopProfile(profile) {
 
   shopLogoPreviewContainer.hidden =
     true;
+
 }
 
 
@@ -984,7 +1221,8 @@ function populateShopProfile(profile) {
 
 async function loadProducts() {
 
-  productList.innerHTML = "";
+  productList.innerHTML =
+    "";
 
   emptyProductsState.hidden =
     true;
@@ -996,7 +1234,9 @@ async function loadProducts() {
 
   if (!session) {
 
-    navigate("login");
+    navigate(
+      "login"
+    );
 
     return;
 
@@ -1008,7 +1248,9 @@ async function loadProducts() {
     error
   } =
     await supabase
-      .from("products")
+      .from(
+        "products"
+      )
       .select(`
         id,
         name,
@@ -1023,7 +1265,8 @@ async function loadProducts() {
       .order(
         "name",
         {
-          ascending: true
+          ascending:
+            true
         }
       );
 
@@ -1033,7 +1276,9 @@ async function loadProducts() {
   }
 
 
-  if (!data.length) {
+  if (
+    !data.length
+  ) {
 
     emptyProductsState.hidden =
       false;
@@ -1043,10 +1288,14 @@ async function loadProducts() {
   }
 
 
-  for (const product of data) {
+  for (
+    const product of data
+  ) {
 
     productList.appendChild(
-      createProductCard(product)
+      createProductCard(
+        product
+      )
     );
 
   }
@@ -1054,31 +1303,41 @@ async function loadProducts() {
 }
 
 
-function createProductCard(product) {
+function createProductCard(
+  product
+) {
 
   const card =
-    document.createElement("article");
+    document.createElement(
+      "article"
+    );
 
   card.className =
     "product-card";
 
 
   const info =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   info.className =
     "product-card-info";
 
 
   const title =
-    document.createElement("h2");
+    document.createElement(
+      "h2"
+    );
 
   title.textContent =
     product.name;
 
 
   const price =
-    document.createElement("p");
+    document.createElement(
+      "p"
+    );
 
   price.className =
     "product-price";
@@ -1089,20 +1348,28 @@ function createProductCard(product) {
     );
 
 
-  info.appendChild(title);
+  info.appendChild(
+    title
+  );
 
-  info.appendChild(price);
+  info.appendChild(
+    price
+  );
 
 
   const actions =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   actions.className =
     "product-card-actions";
 
 
   const workflowButton =
-    document.createElement("button");
+    document.createElement(
+      "button"
+    );
 
   workflowButton.type =
     "button";
@@ -1124,7 +1391,9 @@ function createProductCard(product) {
 
 
   const editButton =
-    document.createElement("button");
+    document.createElement(
+      "button"
+    );
 
   editButton.type =
     "button";
@@ -1157,12 +1426,17 @@ function createProductCard(product) {
   );
 
 
-  card.appendChild(info);
+  card.appendChild(
+    info
+  );
 
-  card.appendChild(actions);
+  card.appendChild(
+    actions
+  );
 
 
   return card;
+
 }
 
 
@@ -1233,6 +1507,7 @@ function closeProductEditor() {
     "";
 
   clearProductMessage();
+
 }
 
 
@@ -1271,7 +1546,9 @@ productForm.addEventListener(
 
     if (!session) {
 
-      navigate("login");
+      navigate(
+        "login"
+      );
 
       return;
 
@@ -1298,7 +1575,9 @@ productForm.addEventListener(
 
 
     if (
-      !Number.isFinite(price) ||
+      !Number.isFinite(
+        price
+      ) ||
       price < 0
     ) {
 
@@ -1319,13 +1598,17 @@ productForm.addEventListener(
 
     try {
 
-      if (editingProductId) {
+      if (
+        editingProductId
+      ) {
 
         const {
           error
         } =
           await supabase
-            .from("products")
+            .from(
+              "products"
+            )
             .update({
 
               name,
@@ -1334,7 +1617,8 @@ productForm.addEventListener(
                 price,
 
               updated_at:
-                new Date().toISOString()
+                new Date()
+                  .toISOString()
 
             })
             .eq(
@@ -1357,7 +1641,9 @@ productForm.addEventListener(
           error
         } =
           await supabase
-            .from("products")
+            .from(
+              "products"
+            )
             .insert({
 
               seller_id:
@@ -1381,6 +1667,7 @@ productForm.addEventListener(
       closeProductEditor();
 
       await loadProducts();
+
 
     } catch (error) {
 
@@ -1416,7 +1703,9 @@ productsButton.addEventListener(
   "click",
   () => {
 
-    navigate("products");
+    navigate(
+      "products"
+    );
 
   }
 );
@@ -1428,7 +1717,9 @@ productsBackButton.addEventListener(
 
     closeProductEditor();
 
-    navigate("home");
+    navigate(
+      "home"
+    );
 
   }
 );
@@ -1466,7 +1757,9 @@ async function openWorkflow(
 
     await loadWorkflowStages();
 
-    navigate("workflow");
+    navigate(
+      "workflow"
+    );
 
   } catch (error) {
 
@@ -1499,7 +1792,9 @@ async function loadWorkflowStages() {
     error
   } =
     await supabase
-      .from("production_stages")
+      .from(
+        "production_stages"
+      )
       .select(`
         id,
         name,
@@ -1512,7 +1807,8 @@ async function loadWorkflowStages() {
       .order(
         "stage_order",
         {
-          ascending: true
+          ascending:
+            true
         }
       );
 
@@ -1550,7 +1846,9 @@ function renderWorkflowStages() {
     "";
 
 
-  if (!workflowStages.length) {
+  if (
+    !workflowStages.length
+  ) {
 
     emptyStagesState.hidden =
       false;
@@ -1565,7 +1863,10 @@ function renderWorkflowStages() {
 
 
   workflowStages.forEach(
-    (stage, index) => {
+    (
+      stage,
+      index
+    ) => {
 
       stage.stage_order =
         index + 1;
@@ -1590,14 +1891,18 @@ function createStageElement(
 ) {
 
   const item =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   item.className =
     "stage-item";
 
 
   const number =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   number.className =
     "stage-number";
@@ -1609,7 +1914,9 @@ function createStageElement(
 
 
   const input =
-    document.createElement("input");
+    document.createElement(
+      "input"
+    );
 
   input.type =
     "text";
@@ -1639,14 +1946,18 @@ function createStageElement(
 
 
   const actions =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   actions.className =
     "stage-actions";
 
 
   const upButton =
-    document.createElement("button");
+    document.createElement(
+      "button"
+    );
 
   upButton.type =
     "button";
@@ -1678,7 +1989,9 @@ function createStageElement(
 
 
   const downButton =
-    document.createElement("button");
+    document.createElement(
+      "button"
+    );
 
   downButton.type =
     "button";
@@ -1693,7 +2006,8 @@ function createStageElement(
     "Move down";
 
   downButton.disabled =
-    index === workflowStages.length - 1;
+    index ===
+    workflowStages.length - 1;
 
 
   downButton.addEventListener(
@@ -1710,7 +2024,9 @@ function createStageElement(
 
 
   const deleteButton =
-    document.createElement("button");
+    document.createElement(
+      "button"
+    );
 
   deleteButton.type =
     "button";
@@ -1720,6 +2036,7 @@ function createStageElement(
 
   deleteButton.textContent =
     "Remove";
+
 
   deleteButton.addEventListener(
     "click",
@@ -1746,14 +2063,21 @@ function createStageElement(
   );
 
 
-  item.appendChild(number);
+  item.appendChild(
+    number
+  );
 
-  item.appendChild(input);
+  item.appendChild(
+    input
+  );
 
-  item.appendChild(actions);
+  item.appendChild(
+    actions
+  );
 
 
   return item;
+
 }
 
 
@@ -1763,14 +2087,18 @@ function moveStage(
 ) {
 
   const newIndex =
-    index + direction;
+    index +
+    direction;
 
 
   if (
     newIndex < 0 ||
-    newIndex >= workflowStages.length
+    newIndex >=
+      workflowStages.length
   ) {
+
     return;
+
   }
 
 
@@ -1790,7 +2118,9 @@ function moveStage(
 }
 
 
-function removeStage(index) {
+function removeStage(
+  index
+) {
 
   workflowStages.splice(
     index,
@@ -1864,7 +2194,9 @@ saveWorkflowButton.addEventListener(
 
     if (!session) {
 
-      navigate("login");
+      navigate(
+        "login"
+      );
 
       return;
 
@@ -1885,7 +2217,9 @@ saveWorkflowButton.addEventListener(
       );
 
 
-    if (!cleanedStages.length) {
+    if (
+      !cleanedStages.length
+    ) {
 
       workflowMessage.textContent =
         "Add at least one production stage.";
@@ -1922,13 +2256,11 @@ saveWorkflowButton.addEventListener(
     try {
 
       /*
-       * Delete the current configuration.
+       * At this stage there are not yet any
+       * orders using these workflow records.
        *
-       * This is safe at this stage because no orders
-       * are using these workflow records yet.
-       *
-       * Historical workflow snapshots will be handled
-       * when the order system is implemented.
+       * Therefore replacing the configuration
+       * is safe.
        */
 
       const {
@@ -1936,7 +2268,9 @@ saveWorkflowButton.addEventListener(
           deleteError
       } =
         await supabase
-          .from("production_stages")
+          .from(
+            "production_stages"
+          )
           .delete()
           .eq(
             "product_id",
@@ -1951,7 +2285,10 @@ saveWorkflowButton.addEventListener(
 
       const rows =
         cleanedStages.map(
-          (stage, index) => ({
+          (
+            stage,
+            index
+          ) => ({
 
             product_id:
               workflowProductId,
@@ -1971,7 +2308,9 @@ saveWorkflowButton.addEventListener(
           insertError
       } =
         await supabase
-          .from("production_stages")
+          .from(
+            "production_stages"
+          )
           .insert(
             rows
           );
@@ -2024,26 +2363,8 @@ saveWorkflowButton.addEventListener(
 
 
 // ============================================
-// WORKFLOW SCREEN
+// WORKFLOW NAVIGATION
 // ============================================
-
-async function renderWorkflowScreen() {
-
-  if (!workflowProductId) {
-
-    navigate("products");
-
-    return;
-
-  }
-
-
-  showScreen("workflow");
-
-  await loadWorkflowStages();
-
-}
-
 
 workflowBackButton.addEventListener(
   "click",
@@ -2055,7 +2376,9 @@ workflowBackButton.addEventListener(
     workflowStages =
       [];
 
-    navigate("products");
+    navigate(
+      "products"
+    );
 
   }
 );
@@ -2063,15 +2386,502 @@ workflowBackButton.addEventListener(
 
 cancelWorkflowButton.addEventListener(
   "click",
-  async () => {
-
-    workflowStages =
-      [];
+  () => {
 
     workflowProductId =
       null;
 
-    navigate("products");
+    workflowStages =
+      [];
+
+    navigate(
+      "products"
+    );
+
+  }
+);
+
+
+// ============================================
+// QR MANAGEMENT
+// ============================================
+
+async function loadQrManagement() {
+
+  clearQrMessage();
+
+  await loadQrProducts();
+
+  await loadQrSeries();
+
+}
+
+
+async function loadQrProducts() {
+
+  qrProduct.innerHTML = `
+    <option value="">
+      Select product
+    </option>
+  `;
+
+
+  const session =
+    await getSession();
+
+
+  if (!session) {
+
+    navigate(
+      "login"
+    );
+
+    return;
+
+  }
+
+
+  const {
+    data,
+    error
+  } =
+    await supabase
+      .from(
+        "products"
+      )
+      .select(`
+        id,
+        name
+      `)
+      .eq(
+        "seller_id",
+        session.user.id
+      )
+      .order(
+        "name",
+        {
+          ascending:
+            true
+        }
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  for (
+    const product of data
+  ) {
+
+    const option =
+      document.createElement(
+        "option"
+      );
+
+    option.value =
+      product.id;
+
+    option.textContent =
+      product.name;
+
+
+    qrProduct.appendChild(
+      option
+    );
+
+  }
+
+}
+
+
+async function loadQrSeries() {
+
+  qrSeriesList.innerHTML =
+    "";
+
+  emptyQrState.hidden =
+    true;
+
+
+  const session =
+    await getSession();
+
+
+  if (!session) {
+
+    navigate(
+      "login"
+    );
+
+    return;
+
+  }
+
+
+  const {
+    data,
+    error
+  } =
+    await supabase
+      .from(
+        "qr_series"
+      )
+      .select(`
+        id,
+        series_name,
+        quantity,
+        created_at,
+        products (
+          name
+        ),
+        qr_codes (
+          status
+        )
+      `)
+      .eq(
+        "seller_id",
+        session.user.id
+      )
+      .order(
+        "created_at",
+        {
+          ascending:
+            false
+        }
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  if (
+    !data.length
+  ) {
+
+    emptyQrState.hidden =
+      false;
+
+    return;
+
+  }
+
+
+  for (
+    const series of data
+  ) {
+
+    qrSeriesList.appendChild(
+      createQrSeriesCard(
+        series
+      )
+    );
+
+  }
+
+}
+
+
+function createQrSeriesCard(
+  series
+) {
+
+  const card =
+    document.createElement(
+      "article"
+    );
+
+  card.className =
+    "qr-series-card";
+
+
+  const title =
+    document.createElement(
+      "h3"
+    );
+
+  title.textContent =
+    series.series_name;
+
+
+  const product =
+    document.createElement(
+      "p"
+    );
+
+  product.textContent =
+    `Product: ${series.products?.name || "Unknown"}`;
+
+
+  const total =
+    document.createElement(
+      "p"
+    );
+
+  total.textContent =
+    `Total pairs: ${series.quantity}`;
+
+
+  const counts = {
+
+    available:
+      0,
+
+    assigned:
+      0,
+
+    released:
+      0,
+
+    revoked:
+      0
+
+  };
+
+
+  for (
+    const qr of
+    series.qr_codes || []
+  ) {
+
+    if (
+      counts[
+        qr.status
+      ] !== undefined
+    ) {
+
+      counts[
+        qr.status
+      ]++;
+
+    }
+
+  }
+
+
+  const status =
+    document.createElement(
+      "p"
+    );
+
+  status.className =
+    "qr-series-status";
+
+
+  status.textContent =
+    `Available: ${counts.available} · ` +
+    `Assigned: ${counts.assigned} · ` +
+    `Released: ${counts.released} · ` +
+    `Revoked: ${counts.revoked}`;
+
+
+  card.appendChild(
+    title
+  );
+
+  card.appendChild(
+    product
+  );
+
+  card.appendChild(
+    total
+  );
+
+  card.appendChild(
+    status
+  );
+
+
+  return card;
+
+}
+
+
+// ============================================
+// CREATE QR SERIES
+// ============================================
+
+qrSeriesForm.addEventListener(
+  "submit",
+  async (event) => {
+
+    event.preventDefault();
+
+    clearQrMessage();
+
+
+    const productId =
+      qrProduct.value;
+
+    const seriesName =
+      qrSeriesName.value.trim();
+
+    const quantity =
+      Number(
+        qrQuantity.value
+      );
+
+
+    if (!productId) {
+
+      qrMessage.textContent =
+        "Select a product.";
+
+      return;
+
+    }
+
+
+    if (!seriesName) {
+
+      qrMessage.textContent =
+        "Enter a series name.";
+
+      return;
+
+    }
+
+
+    if (
+      !Number.isInteger(
+        quantity
+      ) ||
+      quantity < 1 ||
+      quantity > 5000
+    ) {
+
+      qrMessage.textContent =
+        "Enter a quantity between 1 and 5000.";
+
+      return;
+
+    }
+
+
+    generateQrButton.disabled =
+      true;
+
+    generateQrButton.textContent =
+      "Generating...";
+
+
+    try {
+
+      const {
+        data,
+        error
+      } =
+        await supabase.rpc(
+          "create_qr_series",
+          {
+
+            requested_product_id:
+              productId,
+
+            requested_series_name:
+              seriesName,
+
+            requested_quantity:
+              quantity
+
+          }
+        );
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      console.log(
+        "Created QR series:",
+        data
+      );
+
+
+      qrSeriesForm.reset();
+
+
+      qrMessage.textContent =
+        "QR series generated successfully.";
+
+      qrMessage.classList.add(
+        "success-message"
+      );
+
+
+      await loadQrSeries();
+
+
+    } catch (error) {
+
+      console.error(
+        "QR generation failed:",
+        error
+      );
+
+
+      qrMessage.classList.remove(
+        "success-message"
+      );
+
+
+      qrMessage.textContent =
+        error.message ||
+        "Unable to generate QR series.";
+
+    } finally {
+
+      generateQrButton.disabled =
+        false;
+
+      generateQrButton.textContent =
+        "Generate QR Series";
+
+    }
+
+  }
+);
+
+
+// ============================================
+// QR NAVIGATION
+// ============================================
+
+qrManagementButton.addEventListener(
+  "click",
+  () => {
+
+    navigate(
+      "qr"
+    );
+
+  }
+);
+
+
+qrManagementButtonFromProducts.addEventListener(
+  "click",
+  () => {
+
+    navigate(
+      "qr"
+    );
+
+  }
+);
+
+
+qrBackButton.addEventListener(
+  "click",
+  () => {
+
+    navigate(
+      "products"
+    );
 
   }
 );
@@ -2098,13 +2908,18 @@ async function logout() {
 
     closeProductEditor();
 
+
     workflowProductId =
       null;
 
     workflowStages =
       [];
 
-    navigate("login");
+
+    navigate(
+      "login"
+    );
+
 
   } catch (error) {
 
@@ -2142,24 +2957,16 @@ productsLogoutButton.addEventListener(
 
 
 // ============================================
-// NAVIGATION
+// PROFILE NAVIGATION
 // ============================================
 
 editShopProfileButton.addEventListener(
   "click",
   () => {
 
-    navigate("shop-profile");
-
-  }
-);
-
-
-workflowBackButton.addEventListener(
-  "click",
-  () => {
-
-    navigate("products");
+    navigate(
+      "shop-profile"
+    );
 
   }
 );
@@ -2176,7 +2983,9 @@ supabase.auth.onAuthStateChange(
 
       if (!session) {
 
-        showScreen("login");
+        showScreen(
+          "login"
+        );
 
         return;
 
@@ -2185,6 +2994,7 @@ supabase.auth.onAuthStateChange(
 
       await renderApplication();
 
+
     } catch (error) {
 
       console.error(
@@ -2192,7 +3002,11 @@ supabase.auth.onAuthStateChange(
         error
       );
 
-      showScreen("login");
+      /*
+       * Do not sign the user out here.
+       *
+       * The session may still be valid.
+       */
 
     }
 
@@ -2219,8 +3033,6 @@ window.addEventListener(
         error
       );
 
-      showScreen("login");
-
     }
 
   }
@@ -2228,7 +3040,7 @@ window.addEventListener(
 
 
 // ============================================
-// MESSAGES
+// MESSAGE HELPERS
 // ============================================
 
 function clearMessages() {
@@ -2265,11 +3077,25 @@ function clearWorkflowMessage() {
 }
 
 
+function clearQrMessage() {
+
+  qrMessage.textContent =
+    "";
+
+  qrMessage.classList.remove(
+    "success-message"
+  );
+
+}
+
+
 // ============================================
 // PRICE
 // ============================================
 
-function formatPrice(value) {
+function formatPrice(
+  value
+) {
 
   const number =
     Number(value);
@@ -2278,16 +3104,22 @@ function formatPrice(value) {
   return new Intl.NumberFormat(
     "en-PH",
     {
+
       style:
         "currency",
 
       currency:
         "PHP"
+
     }
   ).format(
-    Number.isFinite(number)
+
+    Number.isFinite(
+      number
+    )
       ? number
       : 0
+
   );
 
 }
@@ -2337,8 +3169,6 @@ async function initializeApp() {
       "Application initialization failed:",
       error
     );
-
-    showScreen("login");
 
   }
 

@@ -15,6 +15,11 @@
     content="#208aef"
   >
 
+  <meta
+    name="description"
+    content="Ordeli seller application"
+  >
+
   <link
     rel="manifest"
     href="./manifest.webmanifest"
@@ -35,9 +40,9 @@
   <main id="app">
 
 
-    <!-- ==================================
+    <!-- =====================================
          LOGIN
-    =================================== -->
+    ====================================== -->
 
     <section
       id="loginScreen"
@@ -125,9 +130,9 @@
 
 
 
-    <!-- ==================================
+    <!-- =====================================
          REGISTER
-    =================================== -->
+    ====================================== -->
 
     <section
       id="registerScreen"
@@ -159,6 +164,7 @@
                 id="registerShopName"
                 type="text"
                 autocomplete="organization"
+                maxlength="100"
                 required
               >
 
@@ -234,9 +240,9 @@
 
 
 
-    <!-- ==================================
+    <!-- =====================================
          SHOP PROFILE
-    =================================== -->
+    ====================================== -->
 
     <section
       id="shopProfileScreen"
@@ -268,6 +274,7 @@
                 id="shopName"
                 type="text"
                 autocomplete="organization"
+                maxlength="100"
                 required
               >
 
@@ -293,10 +300,13 @@
             <div class="form-group">
 
               <label for="shopLogo">
+
                 Shop Logo
+
                 <span class="optional">
                   Optional
                 </span>
+
               </label>
 
               <input
@@ -356,9 +366,9 @@
 
 
 
-    <!-- ==================================
+    <!-- =====================================
          HOME
-    =================================== -->
+    ====================================== -->
 
     <section
       id="homeScreen"
@@ -390,6 +400,16 @@
             >
               Products
             </button>
+
+
+            <button
+              id="qrManagementButton"
+              class="secondary-button"
+              type="button"
+            >
+              QR Management
+            </button>
+
 
             <button
               id="editShopProfileButton"
@@ -429,9 +449,9 @@
 
 
 
-    <!-- ==================================
+    <!-- =====================================
          PRODUCTS
-    =================================== -->
+    ====================================== -->
 
     <section
       id="productsScreen"
@@ -453,7 +473,11 @@
               ← Back
             </button>
 
-            <h1>Products</h1>
+
+            <h1>
+              Products
+            </h1>
+
 
             <p class="page-subtitle">
               Manage the products you offer.
@@ -462,12 +486,25 @@
           </div>
 
 
-          <button
-            id="addProductButton"
-            type="button"
-          >
-            Add Product
-          </button>
+          <div class="page-header-actions">
+
+            <button
+              id="qrManagementButtonFromProducts"
+              class="secondary-button"
+              type="button"
+            >
+              QR Management
+            </button>
+
+
+            <button
+              id="addProductButton"
+              type="button"
+            >
+              Add Product
+            </button>
+
+          </div>
 
         </header>
 
@@ -484,11 +521,15 @@
           hidden
         >
 
-          <h2>No Products Yet</h2>
+          <h2>
+            No Products Yet
+          </h2>
+
 
           <p>
             Add your first product to get started.
           </p>
+
 
           <button
             id="emptyAddProductButton"
@@ -524,8 +565,8 @@
                 <input
                   id="productName"
                   type="text"
-                  required
                   maxlength="100"
+                  required
                 >
 
               </div>
@@ -536,6 +577,7 @@
                 <label for="productPrice">
                   Default Price
                 </label>
+
 
                 <div class="price-input">
 
@@ -564,6 +606,7 @@
                 >
                   Cancel
                 </button>
+
 
                 <button
                   id="saveProductButton"
@@ -602,9 +645,9 @@
 
 
 
-    <!-- ==================================
+    <!-- =====================================
          PRODUCTION WORKFLOW
-    =================================== -->
+    ====================================== -->
 
     <section
       id="workflowScreen"
@@ -626,9 +669,11 @@
               ← Back
             </button>
 
+
             <h1 id="workflowProductName">
               Production Workflow
             </h1>
+
 
             <p class="page-subtitle">
               Define the stages for this product.
@@ -645,7 +690,10 @@
 
             <div>
 
-              <h2>Production Stages</h2>
+              <h2>
+                Production Stages
+              </h2>
+
 
               <p>
                 Arrange the stages in the order they
@@ -677,11 +725,15 @@
             hidden
           >
 
-            <h3>No Stages Yet</h3>
+            <h3>
+              No Stages Yet
+            </h3>
+
 
             <p>
               Add at least one production stage.
             </p>
+
 
             <button
               id="emptyAddStageButton"
@@ -702,6 +754,7 @@
             >
               Cancel
             </button>
+
 
             <button
               id="saveWorkflowButton"
@@ -726,14 +779,186 @@
     </section>
 
 
+
+    <!-- =====================================
+         QR MANAGEMENT
+    ====================================== -->
+
+    <section
+      id="qrScreen"
+      class="screen"
+      hidden
+    >
+
+      <div class="app-container">
+
+        <header class="page-header">
+
+          <div>
+
+            <button
+              id="qrBackButton"
+              class="back-button"
+              type="button"
+            >
+              ← Back
+            </button>
+
+
+            <h1>
+              QR Management
+            </h1>
+
+
+            <p class="page-subtitle">
+              Generate and manage QR inventory.
+            </p>
+
+          </div>
+
+        </header>
+
+
+        <section class="qr-create-card">
+
+          <h2>
+            Generate QR Series
+          </h2>
+
+
+          <form id="qrSeriesForm">
+
+
+            <div class="form-group">
+
+              <label for="qrProduct">
+                Product
+              </label>
+
+
+              <select
+                id="qrProduct"
+                required
+              >
+
+                <option value="">
+                  Select product
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <div class="form-group">
+
+              <label for="qrSeriesName">
+                Series Name
+              </label>
+
+
+              <input
+                id="qrSeriesName"
+                type="text"
+                maxlength="100"
+                placeholder="MUG-2026"
+                required
+              >
+
+            </div>
+
+
+            <div class="form-group">
+
+              <label for="qrQuantity">
+                Number of QR Pairs
+              </label>
+
+
+              <input
+                id="qrQuantity"
+                type="number"
+                min="1"
+                max="5000"
+                step="1"
+                required
+              >
+
+            </div>
+
+
+            <button
+              id="generateQrButton"
+              type="submit"
+            >
+              Generate QR Series
+            </button>
+
+
+            <p
+              id="qrMessage"
+              class="form-message"
+              role="alert"
+            ></p>
+
+          </form>
+
+        </section>
+
+
+        <section>
+
+          <h2>
+            QR Series
+          </h2>
+
+
+          <div
+            id="qrSeriesList"
+            class="qr-series-list"
+          ></div>
+
+
+          <div
+            id="emptyQrState"
+            class="empty-state"
+            hidden
+          >
+
+            <h3>
+              No QR Series Yet
+            </h3>
+
+
+            <p>
+              Generate a QR series for one of your products.
+            </p>
+
+          </div>
+
+        </section>
+
+      </div>
+
+    </section>
+
+
   </main>
 
+
+  <!-- =====================================
+       APPLICATION JAVASCRIPT
+  ====================================== -->
 
   <script
     type="module"
     src="./js/app.js"
   ></script>
 
+
+  <!-- =====================================
+       SERVICE WORKER
+  ====================================== -->
 
   <script>
 
@@ -745,6 +970,14 @@
 
           navigator.serviceWorker
             .register("./sw.js")
+            .then((registration) => {
+
+              console.log(
+                "Service worker registered:",
+                registration.scope
+              );
+
+            })
             .catch((error) => {
 
               console.error(
