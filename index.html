@@ -380,6 +380,7 @@
 
           </div>
 
+
           <div class="header-actions">
 
             <button
@@ -460,6 +461,7 @@
 
           </div>
 
+
           <button
             id="addProductButton"
             type="button"
@@ -473,8 +475,7 @@
         <section
           id="productList"
           class="product-list"
-        >
-        </section>
+        ></section>
 
 
         <section
@@ -600,6 +601,131 @@
     </section>
 
 
+
+    <!-- ==================================
+         PRODUCTION WORKFLOW
+    =================================== -->
+
+    <section
+      id="workflowScreen"
+      class="screen"
+      hidden
+    >
+
+      <div class="app-container">
+
+        <header class="page-header">
+
+          <div>
+
+            <button
+              id="workflowBackButton"
+              class="back-button"
+              type="button"
+            >
+              ← Back
+            </button>
+
+            <h1 id="workflowProductName">
+              Production Workflow
+            </h1>
+
+            <p class="page-subtitle">
+              Define the stages for this product.
+            </p>
+
+          </div>
+
+        </header>
+
+
+        <section class="workflow-card">
+
+          <div class="workflow-card-header">
+
+            <div>
+
+              <h2>Production Stages</h2>
+
+              <p>
+                Arrange the stages in the order they
+                must be finished.
+              </p>
+
+            </div>
+
+
+            <button
+              id="addStageButton"
+              type="button"
+            >
+              Add Stage
+            </button>
+
+          </div>
+
+
+          <div
+            id="stageList"
+            class="stage-list"
+          ></div>
+
+
+          <div
+            id="emptyStagesState"
+            class="empty-state"
+            hidden
+          >
+
+            <h3>No Stages Yet</h3>
+
+            <p>
+              Add at least one production stage.
+            </p>
+
+            <button
+              id="emptyAddStageButton"
+              type="button"
+            >
+              Add Stage
+            </button>
+
+          </div>
+
+
+          <div class="workflow-actions">
+
+            <button
+              id="cancelWorkflowButton"
+              class="secondary-button"
+              type="button"
+            >
+              Cancel
+            </button>
+
+            <button
+              id="saveWorkflowButton"
+              type="button"
+            >
+              Save Workflow
+            </button>
+
+          </div>
+
+
+          <p
+            id="workflowMessage"
+            class="form-message"
+            role="alert"
+          ></p>
+
+        </section>
+
+      </div>
+
+    </section>
+
+
   </main>
 
 
@@ -619,14 +745,6 @@
 
           navigator.serviceWorker
             .register("./sw.js")
-            .then((registration) => {
-
-              console.log(
-                "Service worker registered:",
-                registration.scope
-              );
-
-            })
             .catch((error) => {
 
               console.error(

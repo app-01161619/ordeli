@@ -20,6 +20,9 @@ const homeScreen =
 const productsScreen =
   document.getElementById("productsScreen");
 
+const workflowScreen =
+  document.getElementById("workflowScreen");
+
 
 const loginForm =
   document.getElementById("loginForm");
@@ -39,7 +42,6 @@ const loginShopName =
 
 const loginPassword =
   document.getElementById("loginPassword");
-
 
 const registerShopName =
   document.getElementById("registerShopName");
@@ -94,11 +96,27 @@ const productPrice =
   document.getElementById("productPrice");
 
 
+const workflowProductName =
+  document.getElementById(
+    "workflowProductName"
+  );
+
+const stageList =
+  document.getElementById("stageList");
+
+const emptyStagesState =
+  document.getElementById(
+    "emptyStagesState"
+  );
+
+
 const loginButton =
   document.getElementById("loginButton");
 
 const registerButton =
-  document.getElementById("registerButton");
+  document.getElementById(
+    "registerButton"
+  );
 
 const saveShopProfileButton =
   document.getElementById(
@@ -127,6 +145,11 @@ const shopProfileMessage =
 const productMessage =
   document.getElementById(
     "productMessage"
+  );
+
+const workflowMessage =
+  document.getElementById(
+    "workflowMessage"
   );
 
 
@@ -187,11 +210,41 @@ const cancelProductButton =
   );
 
 
+const workflowBackButton =
+  document.getElementById(
+    "workflowBackButton"
+  );
+
+const addStageButton =
+  document.getElementById(
+    "addStageButton"
+  );
+
+const emptyAddStageButton =
+  document.getElementById(
+    "emptyAddStageButton"
+  );
+
+const cancelWorkflowButton =
+  document.getElementById(
+    "cancelWorkflowButton"
+  );
+
+const saveWorkflowButton =
+  document.getElementById(
+    "saveWorkflowButton"
+  );
+
+
 // ============================================
 // STATE
 // ============================================
 
 let editingProductId = null;
+
+let workflowProductId = null;
+
+let workflowStages = [];
 
 
 // ============================================
@@ -211,7 +264,8 @@ function getRoute() {
     route === "register" ||
     route === "shop-profile" ||
     route === "home" ||
-    route === "products"
+    route === "products" ||
+    route === "workflow"
   ) {
     return route;
   }
@@ -243,6 +297,9 @@ function showScreen(route) {
 
   productsScreen.hidden =
     route !== "products";
+
+  workflowScreen.hidden =
+    route !== "workflow";
 }
 
 
@@ -330,6 +387,7 @@ async function renderApplication() {
     }
 
     return;
+
   }
 
 
@@ -348,6 +406,7 @@ async function renderApplication() {
     showScreen("shop-profile");
 
     return;
+
   }
 
 
@@ -369,16 +428,29 @@ async function renderApplication() {
     await loadProducts();
 
     return;
+
   }
 
 
-  if (route === "shop-profile") {
+  if (route === "workflow") {
+
+    await renderWorkflowScreen();
+
+    return;
+
+  }
+
+
+  if (
+    route === "shop-profile"
+  ) {
 
     populateShopProfile(profile);
 
     showScreen("shop-profile");
 
     return;
+
   }
 
 
@@ -415,6 +487,7 @@ registerForm.addEventListener(
         "Shop name must be at least 2 characters.";
 
       return;
+
     }
 
 
@@ -424,6 +497,7 @@ registerForm.addEventListener(
         "Password must be at least 8 characters.";
 
       return;
+
     }
 
 
@@ -435,6 +509,7 @@ registerForm.addEventListener(
         "Passwords do not match.";
 
       return;
+
     }
 
 
@@ -642,6 +717,7 @@ shopProfileForm.addEventListener(
       navigate("login");
 
       return;
+
     }
 
 
@@ -661,6 +737,7 @@ shopProfileForm.addEventListener(
         "Shop name must be at least 2 characters.";
 
       return;
+
     }
 
 
@@ -670,6 +747,7 @@ shopProfileForm.addEventListener(
         "Shop address is required.";
 
       return;
+
     }
 
 
@@ -737,12 +815,8 @@ shopProfileForm.addEventListener(
           );
 
 
-        const fileName =
-          `${crypto.randomUUID()}.${extension}`;
-
-
         const filePath =
-          `${session.user.id}/${fileName}`;
+          `${session.user.id}/${crypto.randomUUID()}.${extension}`;
 
 
         const {
@@ -800,11 +874,14 @@ shopProfileForm.addEventListener(
           .from("seller_profiles")
           .update({
 
-            shop_name: name,
+            shop_name:
+              name,
 
-            shop_address: address,
+            shop_address:
+              address,
 
-            shop_logo_path: logoPath
+            shop_logo_path:
+              logoPath
 
           })
           .eq(
@@ -819,7 +896,6 @@ shopProfileForm.addEventListener(
 
 
       await renderApplication();
-
 
     } catch (error) {
 
@@ -847,7 +923,7 @@ shopProfileForm.addEventListener(
 
 
 // ============================================
-// SHOP LOGO PREVIEW
+// LOGO PREVIEW
 // ============================================
 
 shopLogo.addEventListener(
@@ -868,15 +944,12 @@ shopLogo.addEventListener(
       );
 
       return;
+
     }
 
 
-    const previewUrl =
-      URL.createObjectURL(file);
-
-
     shopLogoPreview.src =
-      previewUrl;
+      URL.createObjectURL(file);
 
     shopLogoPreviewContainer.hidden =
       false;
@@ -897,7 +970,8 @@ function populateShopProfile(profile) {
   shopAddress.value =
     profile?.shop_address || "";
 
-  shopLogo.value = "";
+  shopLogo.value =
+    "";
 
   shopLogoPreviewContainer.hidden =
     true;
@@ -912,7 +986,8 @@ async function loadProducts() {
 
   productList.innerHTML = "";
 
-  emptyProductsState.hidden = true;
+  emptyProductsState.hidden =
+    true;
 
 
   const session =
@@ -1026,6 +1101,28 @@ function createProductCard(product) {
     "product-card-actions";
 
 
+  const workflowButton =
+    document.createElement("button");
+
+  workflowButton.type =
+    "button";
+
+  workflowButton.textContent =
+    "Workflow";
+
+
+  workflowButton.addEventListener(
+    "click",
+    () => {
+
+      openWorkflow(
+        product
+      );
+
+    }
+  );
+
+
   const editButton =
     document.createElement("button");
 
@@ -1043,13 +1140,21 @@ function createProductCard(product) {
     "click",
     () => {
 
-      openProductEditor(product);
+      openProductEditor(
+        product
+      );
 
     }
   );
 
 
-  actions.appendChild(editButton);
+  actions.appendChild(
+    workflowButton
+  );
+
+  actions.appendChild(
+    editButton
+  );
 
 
   card.appendChild(info);
@@ -1062,10 +1167,12 @@ function createProductCard(product) {
 
 
 // ============================================
-// OPEN PRODUCT EDITOR
+// PRODUCT EDITOR
 // ============================================
 
-function openProductEditor(product = null) {
+function openProductEditor(
+  product = null
+) {
 
   clearProductMessage();
 
@@ -1106,15 +1213,10 @@ function openProductEditor(product = null) {
   productEditor.hidden =
     false;
 
-
   productName.focus();
 
 }
 
-
-// ============================================
-// CLOSE PRODUCT EDITOR
-// ============================================
 
 function closeProductEditor() {
 
@@ -1131,13 +1233,8 @@ function closeProductEditor() {
     "";
 
   clearProductMessage();
-
 }
 
-
-// ============================================
-// ADD PRODUCT
-// ============================================
 
 addProductButton.addEventListener(
   "click",
@@ -1158,10 +1255,6 @@ emptyAddProductButton.addEventListener(
   }
 );
 
-
-// ============================================
-// SAVE PRODUCT
-// ============================================
 
 productForm.addEventListener(
   "submit",
@@ -1187,7 +1280,6 @@ productForm.addEventListener(
 
     const name =
       productName.value.trim();
-
 
     const price =
       Number(
@@ -1290,7 +1382,6 @@ productForm.addEventListener(
 
       await loadProducts();
 
-
     } catch (error) {
 
       console.error(
@@ -1300,7 +1391,8 @@ productForm.addEventListener(
 
 
       productMessage.textContent =
-        getProductErrorMessage(error);
+        error.message ||
+        "Unable to save product.";
 
     } finally {
 
@@ -1353,6 +1445,639 @@ cancelProductButton.addEventListener(
 
 
 // ============================================
+// WORKFLOW
+// ============================================
+
+async function openWorkflow(
+  product
+) {
+
+  workflowProductId =
+    product.id;
+
+  workflowProductName.textContent =
+    product.name;
+
+
+  clearWorkflowMessage();
+
+
+  try {
+
+    await loadWorkflowStages();
+
+    navigate("workflow");
+
+  } catch (error) {
+
+    console.error(
+      "Workflow loading failed:",
+      error
+    );
+
+
+    workflowMessage.textContent =
+      error.message ||
+      "Unable to load production workflow.";
+
+  }
+
+}
+
+
+async function loadWorkflowStages() {
+
+  stageList.innerHTML =
+    "";
+
+  emptyStagesState.hidden =
+    true;
+
+
+  const {
+    data,
+    error
+  } =
+    await supabase
+      .from("production_stages")
+      .select(`
+        id,
+        name,
+        stage_order
+      `)
+      .eq(
+        "product_id",
+        workflowProductId
+      )
+      .order(
+        "stage_order",
+        {
+          ascending: true
+        }
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  workflowStages =
+    data.map(
+      (stage) => ({
+
+        id:
+          stage.id,
+
+        name:
+          stage.name,
+
+        stage_order:
+          stage.stage_order
+
+      })
+    );
+
+
+  renderWorkflowStages();
+
+}
+
+
+function renderWorkflowStages() {
+
+  stageList.innerHTML =
+    "";
+
+
+  if (!workflowStages.length) {
+
+    emptyStagesState.hidden =
+      false;
+
+    return;
+
+  }
+
+
+  emptyStagesState.hidden =
+    true;
+
+
+  workflowStages.forEach(
+    (stage, index) => {
+
+      stage.stage_order =
+        index + 1;
+
+
+      stageList.appendChild(
+        createStageElement(
+          stage,
+          index
+        )
+      );
+
+    }
+  );
+
+}
+
+
+function createStageElement(
+  stage,
+  index
+) {
+
+  const item =
+    document.createElement("div");
+
+  item.className =
+    "stage-item";
+
+
+  const number =
+    document.createElement("div");
+
+  number.className =
+    "stage-number";
+
+  number.textContent =
+    String(
+      index + 1
+    );
+
+
+  const input =
+    document.createElement("input");
+
+  input.type =
+    "text";
+
+  input.className =
+    "stage-name-input";
+
+  input.value =
+    stage.name;
+
+  input.maxLength =
+    100;
+
+  input.placeholder =
+    "Stage name";
+
+
+  input.addEventListener(
+    "input",
+    () => {
+
+      stage.name =
+        input.value;
+
+    }
+  );
+
+
+  const actions =
+    document.createElement("div");
+
+  actions.className =
+    "stage-actions";
+
+
+  const upButton =
+    document.createElement("button");
+
+  upButton.type =
+    "button";
+
+  upButton.className =
+    "secondary-button stage-action-button";
+
+  upButton.textContent =
+    "↑";
+
+  upButton.title =
+    "Move up";
+
+  upButton.disabled =
+    index === 0;
+
+
+  upButton.addEventListener(
+    "click",
+    () => {
+
+      moveStage(
+        index,
+        -1
+      );
+
+    }
+  );
+
+
+  const downButton =
+    document.createElement("button");
+
+  downButton.type =
+    "button";
+
+  downButton.className =
+    "secondary-button stage-action-button";
+
+  downButton.textContent =
+    "↓";
+
+  downButton.title =
+    "Move down";
+
+  downButton.disabled =
+    index === workflowStages.length - 1;
+
+
+  downButton.addEventListener(
+    "click",
+    () => {
+
+      moveStage(
+        index,
+        1
+      );
+
+    }
+  );
+
+
+  const deleteButton =
+    document.createElement("button");
+
+  deleteButton.type =
+    "button";
+
+  deleteButton.className =
+    "danger-button stage-action-button";
+
+  deleteButton.textContent =
+    "Remove";
+
+  deleteButton.addEventListener(
+    "click",
+    () => {
+
+      removeStage(
+        index
+      );
+
+    }
+  );
+
+
+  actions.appendChild(
+    upButton
+  );
+
+  actions.appendChild(
+    downButton
+  );
+
+  actions.appendChild(
+    deleteButton
+  );
+
+
+  item.appendChild(number);
+
+  item.appendChild(input);
+
+  item.appendChild(actions);
+
+
+  return item;
+}
+
+
+function moveStage(
+  index,
+  direction
+) {
+
+  const newIndex =
+    index + direction;
+
+
+  if (
+    newIndex < 0 ||
+    newIndex >= workflowStages.length
+  ) {
+    return;
+  }
+
+
+  const current =
+    workflowStages[index];
+
+
+  workflowStages[index] =
+    workflowStages[newIndex];
+
+  workflowStages[newIndex] =
+    current;
+
+
+  renderWorkflowStages();
+
+}
+
+
+function removeStage(index) {
+
+  workflowStages.splice(
+    index,
+    1
+  );
+
+
+  renderWorkflowStages();
+
+}
+
+
+function addStage() {
+
+  workflowStages.push({
+
+    id:
+      null,
+
+    name:
+      "",
+
+    stage_order:
+      workflowStages.length + 1
+
+  });
+
+
+  renderWorkflowStages();
+
+
+  const inputs =
+    document.querySelectorAll(
+      ".stage-name-input"
+    );
+
+
+  inputs[
+    inputs.length - 1
+  ]?.focus();
+
+}
+
+
+addStageButton.addEventListener(
+  "click",
+  addStage
+);
+
+
+emptyAddStageButton.addEventListener(
+  "click",
+  addStage
+);
+
+
+// ============================================
+// SAVE WORKFLOW
+// ============================================
+
+saveWorkflowButton.addEventListener(
+  "click",
+  async () => {
+
+    clearWorkflowMessage();
+
+
+    const session =
+      await getSession();
+
+
+    if (!session) {
+
+      navigate("login");
+
+      return;
+
+    }
+
+
+    const cleanedStages =
+      workflowStages.map(
+        (stage) => ({
+
+          id:
+            stage.id,
+
+          name:
+            stage.name.trim()
+
+        })
+      );
+
+
+    if (!cleanedStages.length) {
+
+      workflowMessage.textContent =
+        "Add at least one production stage.";
+
+      return;
+
+    }
+
+
+    const emptyStage =
+      cleanedStages.find(
+        (stage) =>
+          !stage.name
+      );
+
+
+    if (emptyStage) {
+
+      workflowMessage.textContent =
+        "Every production stage needs a name.";
+
+      return;
+
+    }
+
+
+    saveWorkflowButton.disabled =
+      true;
+
+    saveWorkflowButton.textContent =
+      "Saving...";
+
+
+    try {
+
+      /*
+       * Delete the current configuration.
+       *
+       * This is safe at this stage because no orders
+       * are using these workflow records yet.
+       *
+       * Historical workflow snapshots will be handled
+       * when the order system is implemented.
+       */
+
+      const {
+        error:
+          deleteError
+      } =
+        await supabase
+          .from("production_stages")
+          .delete()
+          .eq(
+            "product_id",
+            workflowProductId
+          );
+
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+
+      const rows =
+        cleanedStages.map(
+          (stage, index) => ({
+
+            product_id:
+              workflowProductId,
+
+            name:
+              stage.name,
+
+            stage_order:
+              index + 1
+
+          })
+        );
+
+
+      const {
+        error:
+          insertError
+      } =
+        await supabase
+          .from("production_stages")
+          .insert(
+            rows
+          );
+
+
+      if (insertError) {
+        throw insertError;
+      }
+
+
+      workflowMessage.textContent =
+        "Production workflow saved.";
+
+      workflowMessage.classList.add(
+        "success-message"
+      );
+
+
+      await loadWorkflowStages();
+
+
+    } catch (error) {
+
+      console.error(
+        "Workflow save failed:",
+        error
+      );
+
+
+      workflowMessage.textContent =
+        error.message ||
+        "Unable to save production workflow.";
+
+      workflowMessage.classList.remove(
+        "success-message"
+      );
+
+    } finally {
+
+      saveWorkflowButton.disabled =
+        false;
+
+      saveWorkflowButton.textContent =
+        "Save Workflow";
+
+    }
+
+  }
+);
+
+
+// ============================================
+// WORKFLOW SCREEN
+// ============================================
+
+async function renderWorkflowScreen() {
+
+  if (!workflowProductId) {
+
+    navigate("products");
+
+    return;
+
+  }
+
+
+  showScreen("workflow");
+
+  await loadWorkflowStages();
+
+}
+
+
+workflowBackButton.addEventListener(
+  "click",
+  () => {
+
+    workflowProductId =
+      null;
+
+    workflowStages =
+      [];
+
+    navigate("products");
+
+  }
+);
+
+
+cancelWorkflowButton.addEventListener(
+  "click",
+  async () => {
+
+    workflowStages =
+      [];
+
+    workflowProductId =
+      null;
+
+    navigate("products");
+
+  }
+);
+
+
+// ============================================
 // LOGOUT
 // ============================================
 
@@ -1372,6 +2097,12 @@ async function logout() {
 
 
     closeProductEditor();
+
+    workflowProductId =
+      null;
+
+    workflowStages =
+      [];
 
     navigate("login");
 
@@ -1411,7 +2142,7 @@ productsLogoutButton.addEventListener(
 
 
 // ============================================
-// PROFILE NAVIGATION
+// NAVIGATION
 // ============================================
 
 editShopProfileButton.addEventListener(
@@ -1419,6 +2150,16 @@ editShopProfileButton.addEventListener(
   () => {
 
     navigate("shop-profile");
+
+  }
+);
+
+
+workflowBackButton.addEventListener(
+  "click",
+  () => {
+
+    navigate("products");
 
   }
 );
@@ -1512,24 +2253,13 @@ function clearProductMessage() {
 }
 
 
-// ============================================
-// PRODUCT ERROR
-// ============================================
+function clearWorkflowMessage() {
 
-function getProductErrorMessage(error) {
+  workflowMessage.textContent =
+    "";
 
-  if (
-    error?.code === "42501"
-  ) {
-
-    return "You don't have permission to modify this product.";
-
-  }
-
-
-  return (
-    error?.message ||
-    "Unable to save product."
+  workflowMessage.classList.remove(
+    "success-message"
   );
 
 }
@@ -1548,8 +2278,11 @@ function formatPrice(value) {
   return new Intl.NumberFormat(
     "en-PH",
     {
-      style: "currency",
-      currency: "PHP"
+      style:
+        "currency",
+
+      currency:
+        "PHP"
     }
   ).format(
     Number.isFinite(number)
@@ -1564,14 +2297,20 @@ function formatPrice(value) {
 // FILE EXTENSION
 // ============================================
 
-function getFileExtension(fileName) {
+function getFileExtension(
+  fileName
+) {
 
   const parts =
     fileName.split(".");
 
 
-  if (parts.length < 2) {
+  if (
+    parts.length < 2
+  ) {
+
     return "jpg";
+
   }
 
 
