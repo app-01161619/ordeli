@@ -394,6 +394,14 @@
           <div class="header-actions">
 
             <button
+              id="ordersButton"
+              class="secondary-button"
+              type="button"
+            >
+              Orders
+            </button>
+
+            <button
               id="productsButton"
               class="secondary-button"
               type="button"
@@ -992,6 +1000,233 @@
     id="printCardGrid"
     class="print-card-grid"
   ></div>
+
+</section>
+
+<!-- =====================================
+     ORDERS
+====================================== -->
+
+<section
+  id="ordersScreen"
+  class="screen"
+  hidden
+>
+
+  <div class="app-container">
+
+    <header class="page-header">
+
+      <div>
+
+        <button
+          id="ordersBackButton"
+          class="back-button"
+          type="button"
+        >
+          ← Back
+        </button>
+
+        <h1>
+          Orders
+        </h1>
+
+        <p class="page-subtitle">
+          Create and manage customer orders.
+        </p>
+
+      </div>
+
+
+      <button
+        id="createOrderButton"
+        type="button"
+      >
+        Create Order
+      </button>
+
+    </header>
+
+
+    <section
+      id="orderList"
+      class="order-list"
+    ></section>
+
+
+    <section
+      id="emptyOrdersState"
+      class="empty-state"
+      hidden
+    >
+
+      <h2>
+        No Orders Yet
+      </h2>
+
+      <p>
+        Create your first customer order.
+      </p>
+
+      <button
+        id="emptyCreateOrderButton"
+        type="button"
+      >
+        Create Order
+      </button>
+
+    </section>
+
+
+    <!-- ================================
+         ORDER EDITOR
+    ================================= -->
+
+    <section
+      id="orderEditor"
+      class="order-editor"
+      hidden
+    >
+
+      <div class="editor-card">
+
+        <h2>
+          Create Order
+        </h2>
+
+
+        <form id="orderForm">
+
+
+          <div class="form-group">
+
+            <label for="orderCustomerName">
+              Customer Name
+            </label>
+
+            <input
+              id="orderCustomerName"
+              type="text"
+              maxlength="150"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label for="orderCustomerPhone">
+
+              Customer Phone
+
+              <span class="optional">
+                Optional
+              </span>
+
+            </label>
+
+            <input
+              id="orderCustomerPhone"
+              type="tel"
+              maxlength="30"
+              autocomplete="tel"
+            >
+
+          </div>
+
+
+          <div class="order-items-header">
+
+            <h3>
+              Products
+            </h3>
+
+            <button
+              id="addOrderItemButton"
+              class="secondary-button"
+              type="button"
+            >
+              Add Product
+            </button>
+
+          </div>
+
+
+          <div
+            id="orderItems"
+            class="order-items"
+          ></div>
+
+
+          <div
+            id="emptyOrderItems"
+            class="empty-order-items"
+          >
+
+            <p>
+              Add at least one product.
+            </p>
+
+          </div>
+
+
+          <div class="order-total">
+
+            <span>
+              Order Total
+            </span>
+
+            <strong id="orderTotal">
+              ₱0.00
+            </strong>
+
+          </div>
+
+
+          <div class="editor-actions">
+
+            <button
+              id="cancelOrderButton"
+              class="secondary-button"
+              type="button"
+            >
+              Cancel
+            </button>
+
+
+            <button
+              id="saveOrderButton"
+              type="submit"
+            >
+              Create Order
+            </button>
+
+          </div>
+
+
+          <p
+            id="orderMessage"
+            class="form-message"
+            role="alert"
+          ></p>
+
+        </form>
+
+      </div>
+
+    </section>
+
+
+    <button
+      id="ordersLogoutButton"
+      class="secondary-button products-logout-button"
+      type="button"
+    >
+      Log Out
+    </button>
+
+  </div>
 
 </section>
 

@@ -1,9 +1,9 @@
 import { supabase } from "./supabase.js";
 
 
-// ============================================
+// ============================================================
 // DOM - SCREENS
-// ============================================
+// ============================================================
 
 const loginScreen =
   document.getElementById("loginScreen");
@@ -29,10 +29,13 @@ const qrScreen =
 const qrPrintScreen =
   document.getElementById("qrPrintScreen");
 
+const ordersScreen =
+  document.getElementById("ordersScreen");
 
-// ============================================
+
+// ============================================================
 // DOM - FORMS
-// ============================================
+// ============================================================
 
 const loginForm =
   document.getElementById("loginForm");
@@ -49,10 +52,13 @@ const productForm =
 const qrSeriesForm =
   document.getElementById("qrSeriesForm");
 
+const orderForm =
+  document.getElementById("orderForm");
 
-// ============================================
-// DOM - AUTH
-// ============================================
+
+// ============================================================
+// DOM - LOGIN / REGISTER
+// ============================================================
 
 const loginShopName =
   document.getElementById("loginShopName");
@@ -72,9 +78,9 @@ const registerConfirmPassword =
   );
 
 
-// ============================================
+// ============================================================
 // DOM - SHOP PROFILE
-// ============================================
+// ============================================================
 
 const shopName =
   document.getElementById("shopName");
@@ -96,9 +102,9 @@ const shopLogoPreview =
   );
 
 
-// ============================================
+// ============================================================
 // DOM - PRODUCTS
-// ============================================
+// ============================================================
 
 const productList =
   document.getElementById(
@@ -131,9 +137,9 @@ const productPrice =
   );
 
 
-// ============================================
+// ============================================================
 // DOM - WORKFLOW
-// ============================================
+// ============================================================
 
 const workflowProductName =
   document.getElementById(
@@ -151,9 +157,9 @@ const emptyStagesState =
   );
 
 
-// ============================================
+// ============================================================
 // DOM - QR MANAGEMENT
-// ============================================
+// ============================================================
 
 const qrProduct =
   document.getElementById(
@@ -181,9 +187,9 @@ const emptyQrState =
   );
 
 
-// ============================================
+// ============================================================
 // DOM - QR PRINT
-// ============================================
+// ============================================================
 
 const printSeriesName =
   document.getElementById(
@@ -211,9 +217,74 @@ const closePrintButton =
   );
 
 
-// ============================================
+// ============================================================
+// DOM - ORDERS
+// ============================================================
+
+const orderList =
+  document.getElementById(
+    "orderList"
+  );
+
+const emptyOrdersState =
+  document.getElementById(
+    "emptyOrdersState"
+  );
+
+const orderEditor =
+  document.getElementById(
+    "orderEditor"
+  );
+
+const orderCustomerName =
+  document.getElementById(
+    "orderCustomerName"
+  );
+
+const orderCustomerPhone =
+  document.getElementById(
+    "orderCustomerPhone"
+  );
+
+const orderItems =
+  document.getElementById(
+    "orderItems"
+  );
+
+const emptyOrderItems =
+  document.getElementById(
+    "emptyOrderItems"
+  );
+
+const orderTotal =
+  document.getElementById(
+    "orderTotal"
+  );
+
+const orderMessage =
+  document.getElementById(
+    "orderMessage"
+  );
+
+
+// ============================================================
+// DOM - HOME
+// ============================================================
+
+const homeShopName =
+  document.getElementById(
+    "homeShopName"
+  );
+
+const homeShopAddress =
+  document.getElementById(
+    "homeShopAddress"
+  );
+
+
+// ============================================================
 // DOM - BUTTONS
-// ============================================
+// ============================================================
 
 const loginButton =
   document.getElementById(
@@ -245,10 +316,15 @@ const generateQrButton =
     "generateQrButton"
   );
 
+const saveOrderButton =
+  document.getElementById(
+    "saveOrderButton"
+  );
 
-// ============================================
+
+// ============================================================
 // DOM - MESSAGES
-// ============================================
+// ============================================================
 
 const loginMessage =
   document.getElementById(
@@ -281,24 +357,9 @@ const qrMessage =
   );
 
 
-// ============================================
-// DOM - HOME
-// ============================================
-
-const homeShopName =
-  document.getElementById(
-    "homeShopName"
-  );
-
-const homeShopAddress =
-  document.getElementById(
-    "homeShopAddress"
-  );
-
-
-// ============================================
+// ============================================================
 // DOM - NAVIGATION
-// ============================================
+// ============================================================
 
 const logoutButton =
   document.getElementById(
@@ -380,10 +441,45 @@ const qrBackButton =
     "qrBackButton"
   );
 
+const ordersButton =
+  document.getElementById(
+    "ordersButton"
+  );
 
-// ============================================
+const ordersBackButton =
+  document.getElementById(
+    "ordersBackButton"
+  );
+
+const createOrderButton =
+  document.getElementById(
+    "createOrderButton"
+  );
+
+const emptyCreateOrderButton =
+  document.getElementById(
+    "emptyCreateOrderButton"
+  );
+
+const addOrderItemButton =
+  document.getElementById(
+    "addOrderItemButton"
+  );
+
+const cancelOrderButton =
+  document.getElementById(
+    "cancelOrderButton"
+  );
+
+const ordersLogoutButton =
+  document.getElementById(
+    "ordersLogoutButton"
+  );
+
+
+// ============================================================
 // STATE
-// ============================================
+// ============================================================
 
 let editingProductId = null;
 
@@ -393,10 +489,14 @@ let workflowStages = [];
 
 let printSeriesId = null;
 
+let orderProducts = [];
 
-// ============================================
+let orderBuilderItems = [];
+
+
+// ============================================================
 // ROUTING
-// ============================================
+// ============================================================
 
 function getRoute() {
 
@@ -414,18 +514,22 @@ function getRoute() {
     "products",
     "workflow",
     "qr",
-    "qr-print"
+    "qr-print",
+    "orders"
   ];
 
 
   if (
     allowedRoutes.includes(route)
   ) {
+
     return route;
+
   }
 
 
   return "login";
+
 }
 
 
@@ -463,12 +567,15 @@ function showScreen(route) {
   qrPrintScreen.hidden =
     route !== "qr-print";
 
+  ordersScreen.hidden =
+    route !== "orders";
+
 }
 
 
-// ============================================
+// ============================================================
 // SESSION
-// ============================================
+// ============================================================
 
 async function getSession() {
 
@@ -489,9 +596,9 @@ async function getSession() {
 }
 
 
-// ============================================
+// ============================================================
 // SELLER PROFILE
-// ============================================
+// ============================================================
 
 async function loadSellerProfile(
   userId
@@ -537,9 +644,9 @@ function isShopProfileComplete(
 }
 
 
-// ============================================
+// ============================================================
 // APPLICATION RENDER
-// ============================================
+// ============================================================
 
 async function renderApplication() {
 
@@ -573,7 +680,9 @@ async function renderApplication() {
 
 
   if (
-    !isShopProfileComplete(profile)
+    !isShopProfileComplete(
+      profile
+    )
   ) {
 
     populateShopProfile(
@@ -600,13 +709,15 @@ async function renderApplication() {
     getRoute();
 
 
+  // ------------------------------------------
+  // PRODUCTS
+  // ------------------------------------------
+
   if (
     route === "products"
   ) {
 
-    showScreen(
-      "products"
-    );
+    showScreen("products");
 
     await loadProducts();
 
@@ -615,24 +726,24 @@ async function renderApplication() {
   }
 
 
+  // ------------------------------------------
+  // WORKFLOW
+  // ------------------------------------------
+
   if (
     route === "workflow"
   ) {
 
     if (!workflowProductId) {
 
-      navigate(
-        "products"
-      );
+      navigate("products");
 
       return;
 
     }
 
 
-    showScreen(
-      "workflow"
-    );
+    showScreen("workflow");
 
     await loadWorkflowStages();
 
@@ -641,13 +752,15 @@ async function renderApplication() {
   }
 
 
+  // ------------------------------------------
+  // QR MANAGEMENT
+  // ------------------------------------------
+
   if (
     route === "qr"
   ) {
 
-    showScreen(
-      "qr"
-    );
+    showScreen("qr");
 
     await loadQrManagement();
 
@@ -656,15 +769,17 @@ async function renderApplication() {
   }
 
 
+  // ------------------------------------------
+  // QR PRINT
+  // ------------------------------------------
+
   if (
     route === "qr-print"
   ) {
 
     if (!printSeriesId) {
 
-      navigate(
-        "qr"
-      );
+      navigate("qr");
 
       return;
 
@@ -681,6 +796,27 @@ async function renderApplication() {
 
   }
 
+
+  // ------------------------------------------
+  // ORDERS
+  // ------------------------------------------
+
+  if (
+    route === "orders"
+  ) {
+
+    showScreen("orders");
+
+    await loadOrders();
+
+    return;
+
+  }
+
+
+  // ------------------------------------------
+  // SHOP PROFILE
+  // ------------------------------------------
 
   if (
     route === "shop-profile"
@@ -699,16 +835,18 @@ async function renderApplication() {
   }
 
 
-  showScreen(
-    "home"
-  );
+  // ------------------------------------------
+  // HOME
+  // ------------------------------------------
+
+  showScreen("home");
 
 }
 
 
-// ============================================
+// ============================================================
 // REGISTER
-// ============================================
+// ============================================================
 
 registerForm.addEventListener(
   "submit",
@@ -856,9 +994,9 @@ registerForm.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // LOGIN
-// ============================================
+// ============================================================
 
 loginForm.addEventListener(
   "submit",
@@ -961,9 +1099,9 @@ loginForm.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // SHOP PROFILE
-// ============================================
+// ============================================================
 
 shopProfileForm.addEventListener(
   "submit",
@@ -981,9 +1119,7 @@ shopProfileForm.addEventListener(
 
     if (!session) {
 
-      navigate(
-        "login"
-      );
+      navigate("login");
 
       return;
 
@@ -1031,17 +1167,13 @@ shopProfileForm.addEventListener(
 
     try {
 
-      let logoPath =
-        null;
-
-
       const existingProfile =
         await loadSellerProfile(
           session.user.id
         );
 
 
-      logoPath =
+      let logoPath =
         existingProfile.shop_logo_path;
 
 
@@ -1101,9 +1233,7 @@ shopProfileForm.addEventListener(
         } =
         await supabase
           .storage
-          .from(
-            "shop-logos"
-          )
+          .from("shop-logos")
           .upload(
             filePath,
             selectedLogo,
@@ -1139,9 +1269,7 @@ shopProfileForm.addEventListener(
 
           await supabase
             .storage
-            .from(
-              "shop-logos"
-            )
+            .from("shop-logos")
             .remove([
               existingProfile.shop_logo_path
             ]);
@@ -1212,9 +1340,9 @@ shopProfileForm.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // SHOP LOGO PREVIEW
-// ============================================
+// ============================================================
 
 shopLogo.addEventListener(
   "change",
@@ -1250,9 +1378,9 @@ shopLogo.addEventListener(
 );
 
 
-// ============================================
-// POPULATE SHOP PROFILE
-// ============================================
+// ============================================================
+// SHOP PROFILE POPULATION
+// ============================================================
 
 function populateShopProfile(
   profile
@@ -1273,9 +1401,9 @@ function populateShopProfile(
 }
 
 
-// ============================================
+// ============================================================
 // PRODUCTS
-// ============================================
+// ============================================================
 
 async function loadProducts() {
 
@@ -1292,9 +1420,7 @@ async function loadProducts() {
 
   if (!session) {
 
-    navigate(
-      "login"
-    );
+    navigate("login");
 
     return;
 
@@ -1306,9 +1432,7 @@ async function loadProducts() {
     error
   } =
   await supabase
-    .from(
-      "products"
-    )
+    .from("products")
     .select(`
       id,
       name,
@@ -1334,9 +1458,7 @@ async function loadProducts() {
   }
 
 
-  if (
-    !data.length
-  ) {
+  if (!data.length) {
 
     emptyProductsState.hidden =
       false;
@@ -1346,17 +1468,17 @@ async function loadProducts() {
   }
 
 
-  for (
-    const product of data
-  ) {
+  data.forEach(
+    (product) => {
 
-    productList.appendChild(
-      createProductCard(
-        product
-      )
-    );
+      productList.appendChild(
+        createProductCard(
+          product
+        )
+      );
 
-  }
+    }
+  );
 
 }
 
@@ -1498,9 +1620,9 @@ function createProductCard(
 }
 
 
-// ============================================
+// ============================================================
 // PRODUCT EDITOR
-// ============================================
+// ============================================================
 
 function openProductEditor(
   product = null
@@ -1589,6 +1711,16 @@ emptyAddProductButton.addEventListener(
 );
 
 
+cancelProductButton.addEventListener(
+  "click",
+  () => {
+
+    closeProductEditor();
+
+  }
+);
+
+
 productForm.addEventListener(
   "submit",
   async (event) => {
@@ -1604,9 +1736,7 @@ productForm.addEventListener(
 
     if (!session) {
 
-      navigate(
-        "login"
-      );
+      navigate("login");
 
       return;
 
@@ -1633,9 +1763,7 @@ productForm.addEventListener(
 
 
     if (
-      !Number.isFinite(
-        price
-      ) ||
+      !Number.isFinite(price) ||
       price < 0
     ) {
 
@@ -1656,17 +1784,13 @@ productForm.addEventListener(
 
     try {
 
-      if (
-        editingProductId
-      ) {
+      if (editingProductId) {
 
         const {
           error
         } =
         await supabase
-          .from(
-            "products"
-          )
+          .from("products")
           .update({
 
             name,
@@ -1699,9 +1823,7 @@ productForm.addEventListener(
           error
         } =
         await supabase
-          .from(
-            "products"
-          )
+          .from("products")
           .insert({
 
             seller_id:
@@ -1739,6 +1861,7 @@ productForm.addEventListener(
         error.message ||
         "Unable to save product.";
 
+
     } finally {
 
       saveProductButton.disabled =
@@ -1753,17 +1876,15 @@ productForm.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // PRODUCT NAVIGATION
-// ============================================
+// ============================================================
 
 productsButton.addEventListener(
   "click",
   () => {
 
-    navigate(
-      "products"
-    );
+    navigate("products");
 
   }
 );
@@ -1775,27 +1896,15 @@ productsBackButton.addEventListener(
 
     closeProductEditor();
 
-    navigate(
-      "home"
-    );
+    navigate("home");
 
   }
 );
 
 
-cancelProductButton.addEventListener(
-  "click",
-  () => {
-
-    closeProductEditor();
-
-  }
-);
-
-
-// ============================================
+// ============================================================
 // WORKFLOW
-// ============================================
+// ============================================================
 
 async function openWorkflow(
   product
@@ -1815,9 +1924,7 @@ async function openWorkflow(
 
     await loadWorkflowStages();
 
-    navigate(
-      "workflow"
-    );
+    navigate("workflow");
 
   } catch (error) {
 
@@ -2235,9 +2342,9 @@ emptyAddStageButton.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // SAVE WORKFLOW
-// ============================================
+// ============================================================
 
 saveWorkflowButton.addEventListener(
   "click",
@@ -2252,9 +2359,7 @@ saveWorkflowButton.addEventListener(
 
     if (!session) {
 
-      navigate(
-        "login"
-      );
+      navigate("login");
 
       return;
 
@@ -2264,9 +2369,6 @@ saveWorkflowButton.addEventListener(
     const cleanedStages =
       workflowStages.map(
         (stage) => ({
-
-          id:
-            stage.id,
 
           name:
             stage.name.trim()
@@ -2287,14 +2389,12 @@ saveWorkflowButton.addEventListener(
     }
 
 
-    const emptyStage =
-      cleanedStages.find(
+    if (
+      cleanedStages.some(
         (stage) =>
           !stage.name
-      );
-
-
-    if (emptyStage) {
+      )
+    ) {
 
       workflowMessage.textContent =
         "Every production stage needs a name.";
@@ -2361,9 +2461,7 @@ saveWorkflowButton.addEventListener(
         .from(
           "production_stages"
         )
-        .insert(
-          rows
-        );
+        .insert(rows);
 
 
       if (insertError) {
@@ -2413,9 +2511,9 @@ saveWorkflowButton.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // WORKFLOW NAVIGATION
-// ============================================
+// ============================================================
 
 workflowBackButton.addEventListener(
   "click",
@@ -2427,9 +2525,7 @@ workflowBackButton.addEventListener(
     workflowStages =
       [];
 
-    navigate(
-      "products"
-    );
+    navigate("products");
 
   }
 );
@@ -2445,17 +2541,15 @@ cancelWorkflowButton.addEventListener(
     workflowStages =
       [];
 
-    navigate(
-      "products"
-    );
+    navigate("products");
 
   }
 );
 
 
-// ============================================
+// ============================================================
 // QR MANAGEMENT
-// ============================================
+// ============================================================
 
 async function loadQrManagement() {
 
@@ -2483,9 +2577,7 @@ async function loadQrProducts() {
 
   if (!session) {
 
-    navigate(
-      "login"
-    );
+    navigate("login");
 
     return;
 
@@ -2497,9 +2589,7 @@ async function loadQrProducts() {
     error
   } =
   await supabase
-    .from(
-      "products"
-    )
+    .from("products")
     .select(`
       id,
       name
@@ -2522,27 +2612,27 @@ async function loadQrProducts() {
   }
 
 
-  for (
-    const product of data
-  ) {
+  data.forEach(
+    (product) => {
 
-    const option =
-      document.createElement(
-        "option"
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        product.id;
+
+      option.textContent =
+        product.name;
+
+
+      qrProduct.appendChild(
+        option
       );
 
-    option.value =
-      product.id;
-
-    option.textContent =
-      product.name;
-
-
-    qrProduct.appendChild(
-      option
-    );
-
-  }
+    }
+  );
 
 }
 
@@ -2562,9 +2652,7 @@ async function loadQrSeries() {
 
   if (!session) {
 
-    navigate(
-      "login"
-    );
+    navigate("login");
 
     return;
 
@@ -2576,9 +2664,7 @@ async function loadQrSeries() {
     error
   } =
   await supabase
-    .from(
-      "qr_series"
-    )
+    .from("qr_series")
     .select(`
       id,
       series_name,
@@ -2609,9 +2695,7 @@ async function loadQrSeries() {
   }
 
 
-  if (
-    !data.length
-  ) {
+  if (!data.length) {
 
     emptyQrState.hidden =
       false;
@@ -2621,17 +2705,17 @@ async function loadQrSeries() {
   }
 
 
-  for (
-    const series of data
-  ) {
+  data.forEach(
+    (series) => {
 
-    qrSeriesList.appendChild(
-      createQrSeriesCard(
-        series
-      )
-    );
+      qrSeriesList.appendChild(
+        createQrSeriesCard(
+          series
+        )
+      );
 
-  }
+    }
+  );
 
 }
 
@@ -2792,9 +2876,9 @@ function createQrSeriesCard(
 }
 
 
-// ============================================
+// ============================================================
 // CREATE QR SERIES
-// ============================================
+// ============================================================
 
 qrSeriesForm.addEventListener(
   "submit",
@@ -2838,9 +2922,7 @@ qrSeriesForm.addEventListener(
 
 
     if (
-      !Number.isInteger(
-        quantity
-      ) ||
+      !Number.isInteger(quantity) ||
       quantity < 1 ||
       quantity > 5000
     ) {
@@ -2940,17 +3022,15 @@ qrSeriesForm.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // QR NAVIGATION
-// ============================================
+// ============================================================
 
 qrManagementButton.addEventListener(
   "click",
   () => {
 
-    navigate(
-      "qr"
-    );
+    navigate("qr");
 
   }
 );
@@ -2960,9 +3040,7 @@ qrManagementButtonFromProducts.addEventListener(
   "click",
   () => {
 
-    navigate(
-      "qr"
-    );
+    navigate("qr");
 
   }
 );
@@ -2972,49 +3050,57 @@ qrBackButton.addEventListener(
   "click",
   () => {
 
-    navigate(
-      "products"
-    );
+    navigate("products");
 
   }
 );
 
 
-//
-// ============================================
+// ============================================================
 // QR PRINTING
-// ============================================
-//
+// ============================================================
 
-async function openQrPrintScreen(series) {
+async function openQrPrintScreen(
+  series
+) {
 
-  printSeriesId = series.id;
+  printSeriesId =
+    series.id;
+
 
   printSeriesName.textContent =
     series.series_name;
 
-  printCardGrid.innerHTML = "";
 
-  navigate("qr-print");
+  printCardGrid.innerHTML =
+    "";
+
+
+  navigate(
+    "qr-print"
+  );
+
 }
 
 
 async function loadPrintableQrCards() {
 
-  printCardGrid.innerHTML = "";
+  printCardGrid.innerHTML =
+    "";
+
 
   const session =
     await getSession();
 
+
   if (!session) {
+
     navigate("login");
+
     return;
+
   }
 
-
-  // ------------------------------------------
-  // Load shop name
-  // ------------------------------------------
 
   const shopProfile =
     await loadSellerProfile(
@@ -3022,33 +3108,29 @@ async function loadPrintableQrCards() {
     );
 
 
-  const shopName =
-    shopProfile.shop_name;
-
-
-  // ------------------------------------------
-  // Load QR series
-  // ------------------------------------------
-
   const {
     data: series,
     error: seriesError
   } =
-    await supabase
-      .from("qr_series")
-      .select(`
-        id,
-        series_name,
-        quantity,
-        products (
-          name
-        )
-      `)
-      .eq(
-        "id",
-        printSeriesId
+  await supabase
+    .from("qr_series")
+    .select(`
+      id,
+      series_name,
+      quantity,
+      products (
+        name
       )
-      .single();
+    `)
+    .eq(
+      "id",
+      printSeriesId
+    )
+    .eq(
+      "seller_id",
+      session.user.id
+    )
+    .single();
 
 
   if (seriesError) {
@@ -3056,41 +3138,38 @@ async function loadPrintableQrCards() {
   }
 
 
-  // ------------------------------------------
-  // Load available QR codes
-  // ------------------------------------------
-
   const {
     data: qrCodes,
     error: qrError
   } =
-    await supabase
-      .from("qr_codes")
-      .select(`
-        id,
-        code,
-        public_token,
-        status,
-        created_at
-      `)
-      .eq(
-        "series_id",
-        printSeriesId
-      )
-      .eq(
-        "seller_id",
-        session.user.id
-      )
-      .eq(
-        "status",
-        "available"
-      )
-      .order(
-        "created_at",
-        {
-          ascending: true
-        }
-      );
+  await supabase
+    .from("qr_codes")
+    .select(`
+      id,
+      code,
+      public_token,
+      status,
+      created_at
+    `)
+    .eq(
+      "series_id",
+      printSeriesId
+    )
+    .eq(
+      "seller_id",
+      session.user.id
+    )
+    .eq(
+      "status",
+      "available"
+    )
+    .order(
+      "created_at",
+      {
+        ascending:
+          true
+      }
+    );
 
 
   if (qrError) {
@@ -3104,7 +3183,9 @@ async function loadPrintableQrCards() {
 
 
   printSeriesInfo.textContent =
-    `${shopName} · ${productName} · ${qrCodes.length} available pairs`;
+    `${shopProfile.shop_name} · ` +
+    `${productName} · ` +
+    `${qrCodes.length} available pairs`;
 
 
   if (!qrCodes.length) {
@@ -3120,6 +3201,7 @@ async function loadPrintableQrCards() {
     `;
 
     return;
+
   }
 
 
@@ -3127,14 +3209,14 @@ async function loadPrintableQrCards() {
     `${window.location.origin}/t/`;
 
 
-  // ------------------------------------------
-  // Create one visual group per QR pair
-  // ------------------------------------------
-
-  for (const qr of qrCodes) {
+  for (
+    const qr of qrCodes
+  ) {
 
     const pair =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
     pair.className =
       "qr-print-pair";
@@ -3144,17 +3226,14 @@ async function loadPrintableQrCards() {
       `${trackingBase}${qr.public_token}`;
 
 
-    // ----------------------------------------
-    // Seller copy
-    // ----------------------------------------
-
     const sellerCard =
       await createPrintableQrCard({
 
         copyType:
           "SELLER COPY",
 
-        shopName,
+        shopName:
+          shopProfile.shop_name,
 
         productName,
 
@@ -3166,17 +3245,14 @@ async function loadPrintableQrCards() {
       });
 
 
-    // ----------------------------------------
-    // Customer copy
-    // ----------------------------------------
-
     const customerCard =
       await createPrintableQrCard({
 
         copyType:
           "CUSTOMER COPY",
 
-        shopName,
+        shopName:
+          shopProfile.shop_name,
 
         productName,
 
@@ -3200,7 +3276,9 @@ async function loadPrintableQrCards() {
     printCardGrid.appendChild(
       pair
     );
+
   }
+
 }
 
 
@@ -3213,25 +3291,27 @@ async function createPrintableQrCard({
 }) {
 
   const card =
-    document.createElement("article");
+    document.createElement(
+      "article"
+    );
 
   card.className =
     "print-card";
 
 
-  // ------------------------------------------
-  // Header
-  // ------------------------------------------
-
   const header =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   header.className =
     "print-card-header";
 
 
   const shop =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   shop.className =
     "print-card-shop";
@@ -3241,7 +3321,9 @@ async function createPrintableQrCard({
 
 
   const copy =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   copy.className =
     "print-card-copy";
@@ -3259,12 +3341,10 @@ async function createPrintableQrCard({
   );
 
 
-  // ------------------------------------------
-  // Product name
-  // ------------------------------------------
-
   const product =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   product.className =
     "print-card-product";
@@ -3273,20 +3353,19 @@ async function createPrintableQrCard({
     productName;
 
 
-  // ------------------------------------------
-  // QR
-  // ------------------------------------------
-
   const qrContainer =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   qrContainer.className =
     "print-card-qr";
 
 
   const canvas =
-    document.createElement("canvas");
-
+    document.createElement(
+      "canvas"
+    );
 
   canvas.width =
     420;
@@ -3300,12 +3379,10 @@ async function createPrintableQrCard({
   );
 
 
-  // ------------------------------------------
-  // Instruction
-  // ------------------------------------------
-
   const instruction =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   instruction.className =
     "print-card-instruction";
@@ -3314,12 +3391,10 @@ async function createPrintableQrCard({
     "Scan to track your order";
 
 
-  // ------------------------------------------
-  // Written tracking URL
-  // ------------------------------------------
-
   const url =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   url.className =
     "print-card-url";
@@ -3328,12 +3403,10 @@ async function createPrintableQrCard({
     trackingUrl;
 
 
-  // ------------------------------------------
-  // Internal seller code
-  // ------------------------------------------
-
   const code =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   code.className =
     "print-card-code";
@@ -3341,10 +3414,6 @@ async function createPrintableQrCard({
   code.textContent =
     qrCode;
 
-
-  // ------------------------------------------
-  // Assemble card
-  // ------------------------------------------
 
   card.appendChild(
     header
@@ -3368,7 +3437,8 @@ async function createPrintableQrCard({
 
 
   if (
-    copyType === "SELLER COPY"
+    copyType ===
+    "SELLER COPY"
   ) {
 
     card.appendChild(
@@ -3378,19 +3448,11 @@ async function createPrintableQrCard({
   }
 
 
-  // ------------------------------------------
-  // Generate actual QR
-  // ------------------------------------------
-
   await renderQrCode(
     canvas,
     trackingUrl
   );
 
-
-  // ------------------------------------------
-  // Automatically shrink long product names
-  // ------------------------------------------
 
   fitProductName(
     product
@@ -3398,14 +3460,9 @@ async function createPrintableQrCard({
 
 
   return card;
+
 }
 
-
-//
-// ============================================
-// ACTUAL QR GENERATION
-// ============================================
-//
 
 function renderQrCode(
   canvas,
@@ -3456,9 +3513,6 @@ function renderQrCode(
         });
 
 
-        // IMPORTANT:
-        // The library does not draw merely from
-        // setOptions(). draw() is required.
         qr.draw();
 
 
@@ -3474,18 +3528,16 @@ function renderQrCode(
 
     }
   );
+
 }
 
 
-//
-// ============================================
-// FIT LONG PRODUCT NAME
-// ============================================
-//
+function fitProductName(
+  element
+) {
 
-function fitProductName(element) {
-
-  let fontSize = 13;
+  let fontSize =
+    13;
 
 
   element.style.fontSize =
@@ -3498,16 +3550,21 @@ function fitProductName(element) {
     fontSize > 5
   ) {
 
-    fontSize -= 0.5;
+    fontSize -=
+      0.5;
+
 
     element.style.fontSize =
       `${fontSize}pt`;
+
   }
+
 }
 
-// ============================================
+
+// ============================================================
 // PRINT BUTTON
-// ============================================
+// ============================================================
 
 printCardsButton.addEventListener(
   "click",
@@ -3528,9 +3585,9 @@ printCardsButton.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // CLOSE PRINT SCREEN
-// ============================================
+// ============================================================
 
 closePrintButton.addEventListener(
   "click",
@@ -3550,9 +3607,1376 @@ closePrintButton.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
+// ORDERS
+// ============================================================
+
+async function loadOrders() {
+
+  const session =
+    await getSession();
+
+
+  if (!session) {
+
+    navigate("login");
+
+    return;
+
+  }
+
+
+  orderList.innerHTML =
+    "";
+
+  emptyOrdersState.hidden =
+    true;
+
+  orderEditor.hidden =
+    true;
+
+  orderList.hidden =
+    false;
+
+
+  const {
+    data,
+    error
+  } =
+  await supabase
+    .from("orders")
+    .select(`
+      id,
+      order_number,
+      customer_name,
+      customer_phone,
+      total_amount,
+      status,
+      created_at,
+      order_items (
+        product_name,
+        quantity
+      )
+    `)
+    .eq(
+      "seller_id",
+      session.user.id
+    )
+    .order(
+      "created_at",
+      {
+        ascending:
+          false
+      }
+    );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  if (!data.length) {
+
+    emptyOrdersState.hidden =
+      false;
+
+    return;
+
+  }
+
+
+  data.forEach(
+    (order) => {
+
+      orderList.appendChild(
+        createOrderCard(
+          order
+        )
+      );
+
+    }
+  );
+
+}
+
+
+function createOrderCard(
+  order
+) {
+
+  const card =
+    document.createElement(
+      "article"
+    );
+
+  card.className =
+    "order-card";
+
+
+  const header =
+    document.createElement(
+      "div"
+    );
+
+  header.className =
+    "order-card-header";
+
+
+  const number =
+    document.createElement(
+      "strong"
+    );
+
+  number.textContent =
+    `Order #${order.order_number}`;
+
+
+  const customer =
+    document.createElement(
+      "span"
+    );
+
+  customer.textContent =
+    order.customer_name;
+
+
+  header.appendChild(
+    number
+  );
+
+  header.appendChild(
+    customer
+  );
+
+
+  const items =
+    document.createElement(
+      "div"
+    );
+
+  items.className =
+    "order-card-items";
+
+
+  for (
+    const item of
+    order.order_items || []
+  ) {
+
+    const row =
+      document.createElement(
+        "div"
+      );
+
+    row.textContent =
+      `${item.product_name} × ${item.quantity}`;
+
+
+    items.appendChild(
+      row
+    );
+
+  }
+
+
+  const total =
+    document.createElement(
+      "strong"
+    );
+
+  total.className =
+    "order-card-total";
+
+  total.textContent =
+    formatPrice(
+      order.total_amount
+    );
+
+
+  card.appendChild(
+    header
+  );
+
+  card.appendChild(
+    items
+  );
+
+  card.appendChild(
+    total
+  );
+
+
+  return card;
+
+}
+
+
+// ============================================================
+// OPEN ORDER EDITOR
+// ============================================================
+
+async function openOrderEditor() {
+
+  clearOrderMessage();
+
+
+  orderEditor.hidden =
+    false;
+
+  orderList.hidden =
+    true;
+
+  emptyOrdersState.hidden =
+    true;
+
+
+  orderCustomerName.value =
+    "";
+
+  orderCustomerPhone.value =
+    "";
+
+  orderBuilderItems =
+    [];
+
+
+  orderItems.innerHTML =
+    "";
+
+  emptyOrderItems.hidden =
+    false;
+
+
+  try {
+
+    await loadOrderProducts();
+
+    addOrderItem();
+
+  } catch (error) {
+
+    console.error(
+      "Unable to open order editor:",
+      error
+    );
+
+
+    orderMessage.textContent =
+      error.message ||
+      "Unable to load products.";
+
+  }
+
+}
+
+
+async function loadOrderProducts() {
+
+  const session =
+    await getSession();
+
+
+  if (!session) {
+
+    navigate("login");
+
+    return;
+
+  }
+
+
+  const {
+    data,
+    error
+  } =
+  await supabase
+    .from("products")
+    .select(`
+      id,
+      name,
+      default_price
+    `)
+    .eq(
+      "seller_id",
+      session.user.id
+    )
+    .order(
+      "name",
+      {
+        ascending:
+          true
+      }
+    );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  orderProducts =
+    data;
+
+}
+
+
+// ============================================================
+// ORDER ITEMS
+// ============================================================
+
+function addOrderItem() {
+
+  if (
+    !orderProducts.length
+  ) {
+
+    orderMessage.textContent =
+      "Create a product before creating an order.";
+
+    return;
+
+  }
+
+
+  const item = {
+
+    id:
+      crypto.randomUUID(),
+
+    productId:
+      "",
+
+    quantity:
+      1,
+
+    unitPrice:
+      0,
+
+    qrCodeId:
+      ""
+
+  };
+
+
+  orderBuilderItems.push(
+    item
+  );
+
+
+  renderOrderItems();
+
+}
+
+
+async function renderOrderItems() {
+
+  orderItems.innerHTML =
+    "";
+
+
+  emptyOrderItems.hidden =
+    orderBuilderItems.length > 0;
+
+
+  for (
+    let index = 0;
+    index <
+      orderBuilderItems.length;
+    index++
+  ) {
+
+    const item =
+      orderBuilderItems[index];
+
+
+    const element =
+      createOrderItemElement(
+        item,
+        index
+      );
+
+
+    orderItems.appendChild(
+      element
+    );
+
+
+    if (
+      item.productId
+    ) {
+
+      const qrSelect =
+        element.querySelector(
+          ".order-item-qr"
+        );
+
+
+      if (qrSelect) {
+
+        await loadAvailableQrOptions(
+          qrSelect,
+          item
+        );
+
+      }
+
+    }
+
+  }
+
+
+  updateOrderTotal();
+
+}
+
+
+function createOrderItemElement(
+  item,
+  index
+) {
+
+  const wrapper =
+    document.createElement(
+      "div"
+    );
+
+  wrapper.className =
+    "order-item";
+
+
+  // ------------------------------------------
+  // Product
+  // ------------------------------------------
+
+  const productGroup =
+    document.createElement(
+      "div"
+    );
+
+  productGroup.className =
+    "form-group";
+
+
+  const productLabel =
+    document.createElement(
+      "label"
+    );
+
+  productLabel.textContent =
+    "Product";
+
+
+  const productSelect =
+    document.createElement(
+      "select"
+    );
+
+  productSelect.className =
+    "order-item-product";
+
+
+  const defaultOption =
+    document.createElement(
+      "option"
+    );
+
+  defaultOption.value =
+    "";
+
+  defaultOption.textContent =
+    "Select product";
+
+
+  productSelect.appendChild(
+    defaultOption
+  );
+
+
+  orderProducts.forEach(
+    (product) => {
+
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        product.id;
+
+      option.textContent =
+        product.name;
+
+
+      option.selected =
+        product.id ===
+        item.productId;
+
+
+      productSelect.appendChild(
+        option
+      );
+
+    }
+  );
+
+
+  productSelect.addEventListener(
+    "change",
+    async () => {
+
+      item.productId =
+        productSelect.value;
+
+
+      const product =
+        orderProducts.find(
+          (entry) =>
+            entry.id ===
+            item.productId
+        );
+
+
+      item.unitPrice =
+        product
+          ? Number(
+              product.default_price
+            )
+          : 0;
+
+
+      item.qrCodeId =
+        "";
+
+
+      await renderOrderItems();
+
+    }
+  );
+
+
+  productGroup.appendChild(
+    productLabel
+  );
+
+  productGroup.appendChild(
+    productSelect
+  );
+
+
+  // ------------------------------------------
+  // Quantity
+  // ------------------------------------------
+
+  const quantityGroup =
+    document.createElement(
+      "div"
+    );
+
+  quantityGroup.className =
+    "form-group";
+
+
+  const quantityLabel =
+    document.createElement(
+      "label"
+    );
+
+  quantityLabel.textContent =
+    "Quantity";
+
+
+  const quantityInput =
+    document.createElement(
+      "input"
+    );
+
+  quantityInput.type =
+    "number";
+
+  quantityInput.min =
+    "1";
+
+  quantityInput.step =
+    "1";
+
+  quantityInput.inputMode =
+    "numeric";
+
+  quantityInput.value =
+    item.quantity;
+
+
+  quantityInput.addEventListener(
+    "input",
+    () => {
+
+      const value =
+        Number(
+          quantityInput.value
+        );
+
+
+      item.quantity =
+        Number.isInteger(
+          value
+        ) &&
+        value > 0
+          ? value
+          : 1;
+
+
+      updateOrderTotal();
+
+    }
+  );
+
+
+  quantityGroup.appendChild(
+    quantityLabel
+  );
+
+  quantityGroup.appendChild(
+    quantityInput
+  );
+
+
+  // ------------------------------------------
+  // Unit Price
+  // ------------------------------------------
+
+  const priceGroup =
+    document.createElement(
+      "div"
+    );
+
+  priceGroup.className =
+    "form-group";
+
+
+  const priceLabel =
+    document.createElement(
+      "label"
+    );
+
+  priceLabel.textContent =
+    "Unit Price";
+
+
+  const priceInputWrapper =
+    document.createElement(
+      "div"
+    );
+
+  priceInputWrapper.className =
+    "price-input";
+
+
+  const peso =
+    document.createElement(
+      "span"
+    );
+
+  peso.textContent =
+    "₱";
+
+
+  const priceInput =
+    document.createElement(
+      "input"
+    );
+
+  priceInput.type =
+    "number";
+
+  priceInput.min =
+    "0";
+
+  priceInput.step =
+    "0.01";
+
+  priceInput.inputMode =
+    "decimal";
+
+  priceInput.value =
+    item.unitPrice;
+
+
+  priceInput.addEventListener(
+    "input",
+    () => {
+
+      const value =
+        Number(
+          priceInput.value
+        );
+
+
+      item.unitPrice =
+        Number.isFinite(
+          value
+        ) &&
+        value >= 0
+          ? value
+          : 0;
+
+
+      updateOrderTotal();
+
+    }
+  );
+
+
+  priceInputWrapper.appendChild(
+    peso
+  );
+
+  priceInputWrapper.appendChild(
+    priceInput
+  );
+
+
+  priceGroup.appendChild(
+    priceLabel
+  );
+
+  priceGroup.appendChild(
+    priceInputWrapper
+  );
+
+
+  // ------------------------------------------
+  // QR
+  // ------------------------------------------
+
+  const qrGroup =
+    document.createElement(
+      "div"
+    );
+
+  qrGroup.className =
+    "form-group";
+
+
+  const qrLabel =
+    document.createElement(
+      "label"
+    );
+
+  qrLabel.textContent =
+    "QR";
+
+
+  const qrSelect =
+    document.createElement(
+      "select"
+    );
+
+  qrSelect.className =
+    "order-item-qr";
+
+  qrSelect.disabled =
+    !item.productId;
+
+
+  const qrPlaceholder =
+    document.createElement(
+      "option"
+    );
+
+  qrPlaceholder.value =
+    "";
+
+  qrPlaceholder.textContent =
+    item.productId
+      ? "Loading available QR..."
+      : "Select product first";
+
+
+  qrSelect.appendChild(
+    qrPlaceholder
+  );
+
+
+  qrSelect.addEventListener(
+    "change",
+    () => {
+
+      item.qrCodeId =
+        qrSelect.value;
+
+    }
+  );
+
+
+  qrGroup.appendChild(
+    qrLabel
+  );
+
+  qrGroup.appendChild(
+    qrSelect
+  );
+
+
+  // ------------------------------------------
+  // Remove
+  // ------------------------------------------
+
+  const removeButton =
+    document.createElement(
+      "button"
+    );
+
+  removeButton.type =
+    "button";
+
+  removeButton.className =
+    "danger-button order-remove-button";
+
+  removeButton.textContent =
+    "Remove";
+
+
+  removeButton.addEventListener(
+    "click",
+    async () => {
+
+      orderBuilderItems =
+        orderBuilderItems.filter(
+          (entry) =>
+            entry.id !==
+            item.id
+        );
+
+
+      await renderOrderItems();
+
+    }
+  );
+
+
+  // ------------------------------------------
+  // Item total
+  // ------------------------------------------
+
+  const itemTotal =
+    document.createElement(
+      "div"
+    );
+
+  itemTotal.className =
+    "order-item-total";
+
+
+  itemTotal.textContent =
+    `Item Total: ${
+      formatPrice(
+        item.quantity *
+        item.unitPrice
+      )
+    }`;
+
+
+  // Update item total when values change.
+  quantityInput.addEventListener(
+    "input",
+    () => {
+
+      itemTotal.textContent =
+        `Item Total: ${
+          formatPrice(
+            item.quantity *
+            item.unitPrice
+          )
+        }`;
+
+    }
+  );
+
+
+  priceInput.addEventListener(
+    "input",
+    () => {
+
+      itemTotal.textContent =
+        `Item Total: ${
+          formatPrice(
+            item.quantity *
+            item.unitPrice
+          )
+        }`;
+
+    }
+  );
+
+
+  // ------------------------------------------
+  // Assemble
+  // ------------------------------------------
+
+  wrapper.appendChild(
+    productGroup
+  );
+
+  wrapper.appendChild(
+    quantityGroup
+  );
+
+  wrapper.appendChild(
+    priceGroup
+  );
+
+  wrapper.appendChild(
+    qrGroup
+  );
+
+  wrapper.appendChild(
+    itemTotal
+  );
+
+  wrapper.appendChild(
+    removeButton
+  );
+
+
+  return wrapper;
+
+}
+
+
+async function loadAvailableQrOptions(
+  select,
+  item
+) {
+
+  const session =
+    await getSession();
+
+
+  if (!session) {
+    return;
+  }
+
+
+  const {
+    data,
+    error
+  } =
+  await supabase
+    .from(
+      "qr_codes"
+    )
+    .select(`
+      id,
+      code,
+      created_at
+    `)
+    .eq(
+      "product_id",
+      item.productId
+    )
+    .eq(
+      "seller_id",
+      session.user.id
+    )
+    .eq(
+      "status",
+      "available"
+    )
+    .order(
+      "created_at",
+      {
+        ascending:
+          true
+      }
+    );
+
+
+  if (error) {
+
+    console.error(
+      "Unable to load QR inventory:",
+      error
+    );
+
+    select.innerHTML = `
+      <option value="">
+        Unable to load QR
+      </option>
+    `;
+
+    return;
+
+  }
+
+
+  select.innerHTML =
+    "";
+
+
+  const placeholder =
+    document.createElement(
+      "option"
+    );
+
+  placeholder.value =
+    "";
+
+  placeholder.textContent =
+    data.length
+      ? "Select QR"
+      : "No available QR";
+
+
+  select.appendChild(
+    placeholder
+  );
+
+
+  data.forEach(
+    (qr) => {
+
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        qr.id;
+
+      option.textContent =
+        qr.code;
+
+
+      if (
+        qr.id ===
+        item.qrCodeId
+      ) {
+
+        option.selected =
+          true;
+
+      }
+
+
+      select.appendChild(
+        option
+      );
+
+    }
+  );
+
+
+  select.disabled =
+    data.length === 0;
+
+}
+
+
+function updateOrderTotal() {
+
+  let total =
+    0;
+
+
+  orderBuilderItems.forEach(
+    (item) => {
+
+      total +=
+        item.quantity *
+        item.unitPrice;
+
+    }
+  );
+
+
+  orderTotal.textContent =
+    formatPrice(
+      total
+    );
+
+}
+
+
+function clearOrderMessage() {
+
+  orderMessage.textContent =
+    "";
+
+}
+
+
+// ============================================================
+// SAVE ORDER
+// ============================================================
+
+async function saveOrder() {
+
+  clearOrderMessage();
+
+
+  const customerName =
+    orderCustomerName.value.trim();
+
+  const customerPhone =
+    orderCustomerPhone.value.trim();
+
+
+  if (!customerName) {
+
+    orderMessage.textContent =
+      "Customer name is required.";
+
+    return;
+
+  }
+
+
+  if (
+    !orderBuilderItems.length
+  ) {
+
+    orderMessage.textContent =
+      "Add at least one product.";
+
+    return;
+
+  }
+
+
+  for (
+    const item of
+    orderBuilderItems
+  ) {
+
+    if (!item.productId) {
+
+      orderMessage.textContent =
+        "Every order item needs a product.";
+
+      return;
+
+    }
+
+
+    if (
+      !Number.isInteger(
+        item.quantity
+      ) ||
+      item.quantity <= 0
+    ) {
+
+      orderMessage.textContent =
+        "Quantity must be greater than zero.";
+
+      return;
+
+    }
+
+
+    if (
+      !Number.isFinite(
+        item.unitPrice
+      ) ||
+      item.unitPrice < 0
+    ) {
+
+      orderMessage.textContent =
+        "Unit price must not be negative.";
+
+      return;
+
+    }
+
+
+    if (!item.qrCodeId) {
+
+      orderMessage.textContent =
+        "Every product needs one assigned QR.";
+
+      return;
+
+    }
+
+  }
+
+
+  saveOrderButton.disabled =
+    true;
+
+  saveOrderButton.textContent =
+    "Creating...";
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+    await supabase.rpc(
+      "create_order",
+      {
+
+        requested_customer_name:
+          customerName,
+
+        requested_customer_phone:
+          customerPhone,
+
+        requested_items:
+          orderBuilderItems.map(
+            (item) => ({
+
+              product_id:
+                item.productId,
+
+              quantity:
+                item.quantity,
+
+              unit_price:
+                item.unitPrice,
+
+              qr_code_id:
+                item.qrCodeId
+
+            })
+          )
+
+      }
+    );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    orderBuilderItems =
+      [];
+
+    orderEditor.hidden =
+      true;
+
+    orderList.hidden =
+      false;
+
+
+    await loadOrders();
+
+
+  } catch (error) {
+
+    console.error(
+      "Order creation failed:",
+      error
+    );
+
+
+    orderMessage.textContent =
+      error.message ||
+      "Unable to create order.";
+
+
+  } finally {
+
+    saveOrderButton.disabled =
+      false;
+
+    saveOrderButton.textContent =
+      "Create Order";
+
+  }
+
+}
+
+
+// ============================================================
+// ORDER EVENTS
+// ============================================================
+
+orderForm.addEventListener(
+  "submit",
+  async (event) => {
+
+    event.preventDefault();
+
+    await saveOrder();
+
+  }
+);
+
+
+ordersButton.addEventListener(
+  "click",
+  () => {
+
+    navigate("orders");
+
+  }
+);
+
+
+ordersBackButton.addEventListener(
+  "click",
+  () => {
+
+    navigate("home");
+
+  }
+);
+
+
+createOrderButton.addEventListener(
+  "click",
+  async () => {
+
+    await openOrderEditor();
+
+  }
+);
+
+
+emptyCreateOrderButton.addEventListener(
+  "click",
+  async () => {
+
+    await openOrderEditor();
+
+  }
+);
+
+
+addOrderItemButton.addEventListener(
+  "click",
+  async () => {
+
+    addOrderItem();
+
+  }
+);
+
+
+cancelOrderButton.addEventListener(
+  "click",
+  () => {
+
+    orderBuilderItems =
+      [];
+
+    orderEditor.hidden =
+      true;
+
+    orderList.hidden =
+      false;
+
+  }
+);
+
+
+// ============================================================
 // LOGOUT
-// ============================================
+// ============================================================
 
 async function logout() {
 
@@ -3580,6 +5004,9 @@ async function logout() {
 
     printSeriesId =
       null;
+
+    orderBuilderItems =
+      [];
 
 
     navigate(
@@ -3622,9 +5049,15 @@ productsLogoutButton.addEventListener(
 );
 
 
-// ============================================
+ordersLogoutButton.addEventListener(
+  "click",
+  logout
+);
+
+
+// ============================================================
 // PROFILE NAVIGATION
-// ============================================
+// ============================================================
 
 editShopProfileButton.addEventListener(
   "click",
@@ -3638,9 +5071,9 @@ editShopProfileButton.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // AUTH STATE
-// ============================================
+// ============================================================
 
 supabase.auth.onAuthStateChange(
   async (_event, session) => {
@@ -3669,8 +5102,8 @@ supabase.auth.onAuthStateChange(
       );
 
       /*
-       * Do not sign the seller out merely because
-       * another part of the application failed.
+       * Do not log the seller out because
+       * a database or rendering operation failed.
        */
 
     }
@@ -3679,9 +5112,9 @@ supabase.auth.onAuthStateChange(
 );
 
 
-// ============================================
+// ============================================================
 // ROUTING
-// ============================================
+// ============================================================
 
 window.addEventListener(
   "hashchange",
@@ -3690,6 +5123,7 @@ window.addEventListener(
     try {
 
       await renderApplication();
+
 
     } catch (error) {
 
@@ -3704,9 +5138,9 @@ window.addEventListener(
 );
 
 
-// ============================================
+// ============================================================
 // MESSAGE HELPERS
-// ============================================
+// ============================================================
 
 function clearMessages() {
 
@@ -3754,9 +5188,9 @@ function clearQrMessage() {
 }
 
 
-// ============================================
-// PRICE
-// ============================================
+// ============================================================
+// FORMAT PRICE
+// ============================================================
 
 function formatPrice(
   value
@@ -3790,9 +5224,9 @@ function formatPrice(
 }
 
 
-// ============================================
+// ============================================================
 // FILE EXTENSION
-// ============================================
+// ============================================================
 
 function getFileExtension(
   fileName
@@ -3818,15 +5252,16 @@ function getFileExtension(
 }
 
 
-// ============================================
+// ============================================================
 // INITIALIZE
-// ============================================
+// ============================================================
 
 async function initializeApp() {
 
   try {
 
     await renderApplication();
+
 
   } catch (error) {
 

@@ -6,6 +6,7 @@
 html,
 body {
   margin: 0;
+
   min-height: 100%;
 }
 
@@ -31,6 +32,22 @@ select {
   font: inherit;
 }
 
+
+button {
+  cursor: pointer;
+}
+
+
+button:disabled {
+  opacity: 0.6;
+
+  cursor: not-allowed;
+}
+
+
+/* =====================================
+   SCREEN
+===================================== */
 
 .screen {
   min-height: 100vh;
@@ -163,15 +180,6 @@ button {
   background: #222;
 
   color: #fff;
-
-  cursor: pointer;
-}
-
-
-button:disabled {
-  opacity: 0.6;
-
-  cursor: not-allowed;
 }
 
 
@@ -224,7 +232,7 @@ button:disabled {
 
 
 /* =====================================
-   AUTH LINKS
+   LINKS
 ===================================== */
 
 .auth-link {
@@ -271,7 +279,7 @@ button:disabled {
 .app-container {
   min-height: 100vh;
 
-  max-width: 900px;
+  max-width: 1000px;
 
   margin: 0 auto;
 
@@ -319,8 +327,8 @@ button:disabled {
 }
 
 
-.header-actions .secondary-button,
-.page-header-actions .secondary-button {
+.header-actions button,
+.page-header-actions button {
   width: auto;
 }
 
@@ -406,6 +414,11 @@ button:disabled {
 }
 
 
+.product-card-info {
+  min-width: 0;
+}
+
+
 .product-card-info h2 {
   margin:
     0
@@ -413,6 +426,8 @@ button:disabled {
     6px;
 
   font-size: 18px;
+
+  overflow-wrap: anywhere;
 }
 
 
@@ -763,6 +778,8 @@ button:disabled {
     0
     0
     8px;
+
+  overflow-wrap: anywhere;
 }
 
 
@@ -784,11 +801,542 @@ button:disabled {
 }
 
 
+.qr-print-button {
+  width: 100%;
+
+  margin-top: 12px;
+}
+
+
 /* =====================================
-   RESPONSIVE
+   QR PRINT SCREEN
 ===================================== */
 
-@media (max-width: 640px) {
+.print-screen {
+  min-height: 100vh;
+
+  background: #fff;
+}
+
+
+.print-toolbar {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 20px;
+
+  padding: 20px;
+
+  border-bottom:
+    1px solid #ddd;
+}
+
+
+.print-toolbar h1 {
+  margin:
+    0
+    0
+    5px;
+}
+
+
+.print-toolbar p {
+  margin: 0;
+
+  color: #666;
+}
+
+
+.print-toolbar-actions {
+  display: flex;
+
+  gap: 8px;
+}
+
+
+.print-toolbar-actions button {
+  width: auto;
+
+  white-space: nowrap;
+}
+
+
+/* =====================================
+   QR PAIR
+===================================== */
+
+.print-card-grid {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  gap: 6mm;
+
+  padding: 10mm;
+}
+
+
+.qr-print-pair {
+  display: flex;
+
+  flex-direction: row;
+
+  gap: 1.5mm;
+
+  align-items: stretch;
+
+  break-inside: avoid;
+
+  page-break-inside: avoid;
+}
+
+
+/* =====================================
+   PRINT CARD
+===================================== */
+
+.print-card {
+  width: 85.6mm;
+
+  height: 54mm;
+
+  padding:
+    3.5mm;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  background: #fff;
+
+  border:
+    0.25mm
+    solid
+    #222;
+
+  overflow: hidden;
+
+  break-inside: avoid;
+
+  page-break-inside: avoid;
+}
+
+
+/* =====================================
+   PRINT CARD HEADER
+===================================== */
+
+.print-card-header {
+  width: 100%;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 3mm;
+}
+
+
+.print-card-shop {
+  min-width: 0;
+
+  flex: 1;
+
+  font-size: 9pt;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.print-card-copy {
+  flex-shrink: 0;
+
+  font-size: 6pt;
+
+  font-weight: 700;
+
+  letter-spacing: 0.3pt;
+
+  white-space: nowrap;
+}
+
+
+/* =====================================
+   PRINT CARD PRODUCT
+===================================== */
+
+.print-card-product {
+  width: 100%;
+
+  min-height: 8mm;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  text-align: center;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  font-size: 13pt;
+
+  line-height: 1;
+
+  font-weight: 700;
+}
+
+
+/* =====================================
+   QR CODE
+===================================== */
+
+.print-card-qr {
+  width: 29mm;
+
+  height: 29mm;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex-shrink: 0;
+}
+
+
+.print-card-qr canvas {
+  display: block;
+
+  width: 29mm !important;
+
+  height: 29mm !important;
+
+  max-width: 29mm;
+
+  max-height: 29mm;
+
+  image-rendering: pixelated;
+}
+
+
+/* =====================================
+   PRINT CARD TEXT
+===================================== */
+
+.print-card-instruction {
+  font-size: 7pt;
+
+  font-weight: 600;
+
+  text-align: center;
+}
+
+
+.print-card-url {
+  width: 100%;
+
+  font-size: 5.5pt;
+
+  line-height: 1.05;
+
+  text-align: center;
+
+  word-break: break-all;
+}
+
+
+.print-card-code {
+  width: 100%;
+
+  font-size: 4.5pt;
+
+  line-height: 1;
+
+  color: #666;
+
+  text-align: center;
+
+  word-break: break-all;
+}
+
+
+/* =====================================
+   ORDERS
+===================================== */
+
+.order-list {
+  display: grid;
+
+  gap: 12px;
+}
+
+
+.order-card {
+  padding: 18px;
+
+  background: #fff;
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 2px 10px
+    rgba(0, 0, 0, 0.06);
+}
+
+
+.order-card-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  gap: 16px;
+
+  margin-bottom: 12px;
+}
+
+
+.order-card-items {
+  display: grid;
+
+  gap: 5px;
+
+  color: #555;
+
+  font-size: 14px;
+}
+
+
+.order-card-total {
+  display: block;
+
+  margin-top: 14px;
+
+  font-size: 18px;
+}
+
+
+.order-editor {
+  margin-top: 20px;
+}
+
+
+.order-items-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 12px;
+
+  margin:
+    10px
+    0
+    15px;
+}
+
+
+.order-items-header h3 {
+  margin: 0;
+}
+
+
+.order-items-header button {
+  width: auto;
+}
+
+
+.order-items {
+  display: grid;
+
+  gap: 12px;
+}
+
+
+.order-item {
+  padding: 16px;
+
+  border:
+    1px solid #ddd;
+
+  border-radius: 10px;
+
+  background: #fafafa;
+}
+
+
+.order-item .form-group {
+  margin-bottom: 14px;
+}
+
+
+.order-item-total {
+  margin:
+    4px
+    0
+    12px;
+
+  font-weight: 600;
+
+  color: #444;
+}
+
+
+.order-remove-button {
+  width: auto;
+
+  padding:
+    9px
+    14px;
+}
+
+
+.empty-order-items {
+  padding:
+    20px;
+
+  margin-bottom: 15px;
+
+  text-align: center;
+
+  border:
+    1px dashed #ccc;
+
+  border-radius: 8px;
+
+  color: #666;
+}
+
+
+.order-total {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  padding:
+    18px
+    0;
+
+  margin-top: 10px;
+
+  border-top:
+    1px solid #ddd;
+
+  font-size: 18px;
+}
+
+
+/* =====================================
+   PRINT
+===================================== */
+
+@media print {
+
+  @page {
+    size: A4;
+
+    margin: 8mm;
+  }
+
+
+  html,
+  body {
+    margin: 0;
+
+    padding: 0;
+
+    background: #fff;
+  }
+
+
+  .print-toolbar {
+    display: none !important;
+  }
+
+
+  #app > .screen:not(
+    #qrPrintScreen
+  ) {
+    display: none !important;
+  }
+
+
+  .print-screen {
+    display: block !important;
+
+    min-height: auto;
+  }
+
+
+  .print-card-grid {
+    padding: 0;
+
+    margin: 0;
+
+    gap: 4mm;
+
+    align-items: center;
+  }
+
+
+  .qr-print-pair {
+    display: flex;
+
+    flex-direction: row;
+
+    gap: 1.5mm;
+
+    width: auto;
+
+    break-inside: avoid;
+
+    page-break-inside: avoid;
+  }
+
+
+  .print-card {
+    width: 85.6mm;
+
+    height: 54mm;
+
+    border:
+      0.25mm
+      solid
+      #222;
+  }
+
+}
+
+
+/* =====================================
+   TABLET / MOBILE
+===================================== */
+
+@media (max-width: 760px) {
 
   .auth-card {
     padding: 24px;
@@ -877,395 +1425,14 @@ button:disabled {
     padding: 20px;
   }
 
-}
 
-/* =====================================
-   QR PRINT SCREEN
-===================================== */
-
-.print-screen {
-  min-height: 100vh;
-
-  background: #fff;
-}
-
-
-.print-toolbar {
-  display: flex;
-
-  justify-content: space-between;
-
-  align-items: center;
-
-  gap: 20px;
-
-  padding: 20px;
-
-  border-bottom:
-    1px solid #ddd;
-}
-
-
-.print-toolbar h1 {
-  margin:
-    0
-    0
-    5px;
-}
-
-
-.print-toolbar p {
-  margin: 0;
-
-  color: #666;
-}
-
-
-.print-toolbar-actions {
-  display: flex;
-
-  gap: 8px;
-}
-
-
-.print-toolbar-actions button {
-  width: auto;
-
-  white-space: nowrap;
-}
-
-
-/* =====================================
-   PAIR CONTAINER
-===================================== */
-
-.print-card-grid {
-  display: flex;
-
-  flex-direction: column;
-
-  align-items: center;
-
-  gap: 6mm;
-
-  padding: 10mm;
-}
-
-
-.qr-print-pair {
-  display: flex;
-
-  flex-direction: row;
-
-  gap: 1.5mm;
-
-  align-items: stretch;
-
-  break-inside: avoid;
-
-  page-break-inside: avoid;
-}
-
-
-/* =====================================
-   CARD
-===================================== */
-
-.print-card {
-  width: 85.6mm;
-
-  height: 54mm;
-
-  padding:
-    3.5mm;
-
-  display: flex;
-
-  flex-direction: column;
-
-  align-items: center;
-
-  justify-content: space-between;
-
-  background: #fff;
-
-  border:
-    0.25mm
-    solid
-    #222;
-
-  overflow: hidden;
-
-  break-inside: avoid;
-
-  page-break-inside: avoid;
-}
-
-
-/* =====================================
-   SHOP / COPY HEADER
-===================================== */
-
-.print-card-header {
-  width: 100%;
-
-  display: flex;
-
-  justify-content: space-between;
-
-  align-items: center;
-
-  gap: 3mm;
-}
-
-
-.print-card-shop {
-  min-width: 0;
-
-  flex: 1;
-
-  font-size: 9pt;
-
-  font-weight: 700;
-
-  white-space: nowrap;
-
-  overflow: hidden;
-
-  text-overflow: ellipsis;
-}
-
-
-.print-card-copy {
-  flex-shrink: 0;
-
-  font-size: 6pt;
-
-  font-weight: 700;
-
-  letter-spacing: 0.3pt;
-
-  white-space: nowrap;
-}
-
-
-/* =====================================
-   PRODUCT NAME
-===================================== */
-
-.print-card-product {
-  width: 100%;
-
-  min-height: 8mm;
-
-  display: flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-  text-align: center;
-
-  white-space: nowrap;
-
-  overflow: hidden;
-
-  font-size: 13pt;
-
-  line-height: 1;
-
-  font-weight: 700;
-}
-
-
-/* =====================================
-   QR CODE
-===================================== */
-
-.print-card-qr {
-  width: 29mm;
-
-  height: 29mm;
-
-  display: flex;
-
-  align-items: center;
-
-  justify-content: center;
-
-  flex-shrink: 0;
-}
-
-
-.print-card-qr canvas {
-  display: block;
-
-  width: 29mm !important;
-
-  height: 29mm !important;
-
-  max-width: 29mm;
-
-  max-height: 29mm;
-
-  image-rendering: pixelated;
-}
-
-
-/* =====================================
-   INSTRUCTION
-===================================== */
-
-.print-card-instruction {
-  font-size: 7pt;
-
-  font-weight: 600;
-
-  text-align: center;
-}
-
-
-/* =====================================
-   TRACKING URL
-===================================== */
-
-.print-card-url {
-  width: 100%;
-
-  font-size: 5.5pt;
-
-  line-height: 1.05;
-
-  text-align: center;
-
-  word-break: break-all;
-}
-
-
-/* =====================================
-   INTERNAL SELLER CODE
-===================================== */
-
-.print-card-code {
-  width: 100%;
-
-  font-size: 4.5pt;
-
-  line-height: 1;
-
-  color: #666;
-
-  text-align: center;
-
-  word-break: break-all;
-}
-
-
-/* =====================================
-   PRINT BUTTON
-===================================== */
-
-.qr-print-button {
-  width: 100%;
-
-  margin-top: 12px;
-}
-
-
-/* =====================================
-   PRINT
-===================================== */
-
-@media print {
-
-  @page {
-    size: A4;
-
-    margin: 8mm;
-  }
-
-
-  html,
-  body {
-    margin: 0;
-
-    padding: 0;
-
-    background: #fff;
-  }
-
-
-  .print-toolbar {
-    display: none !important;
-  }
-
-
-  #app > .screen:not(
-    #qrPrintScreen
-  ) {
-    display: none !important;
-  }
-
-
-  .print-screen {
-    display: block !important;
-
-    min-height: auto;
-  }
-
-
-  .print-card-grid {
-    padding: 0;
-
-    margin: 0;
-
-    gap: 4mm;
-
-    align-items: center;
-  }
-
-
-  /*
-   * Each pair remains physically together.
-   */
-
-  .qr-print-pair {
-    display: flex;
-
-    flex-direction: row;
-
-    gap: 1.5mm;
-
-    width: auto;
-
-    break-inside: avoid;
-
-    page-break-inside: avoid;
-  }
-
-
-  .print-card {
-    width: 85.6mm;
-
-    height: 54mm;
-
-    border:
-      0.25mm
-      solid
-      #222;
-  }
-
-}
-
-
-/* =====================================
-   MOBILE PREVIEW
-===================================== */
-
-@media (max-width: 760px) {
+  /* ===================================
+     QR PRINT MOBILE PREVIEW
+  =================================== */
 
   .print-toolbar {
     flex-direction: column;
+
     align-items: stretch;
   }
 
@@ -1279,14 +1446,6 @@ button:disabled {
     flex: 1;
   }
 
-
-  /*
-   * Mobile PREVIEW only.
-   *
-   * The real printed size remains
-   * 85.6mm × 54mm through the
-   * @media print rules above.
-   */
 
   .print-card-grid {
     width: 100%;
@@ -1302,11 +1461,6 @@ button:disabled {
     align-items: center;
   }
 
-
-  /*
-   * Keep the seller/customer pair together,
-   * but make the pair fit inside the phone.
-   */
 
   .qr-print-pair {
     width: 100%;
@@ -1327,15 +1481,11 @@ button:disabled {
   }
 
 
-  /*
-   * Each preview card becomes half of the
-   * available screen width.
-   */
-
   .print-card {
-    width: calc(
-      (100vw - 28px) / 2
-    );
+    width:
+      calc(
+        (100vw - 28px) / 2
+      );
 
     height: auto;
 
@@ -1353,10 +1503,6 @@ button:disabled {
       );
   }
 
-
-  /*
-   * Scale the preview QR appropriately.
-   */
 
   .print-card-qr {
     width: 31%;
@@ -1417,6 +1563,34 @@ button:disabled {
     font-size: 3.5px;
 
     line-height: 1;
+  }
+
+
+  /* ===================================
+     ORDERS MOBILE
+  =================================== */
+
+  .order-card-header {
+    flex-direction: column;
+
+    gap: 5px;
+  }
+
+
+  .order-items-header {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
+
+  .order-items-header button {
+    width: 100%;
+  }
+
+
+  .order-item {
+    padding: 14px;
   }
 
 }
