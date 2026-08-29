@@ -1,5 +1,26 @@
-/manifest.webmanifest
-  Content-Type: application/manifest+json
+/*
+ * Cloudflare Pages response headers.
+ *
+ * index.html and the service worker must not be served from a stale
+ * browser/CDN cache. Static application assets are also revalidated
+ * aggressively because their URLs are not content-hashed yet.
+ */
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
 
 /sw.js
-  Cache-Control: no-cache
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+/js/*
+  Cache-Control: no-cache, must-revalidate
+
+/css/*
+  Cache-Control: no-cache, must-revalidate
+
+/manifest.webmanifest
+  Cache-Control: no-cache, must-revalidate
