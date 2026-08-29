@@ -6,16 +6,15 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli seller application">
   <link rel="manifest" href="./manifest.webmanifest">
-  <title>Ordeli</title>
   <link rel="stylesheet" href="./css/style.css">
+  <title>Ordeli</title>
 </head>
 <body>
 <main id="app">
   <section id="loginScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
-      <h2>Log In</h2>
-      <p class="auth-subtitle">Continue to your seller account.</p>
+      <h2>Log In</h2><p class="auth-subtitle">Continue to your seller account.</p>
       <button id="googleLoginButton" class="google-button" type="button">Continue with Google</button>
       <div class="divider"><span>or</span></div>
       <form id="loginForm">
@@ -31,14 +30,13 @@
   <section id="registerScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
-      <h2>Create Account</h2>
-      <p class="auth-subtitle">Choose how you want to sign up.</p>
+      <h2>Create Account</h2><p class="auth-subtitle">Choose how you want to sign up.</p>
       <button id="googleRegisterButton" class="google-button" type="button">Sign up with Google</button>
       <div class="divider"><span>or</span></div>
       <form id="registerForm">
         <div class="form-group"><label for="registerEmail">Email</label><input id="registerEmail" type="email" autocomplete="email" required></div>
-        <div class="form-group"><label for="registerPassword">Password</label><input id="registerPassword" type="password" autocomplete="new-password" minlength="8" required></div>
-        <div class="form-group"><label for="registerConfirmPassword">Confirm Password</label><input id="registerConfirmPassword" type="password" autocomplete="new-password" minlength="8" required></div>
+        <div class="form-group"><label for="registerPassword">Password</label><input id="registerPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+        <div class="form-group"><label for="registerConfirmPassword">Confirm Password</label><input id="registerConfirmPassword" type="password" minlength="8" autocomplete="new-password" required></div>
         <button id="registerButton" type="submit">Create Account</button>
         <p id="registerMessage" class="form-message" role="alert"></p>
       </form>
@@ -49,8 +47,7 @@
   <section id="shopSetupScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Shop setup</p></div>
-      <h2>Set Up Your Shop</h2>
-      <p class="auth-subtitle">Complete the information customers will see.</p>
+      <h2>Set Up Your Shop</h2><p class="auth-subtitle">Complete the information customers will see.</p>
       <form id="shopSetupForm">
         <div class="form-group"><label for="shopName">Shop Name</label><input id="shopName" type="text" maxlength="150" autocomplete="organization" required></div>
         <div class="form-group"><label for="shopAddress">Shop Address</label><textarea id="shopAddress" rows="4" maxlength="500" autocomplete="street-address" required></textarea></div>
@@ -70,26 +67,73 @@
           <div id="homeLogoContainer" class="home-logo-container" hidden><img id="homeLogo" class="home-logo" alt="Shop logo"></div>
           <div><h1 id="homeShopName">Shop</h1><p id="homeShopAddress"></p></div>
         </div>
-        <button id="editShopButton" class="secondary-button" type="button">Shop Profile</button>
+        <div class="header-actions">
+          <button id="productsButton" type="button">Products</button>
+          <button id="editShopButton" class="secondary-button" type="button">Shop Profile</button>
+        </div>
       </header>
       <section class="home-empty">
         <div class="home-icon">✓</div>
         <h2>Your shop is ready</h2>
         <p>Seller account and shop setup are complete.</p>
-        <p class="step-note">The next seller feature will be added here after this step is fully tested.</p>
+        <p class="step-note">Manage your product catalog from Products.</p>
       </section>
       <button id="homeLogoutButton" class="secondary-button" type="button">Log Out</button>
+    </div>
+  </section>
+
+  <section id="productsScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <button id="productsBackButton" class="back-button" type="button">← Back</button>
+          <h1>Products</h1>
+          <p class="page-subtitle">Manage your product catalog.</p>
+        </div>
+        <button id="addProductButton" type="button">Add Product</button>
+      </header>
+
+      <section id="productList" class="product-list"></section>
+
+      <section id="emptyProductsState" class="empty-state" hidden>
+        <h2>No Products Yet</h2>
+        <p>Add your first product to get started.</p>
+        <button id="emptyAddProductButton" type="button">Add Product</button>
+      </section>
+
+      <section id="productEditor" class="product-editor" hidden>
+        <div class="editor-card">
+          <h2 id="productEditorTitle">Add Product</h2>
+          <form id="productForm">
+            <div class="form-group">
+              <label for="productName">Product Name</label>
+              <input id="productName" type="text" maxlength="150" required>
+            </div>
+            <div class="form-group">
+              <label for="productPrice">Default Price</label>
+              <div class="price-input"><span>₱</span><input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" required></div>
+            </div>
+            <div class="editor-actions">
+              <button id="cancelProductButton" class="secondary-button" type="button">Cancel</button>
+              <button id="saveProductButton" type="submit">Save Product</button>
+            </div>
+            <p id="productMessage" class="form-message" role="alert"></p>
+          </form>
+        </div>
+      </section>
+
+      <button id="productsLogoutButton" class="secondary-button products-logout-button" type="button">Log Out</button>
     </div>
   </section>
 </main>
 
 <script type="module" src="./js/app.js"></script>
 <script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(console.error);
-    });
-  }
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(console.error);
+  });
+}
 </script>
 </body>
 </html>
