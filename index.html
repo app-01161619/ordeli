@@ -257,19 +257,12 @@
 
 </main>
 
-<script type="module" src="./js/app.js?v=2026-08-29-03"></script>
+<script type="module" src="./js/app.js"></script>
 
 <script>
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      const registration = await navigator.serviceWorker.register("./sw.js");
-
-      // Ask the browser to check for a newer SW after each app launch.
-      await registration.update();
-    } catch (error) {
-      console.error("Service worker registration failed:", error);
-    }
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(console.error);
   });
 }
 </script>

@@ -31,10 +31,7 @@ const screens = {
     $("productsScreen"),
 
   workflow:
-    $("workflowScreen"),
-
-  qr:
-    $("qrScreen")
+    $("workflowScreen")
 
 };
 
@@ -55,7 +52,8 @@ let workflowProductName =
 let workflowStages =
   [];
 
-let qrProducts = [];
+let renderInFlight =
+  null;
 
 
 // ============================================================
@@ -68,8 +66,7 @@ const validRoutes = [
   "shop-setup",
   "home",
   "products",
-  "workflow",
-  "qr"
+  "workflow"
 ];
 
 
@@ -250,167 +247,72 @@ function shopComplete(
 
 async function renderApplication() {
 
-  try {
-
-    const session =
-      await getSession();
-
-
-    if (!session) {
-
-      showScreen(
-        getRoute() ===
-          "register"
-          ? "register"
-          : "login"
-      );
-
-      return;
-
-    }
-
-
-    const seller =
-      await getSeller(
-        session.user.id
-      );
-
-
-    if (!seller) {
-
-      throw new Error(
-        "Seller profile was not found. Run the Seller/Shop database setup first."
-      );
-
-    }
-
-
-    if (
-      !shopComplete(
-        seller
-      )
-    ) {
-
-      populateShopForm(
-        seller
-      );
-
-      showScreen(
-        "shopSetup"
-      );
-
-      return;
-
-    }
-
-
-    if (
-      getRoute() ===
-      "products"
-    ) {
-
-      showScreen(
-        "products"
-      );
-
-      await loadProducts();
-
-      return;
-
-    }
-
-
-    if (
-      getRoute() ===
-      "workflow"
-    ) {
-
-      if (
-        !workflowProductId
-      ) {
-
-        navigate(
-          "products"
-        );
-
-        return;
-
-      }
-
-
-      showScreen(
-        "workflow"
-      );
-
-      await loadWorkflow();
-
-      return;
-
-    }
-
-
-    if (
-      getRoute() ===
-      "qr"
-    ) {
-
-      showScreen(
-        "qr"
-      );
-
-      await loadQrManagement();
-
-      return;
-
-    }
-
-
-    if (
-      getRoute() ===
-      "shop-setup"
-    ) {
-
-      populateShopForm(
-        seller
-      );
-
-      showScreen(
-        "shopSetup"
-      );
-
-      return;
-
-    }
-
-
-    await renderHome(
-      seller
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "Application render error:",
-      error
-    );
-
-
-    showScreen(
-      "login"
-    );
-
-
-    $("loginMessage").textContent =
-      error?.message ||
-      "Unable to load the application.";
-
+  // Prevent simultaneous startup/auth/hash renders.
+  // Without this lock, multiple loadProducts() calls can fetch the same
+  // rows and append duplicate cards while the first request is still running.
+  if (renderInFlight) {
+    return renderInFlight;
   }
 
+  renderInFlight = (async () => {
+    try {
+      const session = await getSession();
+
+      if (!session) {
+        showScreen(getRoute() === "register" ? "register" : "login");
+        return;
+      }
+
+      const seller = await getSeller(session.user.id);
+
+      if (!seller) {
+        throw new Error(
+          "Seller profile was not found. Run the Seller/Shop database setup first."
+        );
+      }
+
+      if (!shopComplete(seller)) {
+        populateShopForm(seller);
+        showScreen("shopSetup");
+        return;
+      }
+
+      if (getRoute() === "products") {
+        showScreen("products");
+        await loadProducts();
+        return;
+      }
+
+      if (getRoute() === "workflow") {
+        if (!workflowProductId) {
+          navigate("products");
+          return;
+        }
+        showScreen("workflow");
+        await loadWorkflow();
+        return;
+      }
+
+      if (getRoute() === "shop-setup") {
+        populateShopForm(seller);
+        showScreen("shopSetup");
+        return;
+      }
+
+      await renderHome(seller);
+    } catch (error) {
+      console.error("Application render error:", error);
+      showScreen("login");
+      $("loginMessage").textContent =
+        error?.message || "Unable to load the application.";
+    } finally {
+      renderInFlight = null;
+    }
+  })();
+
+  return renderInFlight;
 }
 
-
-// ============================================================
 // HOME
 // ============================================================
 
@@ -1220,33 +1122,18 @@ $("editShopButton")
 
 async function loadProducts() {
 
-  $("productList")
-    .innerHTML =
-      "";
+  const list = $("productList");
 
+  // Always replace the rendered list. This function never appends onto
+  // a previous database result.
+  list.replaceChildren();
+  $("emptyProductsState").hidden = true;
+  $("productEditor").hidden = true;
 
-  $("emptyProductsState")
-    .hidden =
-      true;
+  const user = await getCurrentUser();
 
-
-  $("productEditor")
-    .hidden =
-      true;
-
-
-  const user =
-    await getCurrentUser();
-
-
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .from(
-      "products"
-    )
+  const { data, error } = await supabase
+    .from("products")
     .select(`
       id,
       seller_id,
@@ -1257,57 +1144,30 @@ async function loadProducts() {
       created_at,
       updated_at
     `)
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .eq(
-      "is_active",
-      true
-    )
-    .order(
-      "name",
-      {
-        ascending:
-          true
-      }
-    );
+    .eq("seller_id", user.id)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
 
+  if (error) throw error;
 
-  if (error) {
+  // Ignore a response if the user navigated away while the request was running.
+  if (getRoute() !== "products") return;
 
-    throw error;
-
-  }
-
+  list.replaceChildren();
 
   if (!data.length) {
-
-    $("emptyProductsState")
-      .hidden =
-        false;
-
-
+    $("emptyProductsState").hidden = false;
     return;
-
   }
 
+  const fragment = document.createDocumentFragment();
 
-  data.forEach(
-    (product) => {
+  data.forEach((product) => {
+    fragment.appendChild(createProductCard(product));
+  });
 
-      $("productList")
-        .appendChild(
-          createProductCard(
-            product
-          )
-        );
-
-    }
-  );
-
+  list.appendChild(fragment);
 }
-
 
 function createProductCard(
   product
@@ -2663,68 +2523,6 @@ $("workflowLogoutButton")
     logout
   );
 
-
-// ============================================================
-// QR MANAGEMENT
-// ============================================================
-
-async function loadQrManagement() { await loadQrProducts(); await loadQrSeries(); }
-
-async function loadQrProducts() {
-  const select = $("qrProduct");
-  select.replaceChildren();
-  const placeholder = document.createElement("option");
-  placeholder.value = ""; placeholder.textContent = "Select product";
-  select.appendChild(placeholder);
-  const user = await getCurrentUser();
-  const { data, error } = await supabase.from("products").select("id,name,is_active").eq("seller_id", user.id).eq("is_active", true).order("name", {ascending:true});
-  if (error) throw error;
-  qrProducts = data || [];
-  qrProducts.forEach(product => { const option=document.createElement("option"); option.value=product.id; option.textContent=product.name; select.appendChild(option); });
-}
-
-async function loadQrSeries() {
-  const list=$("qrSeriesList"); list.replaceChildren(); $("emptyQrState").hidden=true;
-  const user=await getCurrentUser();
-  const {data,error}=await supabase.from("qr_codes").select(`id,product_id,series_name,series_sequence,code,status,created_at,products(name)`).eq("seller_id",user.id).order("created_at",{ascending:false});
-  if(error) throw error;
-  const groups=new Map();
-  (data||[]).forEach(qr=>{ const key=`${qr.product_id}::${qr.series_name}`; if(!groups.has(key)) groups.set(key,{productName:qr.products?.name||"Product",seriesName:qr.series_name||"Unnamed Series",total:0,available:0,assigned:0,revoked:0}); const g=groups.get(key); g.total++; if(qr.status==="available")g.available++; else if(qr.status==="assigned")g.assigned++; else if(qr.status==="revoked")g.revoked++; });
-  if(!groups.size){ $("emptyQrState").hidden=false; return; }
-  const fragment=document.createDocumentFragment();
-  for(const group of groups.values()) fragment.appendChild(createQrSeriesCard(group));
-  list.appendChild(fragment);
-}
-
-function createQrSeriesCard(group){
-  const card=document.createElement("article"); card.className="qr-series-card";
-  const title=document.createElement("h3"); title.textContent=group.seriesName;
-  const product=document.createElement("p"); product.textContent=`Product: ${group.productName}`;
-  const total=document.createElement("p"); total.textContent=`Total: ${group.total} pairs`;
-  const status=document.createElement("p"); status.className="qr-series-status"; status.textContent=`Available: ${group.available} · Assigned: ${group.assigned} · Revoked: ${group.revoked}`;
-  card.append(title,product,total,status); return card;
-}
-
-$("qrSeriesForm").addEventListener("submit",async event=>{
-  event.preventDefault(); clearQrMessage();
-  const productId=$("qrProduct").value, seriesName=$("qrSeriesName").value.trim(), quantity=Number($("qrQuantity").value);
-  if(!productId){$("qrMessage").textContent="Select a product.";return;}
-  if(!seriesName){$("qrMessage").textContent="Enter a series name.";return;}
-  if(!Number.isInteger(quantity)||quantity<1||quantity>5000){$("qrMessage").textContent="Enter a quantity between 1 and 5000.";return;}
-  setLoading($("generateQrButton"),"Generating...");
-  try {
-    const {data,error}=await supabase.rpc("generate_qr_series",{requested_product_id:productId,requested_series_name:seriesName,requested_quantity:quantity});
-    if(error) throw error;
-    console.log("Generated QR series:",data); $("qrSeriesForm").reset(); $("qrMessage").textContent=`Generated ${quantity} QR pairs successfully.`; $("qrMessage").classList.add("success-message"); await loadQrSeries();
-  } catch(error){ console.error("QR generation failed:",error); $("qrMessage").textContent=error?.message||"Unable to generate QR series."; }
-  finally { resetButton($("generateQrButton"),"Generate QR Series"); }
-});
-
-$("qrButton").addEventListener("click",()=>navigate("qr"));
-$("qrBackButton").addEventListener("click",()=>navigate("home"));
-$("qrLogoutButton").addEventListener("click",logout);
-
-function clearQrMessage(){ $("qrMessage").textContent=""; $("qrMessage").classList.remove("success-message"); }
 
 // ============================================================
 // LOGOUT
