@@ -3150,10 +3150,10 @@ function createQrPair(
     );
 
   connector.className =
-    "qr-pair-connector";
+    "qr-pair-cut-guide";
 
-  connector.textContent =
-    `PAIR ${pairNumber}`;
+  connector.innerHTML =
+    `<span class="cut-scissors">✂</span><span>Cut here</span>`;
 
 
   pair.appendChild(

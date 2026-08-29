@@ -707,15 +707,14 @@ a:hover {
 
 .qr-print-pair {
   display: grid;
-  grid-template-columns: 85.6mm auto 85.6mm;
-  align-items: center;
-  gap: 4mm;
+  grid-template-columns: 85.6mm 10mm 85.6mm;
+  align-items: stretch;
+  gap: 0;
   width: max-content;
   max-width: 100%;
-  padding: 3mm;
-  background: #f7f7f7;
-  border: 1px dashed #c8c8c8;
-  border-radius: 7px;
+  padding: 0;
+  background: #fff;
+  border: 0;
 }
 
 .qr-print-card {
@@ -792,14 +791,33 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
-.qr-pair-connector {
-  min-width: 10mm;
-  color: #666;
+.qr-pair-cut-guide {
+  position: relative;
+  width: 10mm;
+  min-height: 54mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2mm;
+  color: #555;
   font-size: 6pt;
   font-weight: 700;
   text-align: center;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  border-left: 0.35mm dashed #777;
+  border-right: 0.35mm dashed #777;
+}
+
+.qr-pair-cut-guide::before,
+.qr-pair-cut-guide::after {
+  content: "";
+  width: 100%;
+  border-top: 0.35mm dashed #777;
+}
+
+.cut-scissors {
+  font-size: 13pt;
+  line-height: 1;
 }
 
 .print-preview-actions {
@@ -871,19 +889,20 @@ a:hover {
 @media (max-width: 800px) {
 
   .qr-print-pair {
-    grid-template-columns: 1fr;
-    width: 100%;
+    grid-template-columns: 85.6mm 10mm 85.6mm;
+    width: max-content;
+    max-width: none;
+    overflow-x: auto;
   }
 
   .qr-print-card {
-    width: 100%;
+    width: 85.6mm;
     max-width: 85.6mm;
-    margin: 0 auto;
+    margin: 0;
   }
 
-  .qr-pair-connector {
-    writing-mode: horizontal-tb;
-    transform: none;
+  .qr-pair-cut-guide {
+    min-height: 54mm;
   }
 
 }
