@@ -11,15 +11,23 @@
 </head>
 <body>
 <main id="app">
+
   <section id="loginScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
-      <h2>Log In</h2><p class="auth-subtitle">Continue to your seller account.</p>
+      <h2>Log In</h2>
+      <p class="auth-subtitle">Continue to your seller account.</p>
       <button id="googleLoginButton" class="google-button" type="button">Continue with Google</button>
       <div class="divider"><span>or</span></div>
       <form id="loginForm">
-        <div class="form-group"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="email" required></div>
-        <div class="form-group"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" autocomplete="email" required>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" required>
+        </div>
         <button id="loginButton" type="submit">Log In</button>
         <p id="loginMessage" class="form-message" role="alert"></p>
       </form>
@@ -30,13 +38,23 @@
   <section id="registerScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
-      <h2>Create Account</h2><p class="auth-subtitle">Choose how you want to sign up.</p>
+      <h2>Create Account</h2>
+      <p class="auth-subtitle">Choose how you want to sign up.</p>
       <button id="googleRegisterButton" class="google-button" type="button">Sign up with Google</button>
       <div class="divider"><span>or</span></div>
       <form id="registerForm">
-        <div class="form-group"><label for="registerEmail">Email</label><input id="registerEmail" type="email" autocomplete="email" required></div>
-        <div class="form-group"><label for="registerPassword">Password</label><input id="registerPassword" type="password" minlength="8" autocomplete="new-password" required></div>
-        <div class="form-group"><label for="registerConfirmPassword">Confirm Password</label><input id="registerConfirmPassword" type="password" minlength="8" autocomplete="new-password" required></div>
+        <div class="form-group">
+          <label for="registerEmail">Email</label>
+          <input id="registerEmail" type="email" autocomplete="email" required>
+        </div>
+        <div class="form-group">
+          <label for="registerPassword">Password</label>
+          <input id="registerPassword" type="password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="form-group">
+          <label for="registerConfirmPassword">Confirm Password</label>
+          <input id="registerConfirmPassword" type="password" minlength="8" autocomplete="new-password" required>
+        </div>
         <button id="registerButton" type="submit">Create Account</button>
         <p id="registerMessage" class="form-message" role="alert"></p>
       </form>
@@ -47,12 +65,24 @@
   <section id="shopSetupScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Shop setup</p></div>
-      <h2>Set Up Your Shop</h2><p class="auth-subtitle">Complete the information customers will see.</p>
+      <h2>Set Up Your Shop</h2>
+      <p class="auth-subtitle">Complete the information customers will see.</p>
       <form id="shopSetupForm">
-        <div class="form-group"><label for="shopName">Shop Name</label><input id="shopName" type="text" maxlength="150" autocomplete="organization" required></div>
-        <div class="form-group"><label for="shopAddress">Shop Address</label><textarea id="shopAddress" rows="4" maxlength="500" autocomplete="street-address" required></textarea></div>
-        <div class="form-group"><label for="shopLogo">Shop Logo <span class="optional">Optional</span></label><input id="shopLogo" type="file" accept="image/png,image/jpeg,image/webp"></div>
-        <div id="shopLogoPreviewContainer" class="logo-preview-container" hidden><img id="shopLogoPreview" class="logo-preview" alt="Shop logo preview"></div>
+        <div class="form-group">
+          <label for="shopName">Shop Name</label>
+          <input id="shopName" type="text" maxlength="150" required>
+        </div>
+        <div class="form-group">
+          <label for="shopAddress">Shop Address</label>
+          <textarea id="shopAddress" rows="4" maxlength="500" required></textarea>
+        </div>
+        <div class="form-group">
+          <label for="shopLogo">Shop Logo <span class="optional">Optional</span></label>
+          <input id="shopLogo" type="file" accept="image/png,image/jpeg,image/webp">
+        </div>
+        <div id="shopLogoPreviewContainer" class="logo-preview-container" hidden>
+          <img id="shopLogoPreview" class="logo-preview" alt="Shop logo preview">
+        </div>
         <button id="saveShopButton" type="submit">Save Shop</button>
         <p id="shopSetupMessage" class="form-message" role="alert"></p>
       </form>
@@ -64,20 +94,27 @@
     <div class="app-container">
       <header class="app-header">
         <div class="shop-heading">
-          <div id="homeLogoContainer" class="home-logo-container" hidden><img id="homeLogo" class="home-logo" alt="Shop logo"></div>
-          <div><h1 id="homeShopName">Shop</h1><p id="homeShopAddress"></p></div>
+          <div id="homeLogoContainer" class="home-logo-container" hidden>
+            <img id="homeLogo" class="home-logo" alt="Shop logo">
+          </div>
+          <div>
+            <h1 id="homeShopName">Shop</h1>
+            <p id="homeShopAddress"></p>
+          </div>
         </div>
         <div class="header-actions">
           <button id="productsButton" type="button">Products</button>
           <button id="editShopButton" class="secondary-button" type="button">Shop Profile</button>
         </div>
       </header>
+
       <section class="home-empty">
         <div class="home-icon">✓</div>
         <h2>Your shop is ready</h2>
         <p>Seller account and shop setup are complete.</p>
-        <p class="step-note">Manage your product catalog from Products.</p>
+        <p class="step-note">Manage your products and production workflows.</p>
       </section>
+
       <button id="homeLogoutButton" class="secondary-button" type="button">Log Out</button>
     </div>
   </section>
@@ -88,7 +125,7 @@
         <div>
           <button id="productsBackButton" class="back-button" type="button">← Back</button>
           <h1>Products</h1>
-          <p class="page-subtitle">Manage your product catalog.</p>
+          <p class="page-subtitle">Manage products and their production workflows.</p>
         </div>
         <button id="addProductButton" type="button">Add Product</button>
       </header>
@@ -104,19 +141,26 @@
       <section id="productEditor" class="product-editor" hidden>
         <div class="editor-card">
           <h2 id="productEditorTitle">Add Product</h2>
+
           <form id="productForm">
             <div class="form-group">
               <label for="productName">Product Name</label>
               <input id="productName" type="text" maxlength="150" required>
             </div>
+
             <div class="form-group">
               <label for="productPrice">Default Price</label>
-              <div class="price-input"><span>₱</span><input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" required></div>
+              <div class="price-input">
+                <span>₱</span>
+                <input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" required>
+              </div>
             </div>
+
             <div class="editor-actions">
               <button id="cancelProductButton" class="secondary-button" type="button">Cancel</button>
               <button id="saveProductButton" type="submit">Save Product</button>
             </div>
+
             <p id="productMessage" class="form-message" role="alert"></p>
           </form>
         </div>
@@ -125,9 +169,96 @@
       <button id="productsLogoutButton" class="secondary-button products-logout-button" type="button">Log Out</button>
     </div>
   </section>
+
+  <section id="workflowScreen" class="screen" hidden>
+    <div class="app-container">
+
+      <header class="page-header">
+        <div>
+          <button id="workflowBackButton" class="back-button" type="button">← Back to Products</button>
+          <h1>Production Workflow</h1>
+          <p class="page-subtitle">
+            <span id="workflowProductName"></span>
+          </p>
+        </div>
+
+        <button id="addStageButton" type="button">Add Stage</button>
+      </header>
+
+      <section class="workflow-card">
+
+        <div class="workflow-help">
+          <h2>Stages</h2>
+          <p>
+            Arrange the stages in the order the product is made.
+          </p>
+        </div>
+
+        <div
+          id="stageList"
+          class="stage-list"
+        ></div>
+
+        <section
+          id="emptyStagesState"
+          class="empty-state compact-empty"
+          hidden
+        >
+          <h3>No Workflow Stages</h3>
+          <p>
+            Add the first production stage for this product.
+          </p>
+
+          <button
+            id="emptyAddStageButton"
+            type="button"
+          >
+            Add Stage
+          </button>
+        </section>
+
+        <div class="workflow-actions">
+
+          <button
+            id="cancelWorkflowButton"
+            class="secondary-button"
+            type="button"
+          >
+            Cancel
+          </button>
+
+          <button
+            id="saveWorkflowButton"
+            type="button"
+          >
+            Save Workflow
+          </button>
+
+        </div>
+
+        <p
+          id="workflowMessage"
+          class="form-message"
+          role="alert"
+        ></p>
+
+      </section>
+
+      <button
+        id="workflowLogoutButton"
+        class="secondary-button products-logout-button"
+        type="button"
+      >
+        Log Out
+      </button>
+
+    </div>
+  </section>
+
 </main>
 
 <script type="module" src="./js/app.js"></script>
+
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -135,5 +266,6 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+
 </body>
 </html>
