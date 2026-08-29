@@ -52,6 +52,9 @@ let workflowProductName =
 let workflowStages =
   [];
 
+let renderInFlight =
+  null;
+
 
 // ============================================================
 // ROUTING
@@ -244,151 +247,72 @@ function shopComplete(
 
 async function renderApplication() {
 
-  try {
-
-    const session =
-      await getSession();
-
-
-    if (!session) {
-
-      showScreen(
-        getRoute() ===
-          "register"
-          ? "register"
-          : "login"
-      );
-
-      return;
-
-    }
-
-
-    const seller =
-      await getSeller(
-        session.user.id
-      );
-
-
-    if (!seller) {
-
-      throw new Error(
-        "Seller profile was not found. Run the Seller/Shop database setup first."
-      );
-
-    }
-
-
-    if (
-      !shopComplete(
-        seller
-      )
-    ) {
-
-      populateShopForm(
-        seller
-      );
-
-      showScreen(
-        "shopSetup"
-      );
-
-      return;
-
-    }
-
-
-    if (
-      getRoute() ===
-      "products"
-    ) {
-
-      showScreen(
-        "products"
-      );
-
-      await loadProducts();
-
-      return;
-
-    }
-
-
-    if (
-      getRoute() ===
-      "workflow"
-    ) {
-
-      if (
-        !workflowProductId
-      ) {
-
-        navigate(
-          "products"
-        );
-
-        return;
-
-      }
-
-
-      showScreen(
-        "workflow"
-      );
-
-      await loadWorkflow();
-
-      return;
-
-    }
-
-
-    if (
-      getRoute() ===
-      "shop-setup"
-    ) {
-
-      populateShopForm(
-        seller
-      );
-
-      showScreen(
-        "shopSetup"
-      );
-
-      return;
-
-    }
-
-
-    await renderHome(
-      seller
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "Application render error:",
-      error
-    );
-
-
-    showScreen(
-      "login"
-    );
-
-
-    $("loginMessage").textContent =
-      error?.message ||
-      "Unable to load the application.";
-
+  // Prevent simultaneous startup/auth/hash renders.
+  // Without this lock, multiple loadProducts() calls can fetch the same
+  // rows and append duplicate cards while the first request is still running.
+  if (renderInFlight) {
+    return renderInFlight;
   }
 
+  renderInFlight = (async () => {
+    try {
+      const session = await getSession();
+
+      if (!session) {
+        showScreen(getRoute() === "register" ? "register" : "login");
+        return;
+      }
+
+      const seller = await getSeller(session.user.id);
+
+      if (!seller) {
+        throw new Error(
+          "Seller profile was not found. Run the Seller/Shop database setup first."
+        );
+      }
+
+      if (!shopComplete(seller)) {
+        populateShopForm(seller);
+        showScreen("shopSetup");
+        return;
+      }
+
+      if (getRoute() === "products") {
+        showScreen("products");
+        await loadProducts();
+        return;
+      }
+
+      if (getRoute() === "workflow") {
+        if (!workflowProductId) {
+          navigate("products");
+          return;
+        }
+        showScreen("workflow");
+        await loadWorkflow();
+        return;
+      }
+
+      if (getRoute() === "shop-setup") {
+        populateShopForm(seller);
+        showScreen("shopSetup");
+        return;
+      }
+
+      await renderHome(seller);
+    } catch (error) {
+      console.error("Application render error:", error);
+      showScreen("login");
+      $("loginMessage").textContent =
+        error?.message || "Unable to load the application.";
+    } finally {
+      renderInFlight = null;
+    }
+  })();
+
+  return renderInFlight;
 }
 
-
-// ============================================================
 // HOME
 // ============================================================
 
@@ -1198,33 +1122,18 @@ $("editShopButton")
 
 async function loadProducts() {
 
-  $("productList")
-    .innerHTML =
-      "";
+  const list = $("productList");
 
+  // Always replace the rendered list. This function never appends onto
+  // a previous database result.
+  list.replaceChildren();
+  $("emptyProductsState").hidden = true;
+  $("productEditor").hidden = true;
 
-  $("emptyProductsState")
-    .hidden =
-      true;
+  const user = await getCurrentUser();
 
-
-  $("productEditor")
-    .hidden =
-      true;
-
-
-  const user =
-    await getCurrentUser();
-
-
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .from(
-      "products"
-    )
+  const { data, error } = await supabase
+    .from("products")
     .select(`
       id,
       seller_id,
@@ -1235,57 +1144,30 @@ async function loadProducts() {
       created_at,
       updated_at
     `)
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .eq(
-      "is_active",
-      true
-    )
-    .order(
-      "name",
-      {
-        ascending:
-          true
-      }
-    );
+    .eq("seller_id", user.id)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
 
+  if (error) throw error;
 
-  if (error) {
+  // Ignore a response if the user navigated away while the request was running.
+  if (getRoute() !== "products") return;
 
-    throw error;
-
-  }
-
+  list.replaceChildren();
 
   if (!data.length) {
-
-    $("emptyProductsState")
-      .hidden =
-        false;
-
-
+    $("emptyProductsState").hidden = false;
     return;
-
   }
 
+  const fragment = document.createDocumentFragment();
 
-  data.forEach(
-    (product) => {
+  data.forEach((product) => {
+    fragment.appendChild(createProductCard(product));
+  });
 
-      $("productList")
-        .appendChild(
-          createProductCard(
-            product
-          )
-        );
-
-    }
-  );
-
+  list.appendChild(fragment);
 }
-
 
 function createProductCard(
   product
