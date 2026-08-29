@@ -104,6 +104,7 @@
         </div>
         <div class="header-actions">
           <button id="productsButton" type="button">Products</button>
+          <button id="qrButton" type="button">QR Management</button>
           <button id="editShopButton" class="secondary-button" type="button">Shop Profile</button>
         </div>
       </header>
@@ -255,21 +256,40 @@
     </div>
   </section>
 
+
+  <section id="qrScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header"><div>
+        <button id="qrBackButton" class="back-button" type="button">← Back</button>
+        <h1>QR Management</h1>
+        <p class="page-subtitle">Generate and manage product-specific QR inventory.</p>
+      </div></header>
+      <section class="qr-create-card">
+        <h2>Generate QR Series</h2>
+        <p class="qr-help">Generate a batch of reusable QR identities for a product.</p>
+        <form id="qrSeriesForm">
+          <div class="form-group"><label for="qrProduct">Product</label><select id="qrProduct" required><option value="">Select product</option></select></div>
+          <div class="form-group"><label for="qrSeriesName">Series Name</label><input id="qrSeriesName" type="text" maxlength="100" placeholder="e.g. MUG-2026" required></div>
+          <div class="form-group"><label for="qrQuantity">Quantity of QR pairs</label><input id="qrQuantity" type="number" min="1" max="5000" step="1" inputmode="numeric" required></div>
+          <button id="generateQrButton" type="submit">Generate QR Series</button>
+          <p id="qrMessage" class="form-message" role="alert"></p>
+        </form>
+      </section>
+      <section><div class="section-heading"><h2>QR Series</h2></div><div id="qrSeriesList" class="qr-series-list"></div>
+        <section id="emptyQrState" class="empty-state" hidden><h3>No QR Series Yet</h3><p>Generate a series for a product before printing or assigning QR codes.</p></section>
+      </section>
+      <button id="qrLogoutButton" class="secondary-button products-logout-button" type="button">Log Out</button>
+    </div>
+  </section>
+
 </main>
 
-<script type="module" src="./js/app.js?v=2026-08-29-03"></script>
+<script type="module" src="./js/app.js"></script>
 
 <script>
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      const registration = await navigator.serviceWorker.register("./sw.js");
-
-      // Ask the browser to check for a newer SW after each app launch.
-      await registration.update();
-    } catch (error) {
-      console.error("Service worker registration failed:", error);
-    }
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(console.error);
   });
 }
 </script>
