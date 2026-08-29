@@ -629,3 +629,261 @@ a:hover {
 
 .qr-create-card{margin-bottom:28px;padding:24px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 5px 20px rgba(0,0,0,.06)}
 .qr-create-card h2{margin:0 0 6px}.qr-help{margin:0 0 20px;color:#666;line-height:1.5}.qr-create-card select,.qr-create-card input{width:100%;padding:12px 13px;border:1px solid #d2d6dc;border-radius:10px;background:#fff}.section-heading{margin:0 0 12px}.section-heading h2{margin:0}.qr-series-list{display:grid;gap:12px}.qr-series-card{padding:18px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.04)}.qr-series-card h3{margin:0 0 8px;overflow-wrap:anywhere}.qr-series-card p{margin:5px 0;color:#555}.qr-series-status{margin-top:12px!important;color:#333!important;font-size:14px}@media(max-width:640px){.qr-create-card{padding:20px}}
+
+
+/* ==========================================================
+   QR PRINTING
+========================================================== */
+
+.qr-series-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.qr-series-actions button {
+  width: auto;
+}
+
+.qr-print-panel {
+  margin-top: 24px;
+  padding: 22px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.print-panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.print-panel-heading h2 {
+  margin: 0 0 5px;
+}
+
+.print-panel-heading p {
+  margin: 0;
+  color: #666;
+}
+
+.print-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.print-controls > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.print-controls label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.print-controls input {
+  width: 120px;
+  padding: 11px 12px;
+  border: 1px solid #ccc;
+  border-radius: 9px;
+}
+
+.print-controls button {
+  width: auto;
+}
+
+.qr-print-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.qr-print-pair {
+  display: grid;
+  grid-template-columns: 85.6mm auto 85.6mm;
+  align-items: center;
+  gap: 4mm;
+  width: max-content;
+  max-width: 100%;
+  padding: 3mm;
+  background: #f7f7f7;
+  border: 1px dashed #c8c8c8;
+  border-radius: 7px;
+}
+
+.qr-print-card {
+  width: 85.6mm;
+  height: 54mm;
+  padding: 3mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 0.35mm solid #222;
+  border-radius: 2.5mm;
+  text-align: center;
+  overflow: hidden;
+}
+
+.qr-card-copy-label {
+  margin-bottom: 1mm;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.qr-card-shop {
+  width: 100%;
+  font-size: 8.5pt;
+  font-weight: 700;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.qr-card-product {
+  width: 100%;
+  margin-top: 1mm;
+  font-size: 9pt;
+  font-weight: 700;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.qr-code-holder {
+  width: 108px;
+  height: 108px;
+  margin: 1.2mm 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-code-holder img {
+  display: block;
+  width: 108px !important;
+  height: 108px !important;
+}
+
+.qr-card-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 6.5pt;
+  word-break: break-all;
+}
+
+.qr-card-instruction {
+  margin-top: .5mm;
+  font-size: 7.5pt;
+  font-weight: 600;
+}
+
+.qr-card-url {
+  width: 100%;
+  margin-top: 1mm;
+  font-size: 5.5pt;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.qr-pair-connector {
+  min-width: 10mm;
+  color: #666;
+  font-size: 6pt;
+  font-weight: 700;
+  text-align: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.print-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.print-preview-actions button {
+  width: auto;
+}
+
+@media print {
+
+  @page {
+    size: auto;
+    margin: 8mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #qrPrintPanel,
+  #qrPrintPanel * {
+    visibility: visible;
+  }
+
+  #qrPrintPanel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: #fff;
+  }
+
+  #qrPrintPanel .print-panel-heading,
+  #qrPrintPanel .print-controls,
+  #qrPrintPanel .form-message,
+  #qrPrintPanel .print-preview-actions {
+    display: none !important;
+  }
+
+  .qr-print-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 3mm;
+    margin: 0;
+  }
+
+  .qr-print-pair {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #fff;
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+}
+
+@media (max-width: 800px) {
+
+  .qr-print-pair {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .qr-print-card {
+    width: 100%;
+    max-width: 85.6mm;
+    margin: 0 auto;
+  }
+
+  .qr-pair-connector {
+    writing-mode: horizontal-tb;
+    transform: none;
+  }
+
+}

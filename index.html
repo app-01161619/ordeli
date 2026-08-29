@@ -275,8 +275,35 @@
           <p id="qrMessage" class="form-message" role="alert"></p>
         </form>
       </section>
-      <section><div class="section-heading"><h2>QR Series</h2></div><div id="qrSeriesList" class="qr-series-list"></div>
+      <section>
+        <div class="section-heading"><h2>QR Series</h2></div>
+        <div id="qrSeriesList" class="qr-series-list"></div>
         <section id="emptyQrState" class="empty-state" hidden><h3>No QR Series Yet</h3><p>Generate a series for a product before printing or assigning QR codes.</p></section>
+
+        <section id="qrPrintPanel" class="qr-print-panel" hidden>
+          <div class="print-panel-heading">
+            <div>
+              <h2>Print QR Pairs</h2>
+              <p>Select available pairs from the selected series.</p>
+            </div>
+            <button id="closeQrPrintButton" class="secondary-button" type="button">Close</button>
+          </div>
+
+          <div class="print-controls">
+            <div>
+              <label for="qrPrintQuantity">Number of pairs</label>
+              <input id="qrPrintQuantity" type="number" min="1" step="1" inputmode="numeric">
+            </div>
+            <button id="prepareQrPrintButton" type="button">Prepare Preview</button>
+          </div>
+
+          <p id="qrPrintMessage" class="form-message" role="alert"></p>
+          <div id="qrPrintPreview" class="qr-print-preview"></div>
+
+          <div class="print-preview-actions">
+            <button id="printQrPairsButton" type="button">Print QR Pairs</button>
+          </div>
+        </section>
       </section>
       <button id="qrLogoutButton" class="secondary-button products-logout-button" type="button">Log Out</button>
     </div>
@@ -284,6 +311,7 @@
 
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module" src="./js/app.js"></script>
 
 <script>

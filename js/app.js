@@ -2689,7 +2689,7 @@ async function loadQrSeries() {
   const {data,error}=await supabase.from("qr_codes").select(`id,product_id,series_name,series_sequence,code,status,created_at,products(name)`).eq("seller_id",user.id).order("created_at",{ascending:false});
   if(error) throw error;
   const groups=new Map();
-  (data||[]).forEach(qr=>{ const key=`${qr.product_id}::${qr.series_name}`; if(!groups.has(key)) groups.set(key,{productName:qr.products?.name||"Product",seriesName:qr.series_name||"Unnamed Series",total:0,available:0,assigned:0,revoked:0}); const g=groups.get(key); g.total++; if(qr.status==="available")g.available++; else if(qr.status==="assigned")g.assigned++; else if(qr.status==="revoked")g.revoked++; });
+  (data||[]).forEach(qr=>{ const key=`${qr.product_id}::${qr.series_name}`; if(!groups.has(key)) groups.set(key,{productId:qr.product_id,productName:qr.products?.name||"Product",seriesName:qr.series_name||"Unnamed Series",total:0,available:0,assigned:0,revoked:0}); const g=groups.get(key); g.total++; if(qr.status==="available")g.available++; else if(qr.status==="assigned")g.assigned++; else if(qr.status==="revoked")g.revoked++; });
   if(!groups.size){ $("emptyQrState").hidden=false; return; }
   const fragment=document.createDocumentFragment();
   for(const group of groups.values()) fragment.appendChild(createQrSeriesCard(group));
@@ -2697,12 +2697,105 @@ async function loadQrSeries() {
 }
 
 function createQrSeriesCard(group){
-  const card=document.createElement("article"); card.className="qr-series-card";
-  const title=document.createElement("h3"); title.textContent=group.seriesName;
-  const product=document.createElement("p"); product.textContent=`Product: ${group.productName}`;
-  const total=document.createElement("p"); total.textContent=`Total: ${group.total} pairs`;
-  const status=document.createElement("p"); status.className="qr-series-status"; status.textContent=`Available: ${group.available} · Assigned: ${group.assigned} · Revoked: ${group.revoked}`;
-  card.append(title,product,total,status); return card;
+
+  const card =
+    document.createElement(
+      "article"
+    );
+
+  card.className =
+    "qr-series-card";
+
+
+  const title =
+    document.createElement(
+      "h3"
+    );
+
+  title.textContent =
+    group.seriesName;
+
+
+  const product =
+    document.createElement(
+      "p"
+    );
+
+  product.textContent =
+    `Product: ${group.productName}`;
+
+
+  const total =
+    document.createElement(
+      "p"
+    );
+
+  total.textContent =
+    `Total: ${group.total} pairs`;
+
+
+  const status =
+    document.createElement(
+      "p"
+    );
+
+  status.className =
+    "qr-series-status";
+
+
+  status.textContent =
+    `Available: ${group.available} · Assigned: ${group.assigned} · Revoked: ${group.revoked}`;
+
+
+  const actions =
+    document.createElement(
+      "div"
+    );
+
+  actions.className =
+    "qr-series-actions";
+
+
+  const print =
+    document.createElement(
+      "button"
+    );
+
+  print.type =
+    "button";
+
+  print.textContent =
+    "Print";
+
+  print.disabled =
+    group.available < 1;
+
+  print.addEventListener(
+    "click",
+    () => {
+      openQrPrintPanel(
+        group
+      );
+    }
+  );
+
+
+  actions.appendChild(
+    print
+  );
+
+
+  card.append(
+    title,
+    product,
+    total,
+    status,
+    actions
+  );
+
+
+  return card;
+
 }
 
 $("qrSeriesForm").addEventListener("submit",async event=>{
@@ -2725,6 +2818,567 @@ $("qrBackButton").addEventListener("click",()=>navigate("home"));
 $("qrLogoutButton").addEventListener("click",logout);
 
 function clearQrMessage(){ $("qrMessage").textContent=""; $("qrMessage").classList.remove("success-message"); }
+
+
+// ============================================================
+// QR PRINTING
+// ============================================================
+
+let activePrintSeries = null;
+
+
+function openQrPrintPanel(
+  group
+) {
+
+  activePrintSeries =
+    group;
+
+  $("qrPrintPanel")
+    .hidden =
+      false;
+
+  $("qrPrintQuantity")
+    .value =
+      Math.min(
+        10,
+        Number(group.available) || 1
+      );
+
+  clearQrPrintMessage();
+
+  $("qrPrintPreview")
+    .replaceChildren();
+
+  $("qrPrintPanel")
+    .scrollIntoView({
+      behavior:
+        "smooth",
+      block:
+        "start"
+    });
+
+}
+
+
+function closeQrPrintPanel() {
+
+  activePrintSeries =
+    null;
+
+  $("qrPrintPanel")
+    .hidden =
+      true;
+
+  $("qrPrintPreview")
+    .replaceChildren();
+
+  clearQrPrintMessage();
+
+}
+
+
+async function prepareQrPrintPreview() {
+
+  clearQrPrintMessage();
+
+
+  if (!activePrintSeries) {
+
+    $("qrPrintMessage")
+      .textContent =
+        "No QR series selected.";
+
+    return;
+
+  }
+
+
+  const quantity =
+    Number(
+      $("qrPrintQuantity")
+        .value
+    );
+
+
+  if (
+    !Number.isInteger(
+      quantity
+    ) ||
+    quantity < 1
+  ) {
+
+    $("qrPrintMessage")
+      .textContent =
+        "Enter a valid number of pairs.";
+
+    return;
+
+  }
+
+
+  setLoading(
+    $("prepareQrPrintButton"),
+    "Preparing..."
+  );
+
+
+  try {
+
+    const user =
+      await getCurrentUser();
+
+
+    const {
+      data:
+        seller,
+      error:
+        sellerError
+    } =
+    await supabase
+      .from(
+        "sellers"
+      )
+      .select(
+        "shop_name"
+      )
+      .eq(
+        "id",
+        user.id
+      )
+      .single();
+
+
+    if (sellerError) {
+
+      throw sellerError;
+
+    }
+
+
+    const {
+      data:
+        product,
+      error:
+        productError
+    } =
+    await supabase
+      .from(
+        "products"
+      )
+      .select(
+        "id,name"
+      )
+      .eq(
+        "id",
+        activePrintSeries.productId
+      )
+      .eq(
+        "seller_id",
+        user.id
+      )
+      .single();
+
+
+    if (productError) {
+
+      throw productError;
+
+    }
+
+
+    const {
+      data:
+        qrRows,
+      error:
+        qrError
+    } =
+    await supabase
+      .from(
+        "qr_codes"
+      )
+      .select(`
+        id,
+        code,
+        public_token,
+        series_name,
+        series_sequence
+      `)
+      .eq(
+        "seller_id",
+        user.id
+      )
+      .eq(
+        "product_id",
+        activePrintSeries.productId
+      )
+      .eq(
+        "series_name",
+        activePrintSeries.seriesName
+      )
+      .eq(
+        "status",
+        "available"
+      )
+      .order(
+        "series_sequence",
+        {
+          ascending:
+            true
+        }
+      )
+      .limit(
+        quantity
+      );
+
+
+    if (qrError) {
+
+      throw qrError;
+
+    }
+
+
+    if (
+      !qrRows ||
+      qrRows.length <
+        quantity
+    ) {
+
+      throw new Error(
+        `Only ${qrRows?.length || 0} available QR pair${(qrRows?.length || 0) === 1 ? "" : "s"} remain in this series.`
+      );
+
+    }
+
+
+    $("qrPrintPreview")
+      .replaceChildren();
+
+
+    qrRows.forEach(
+      (
+        qr,
+        index
+      ) => {
+
+        $("qrPrintPreview")
+          .appendChild(
+            createQrPair(
+              seller.shop_name,
+              product.name,
+              qr,
+              index + 1
+            )
+          );
+
+      }
+    );
+
+
+    $("qrPrintMessage")
+      .classList
+      .add(
+        "success-message"
+      );
+
+
+    $("qrPrintMessage")
+      .textContent =
+        `${qrRows.length} QR pair${qrRows.length === 1 ? "" : "s"} ready to print.`;
+
+
+  } catch (error) {
+
+    console.error(
+      "QR print preparation failed:",
+      error
+    );
+
+
+    $("qrPrintPreview")
+      .replaceChildren();
+
+
+    $("qrPrintMessage")
+      .textContent =
+        error?.message ||
+        "Unable to prepare print preview.";
+
+  } finally {
+
+    resetButton(
+      $("prepareQrPrintButton"),
+      "Prepare Preview"
+    );
+
+  }
+
+}
+
+
+function createQrPair(
+  shopName,
+  productName,
+  qr,
+  pairNumber
+) {
+
+  const pair =
+    document.createElement(
+      "section"
+    );
+
+  pair.className =
+    "qr-print-pair";
+
+
+  pair.append(
+    createQrCard(
+      "SELLER COPY",
+      shopName,
+      productName,
+      qr,
+      false
+    )
+  );
+
+
+  const connector =
+    document.createElement(
+      "div"
+    );
+
+  connector.className =
+    "qr-pair-connector";
+
+  connector.textContent =
+    `PAIR ${pairNumber}`;
+
+
+  pair.appendChild(
+    connector
+  );
+
+
+  pair.append(
+    createQrCard(
+      "CUSTOMER COPY",
+      shopName,
+      productName,
+      qr,
+      true
+    )
+  );
+
+
+  return pair;
+
+}
+
+
+function createQrCard(
+  copyLabel,
+  shopName,
+  productName,
+  qr,
+  customerCopy
+) {
+
+  const card =
+    document.createElement(
+      "div"
+    );
+
+  card.className =
+    "qr-print-card";
+
+
+  const label =
+    document.createElement(
+      "div"
+    );
+
+  label.className =
+    "qr-card-copy-label";
+
+  label.textContent =
+    copyLabel;
+
+
+  const shop =
+    document.createElement(
+      "div"
+    );
+
+  shop.className =
+    "qr-card-shop";
+
+  shop.textContent =
+    shopName;
+
+
+  const product =
+    document.createElement(
+      "div"
+    );
+
+  product.className =
+    "qr-card-product";
+
+  product.textContent =
+    productName;
+
+
+  const qrHolder =
+    document.createElement(
+      "div"
+    );
+
+  qrHolder.className =
+    "qr-code-holder";
+
+
+  const qrUrl =
+    `${window.location.origin}/t/${qr.public_token}`;
+
+
+  new QRCode(
+    qrHolder,
+    {
+      text:
+        qrUrl,
+      width:
+        108,
+      height:
+        108,
+      correctLevel:
+        QRCode.CorrectLevel.M
+    }
+  );
+
+
+  card.append(
+    label,
+    shop,
+    product,
+    qrHolder
+  );
+
+
+  if (
+    customerCopy
+  ) {
+
+    const instruction =
+      document.createElement(
+        "div"
+      );
+
+    instruction.className =
+      "qr-card-instruction";
+
+    instruction.textContent =
+      "Scan to track your order";
+
+
+    const url =
+      document.createElement(
+        "div"
+      );
+
+    url.className =
+      "qr-card-url";
+
+    url.textContent =
+      qrUrl;
+
+
+    card.append(
+      instruction,
+      url
+    );
+
+  } else {
+
+    const code =
+      document.createElement(
+        "div"
+      );
+
+    code.className =
+      "qr-card-code";
+
+    code.textContent =
+      qr.code;
+
+
+    card.appendChild(
+      code
+    );
+
+  }
+
+
+  return card;
+
+}
+
+
+function clearQrPrintMessage() {
+
+  $("qrPrintMessage")
+    .textContent =
+      "";
+
+  $("qrPrintMessage")
+    .classList
+    .remove(
+      "success-message"
+    );
+
+}
+
+
+$("closeQrPrintButton")
+  .addEventListener(
+    "click",
+    closeQrPrintPanel
+  );
+
+
+$("prepareQrPrintButton")
+  .addEventListener(
+    "click",
+    prepareQrPrintPreview
+  );
+
+
+$("printQrPairsButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      if (
+        !$("qrPrintPreview")
+          .children
+          .length
+      ) {
+
+        $("qrPrintMessage")
+          .textContent =
+            "Prepare the preview first.";
+
+        return;
+
+      }
+
+
+      window.print();
+
+    }
+  );
+
 
 // ============================================================
 // LOGOUT
