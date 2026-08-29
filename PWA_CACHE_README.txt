@@ -1,29 +1,35 @@
-Ordeli PWA cache/versioning fix
+Ordeli PWA cache fix — Cloudflare build-safe version
+
+IMPORTANT:
+The previous _headers file has been intentionally REMOVED.
+
+Your Cloudflare build failed while parsing _headers. Current Cloudflare
+Workers/Pages static assets already use revalidation-friendly cache behavior
+for static assets, so we do not need _headers just to prevent stale app code.
 
 Replace:
 - index.html
 - sw.js
+
+Delete from your project:
 - _headers
 
-Do not replace:
-- js/supabase.js
+Keep unchanged:
 - js/app.js
+- js/supabase.js
 - css/style.css
 - manifest.webmanifest
 - icons
 
-How it works:
-- HTML, JS and CSS use NETWORK-FIRST, so a new deploy is preferred.
-- The service worker checks for an update on each app launch.
-- Old service-worker caches are deleted during activation.
-- Cloudflare is instructed not to cache index.html or sw.js.
-- index.html gives app.js a deploy version query string so the browser
-  treats a changed JS file as a new resource URL.
+Cache/update behavior:
+1. HTML/JS/CSS are fetched network-first by sw.js.
+2. sw.js checks for a newer service worker on every app launch.
+3. Old service-worker caches are deleted during activation.
+4. index.html gives app.js a version query string.
 
-IMPORTANT FOR FUTURE DEPLOYS:
-When app.js or CSS changes, increment the version in:
-  index.html -> ?v=2026-08-29-04
-  sw.js -> CACHE_VERSION = "ordeli-v2026-08-29-04"
+FUTURE FRONTEND DEPLOYS:
+When frontend code changes, increment both versions, for example:
+  index.html: ./js/app.js?v=2026-08-29-04
+  sw.js: const CACHE_VERSION = "ordeli-v2026-08-29-04";
 
-If only database changes and no frontend asset changes, no version bump
-is required.
+No SQL changes are involved.
