@@ -271,6 +271,97 @@
           <div><span>Remaining Balance</span><strong id="orderDetailBalance">₱0.00</strong></div>
         </div>
 
+        <section class="payment-section">
+
+          <div class="payment-section-heading">
+            <div>
+              <h2>Payments</h2>
+              <p>Record payments and track the remaining balance.</p>
+            </div>
+
+            <button
+              id="addPaymentButton"
+              type="button"
+            >
+              Add Payment
+            </button>
+          </div>
+
+          <div
+            id="paymentList"
+            class="payment-list"
+          ></div>
+
+          <section
+            id="paymentEditor"
+            class="payment-editor"
+            hidden
+          >
+            <div class="payment-editor-inner">
+
+              <h3>Record Payment</h3>
+
+              <div class="form-group">
+                <label for="paymentAmount">
+                  Amount
+                </label>
+
+                <div class="price-input">
+                  <span>₱</span>
+                  <input
+                    id="paymentAmount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    inputmode="decimal"
+                  >
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="paymentType">
+                  Payment Type
+                </label>
+
+                <select
+                  id="paymentType"
+                  class="form-select"
+                >
+                  <option value="additional">Additional Payment</option>
+                  <option value="final">Final Payment</option>
+                  <option value="cash">Cash</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="editor-actions">
+                <button
+                  id="cancelPaymentButton"
+                  class="secondary-button"
+                  type="button"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  id="savePaymentButton"
+                  type="button"
+                >
+                  Record Payment
+                </button>
+              </div>
+
+              <p
+                id="paymentMessage"
+                class="form-message"
+                role="alert"
+              ></p>
+
+            </div>
+          </section>
+
+        </section>
+
         <button id="orderDetailAddItemButton" type="button">Add Another Item</button>
 
         <p id="orderDetailMessage" class="form-message" role="alert"></p>

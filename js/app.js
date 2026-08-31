@@ -4973,6 +4973,12 @@ async function loadOrderDetail(
       );
 
 
+  currentOrderTotal =
+    total;
+
+  currentOrderPaid =
+    paid;
+
   $("orderDetailBalance")
     .textContent =
       formatPrice(
@@ -4983,7 +4989,542 @@ async function loadOrderDetail(
         )
       );
 
+  await loadPayments(
+    orderId
+  );
+
 }
+
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+async function loadPayments(
+  orderId
+) {
+
+  const list =
+    $("paymentList");
+
+
+  list.replaceChildren();
+
+
+  const user =
+    await getCurrentUser();
+
+
+  const {
+    data:
+      payments,
+    error
+  } =
+  await supabase
+    .from(
+      "payments"
+    )
+    .select(`
+      id,
+      amount,
+      payment_type,
+      proof_status,
+      created_at
+    `)
+    .eq(
+      "order_id",
+      orderId
+    )
+    .eq(
+      "seller_id",
+      user.id
+    )
+    .order(
+      "created_at",
+      {
+        ascending:
+          true
+      }
+    );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  if (
+    !payments ||
+    payments.length === 0
+  ) {
+
+    const empty =
+      document.createElement(
+        "p"
+      );
+
+    empty.className =
+      "payment-empty";
+
+    empty.textContent =
+      "No payments recorded yet.";
+
+    list.appendChild(
+      empty
+    );
+
+    return;
+
+  }
+
+
+  const fragment =
+    document.createDocumentFragment();
+
+
+  payments.forEach(
+    (
+      payment,
+      index
+    ) => {
+
+      const row =
+        document.createElement(
+          "div"
+        );
+
+      row.className =
+        "payment-row";
+
+
+      const left =
+        document.createElement(
+          "div"
+        );
+
+
+      const title =
+        document.createElement(
+          "strong"
+        );
+
+      title.textContent =
+        paymentTypeLabel(
+          payment.payment_type
+        );
+
+
+      const meta =
+        document.createElement(
+          "span"
+        );
+
+      meta.textContent =
+        formatDate(
+          payment.created_at
+        );
+
+
+      left.append(
+        title,
+        meta
+      );
+
+
+      const right =
+        document.createElement(
+          "div"
+        );
+
+      right.className =
+        "payment-row-right";
+
+
+      const amount =
+        document.createElement(
+          "strong"
+        );
+
+      amount.textContent =
+        formatPrice(
+          payment.amount
+        );
+
+
+      const status =
+        document.createElement(
+          "span"
+        );
+
+      status.className =
+        "payment-status";
+
+
+      status.textContent =
+        payment.proof_status
+          ? payment.proof_status
+          : "Confirmed";
+
+
+      right.append(
+        amount,
+        status
+      );
+
+
+      row.append(
+        left,
+        right
+      );
+
+
+      fragment.appendChild(
+        row
+      );
+
+    }
+  );
+
+
+  list.appendChild(
+    fragment
+  );
+
+}
+
+
+function openPaymentEditor() {
+
+  clearPaymentMessage();
+
+
+  const remaining =
+    Math.max(
+      0,
+      currentOrderTotal -
+      currentOrderPaid
+    );
+
+
+  if (
+    remaining <= 0
+  ) {
+
+    $("paymentMessage")
+      .textContent =
+        "This order is already fully paid.";
+
+
+    $("paymentEditor")
+      .hidden =
+        false;
+
+
+    return;
+
+  }
+
+
+  $("paymentAmount")
+    .value =
+      remaining.toFixed(
+        2
+      );
+
+
+  $("paymentType")
+    .value =
+      "additional";
+
+
+  $("paymentEditor")
+    .hidden =
+      false;
+
+
+  $("paymentAmount")
+    .focus();
+
+}
+
+
+function closePaymentEditor() {
+
+  $("paymentEditor")
+    .hidden =
+      true;
+
+
+  $("paymentAmount")
+    .value =
+      "";
+
+
+  clearPaymentMessage();
+
+}
+
+
+async function savePayment() {
+
+  clearPaymentMessage();
+
+
+  const amount =
+    Number(
+      $("paymentAmount")
+        .value
+    );
+
+
+  const remaining =
+    Math.max(
+      0,
+      currentOrderTotal -
+      currentOrderPaid
+    );
+
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <=
+      0
+  ) {
+
+    $("paymentMessage")
+      .textContent =
+        "Enter a valid payment amount.";
+
+    return;
+
+  }
+
+
+  if (
+    amount >
+    remaining
+  ) {
+
+    $("paymentMessage")
+      .textContent =
+        "Payment cannot exceed the remaining balance.";
+
+    return;
+
+  }
+
+
+  setLoading(
+    $("savePaymentButton"),
+    "Saving..."
+  );
+
+
+  try {
+
+    const user =
+      await getCurrentUser();
+
+
+    const {
+      data:
+        order,
+      error:
+        orderError
+    } =
+    await supabase
+      .from(
+        "orders"
+      )
+      .select(
+        "id"
+      )
+      .eq(
+        "id",
+        currentOrderId
+      )
+      .eq(
+        "seller_id",
+        user.id
+      )
+      .single();
+
+
+    if (
+      orderError
+    ) {
+
+      throw orderError;
+
+    }
+
+
+    const {
+      error:
+        insertError
+    } =
+    await supabase
+      .from(
+        "payments"
+      )
+      .insert({
+
+        order_id:
+          order.id,
+
+        seller_id:
+          user.id,
+
+        amount,
+
+        payment_type:
+          $("paymentType")
+            .value,
+
+        proof_status:
+          null
+
+      });
+
+
+    if (
+      insertError
+    ) {
+
+      throw insertError;
+
+    }
+
+
+    closePaymentEditor();
+
+
+    await loadOrderDetail(
+      currentOrderId
+    );
+
+
+  } catch (
+    error
+  ) {
+
+    console.error(
+      "Payment save failed:",
+      error
+    );
+
+
+    $("paymentMessage")
+      .textContent =
+        error?.message ||
+        "Unable to record payment.";
+
+  } finally {
+
+    resetButton(
+      $("savePaymentButton"),
+      "Record Payment"
+    );
+
+  }
+
+}
+
+
+function clearPaymentMessage() {
+
+  $("paymentMessage")
+    .textContent =
+      "";
+
+}
+
+
+function paymentTypeLabel(
+  value
+) {
+
+  switch (
+    value
+  ) {
+
+    case "downpayment":
+      return "Downpayment";
+
+    case "additional":
+      return "Additional Payment";
+
+    case "final":
+      return "Final Payment";
+
+    case "cash":
+      return "Cash Payment";
+
+    default:
+      return "Payment";
+
+  }
+
+}
+
+
+function formatDate(
+  value
+) {
+
+  const date =
+    new Date(
+      value
+    );
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+
+    return "";
+
+  }
+
+
+  return new Intl.DateTimeFormat(
+    "en-PH",
+    {
+      dateStyle:
+        "medium",
+      timeStyle:
+        "short"
+    }
+  ).format(
+    date
+  );
+
+}
+
+
+$("addPaymentButton")
+  .addEventListener(
+    "click",
+    openPaymentEditor
+  );
+
+
+$("cancelPaymentButton")
+  .addEventListener(
+    "click",
+    closePaymentEditor
+  );
+
+
+$("savePaymentButton")
+  .addEventListener(
+    "click",
+    savePayment
+  );
 
 
 $("orderDetailAddItemButton")
