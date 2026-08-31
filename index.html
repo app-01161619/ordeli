@@ -116,11 +116,169 @@
         <p class="step-note">Manage your products and production workflows.</p>
       </section>
 
-      <button id="homeLogoutButton" class="secondary-button" type="button">Log Out</button>
+      <div class="home-scan-bar">
+  <button id="homeScanButton" class="scan-button" type="button">
+    <span class="scan-button-icon">▣</span>
+    <span>Scan QR</span>
+  </button>
+</div>
+
+<button id="homeLogoutButton" class="secondary-button" type="button">Log Out</button>
     </div>
   </section>
 
-  <section id="productsScreen" class="screen" hidden>
+  
+  <section id="scannerScreen" class="screen" hidden>
+    <div class="app-container scanner-container">
+      <header class="page-header">
+        <div>
+          <button id="scannerBackButton" class="back-button" type="button">← Back</button>
+          <h1>Scan Product QR</h1>
+          <p class="page-subtitle">Scan a product QR to create or open its order.</p>
+        </div>
+      </header>
+      <section class="scanner-card">
+        <div id="qrReader" class="qr-reader"></div>
+        <p id="scannerMessage" class="form-message" role="alert"></p>
+        <button id="scannerManualButton" class="secondary-button scanner-manual-button" type="button">
+          Enter QR URL manually
+        </button>
+      </section>
+    </div>
+  </section>
+
+  <section id="orderCreateScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <button id="orderCreateBackButton" class="back-button" type="button">← Back</button>
+          <h1>Create Order</h1>
+          <p class="page-subtitle">The scanned QR has already identified the product.</p>
+        </div>
+      </header>
+
+      <section class="order-card">
+        <div class="detected-product">
+          <div class="detected-label">SCANNED PRODUCT</div>
+          <h2 id="orderDetectedProduct">Product</h2>
+          <p id="orderDetectedPrice">₱0.00</p>
+        </div>
+
+        <form id="orderCreateForm">
+
+          <div class="customer-choice">
+            <label class="choice-row">
+              <input id="newCustomerChoice" type="radio" name="customerChoice" value="new" checked>
+              <span>New customer</span>
+            </label>
+            <label class="choice-row">
+              <input id="existingCustomerChoice" type="radio" name="customerChoice" value="existing">
+              <span>Existing active customer</span>
+            </label>
+          </div>
+
+          <div id="newCustomerFields">
+            <div class="form-group">
+              <label for="orderCustomerName">Customer Name</label>
+              <input id="orderCustomerName" type="text" maxlength="150" required>
+            </div>
+
+            <div class="form-group">
+              <label for="orderCustomerPhone">
+                Phone Number
+                <span class="optional">Optional</span>
+              </label>
+              <input id="orderCustomerPhone" type="tel" maxlength="40" autocomplete="tel">
+            </div>
+          </div>
+
+          <div id="existingCustomerFields" hidden>
+            <div class="form-group">
+              <label for="existingCustomerSelect">Active Customer</label>
+              <select id="existingCustomerSelect" class="form-select"></select>
+              <p class="field-help">
+                Only customers with an active order are shown.
+              </p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="orderQuantity">Quantity</label>
+            <input id="orderQuantity" type="number" min="1" step="1" value="1" inputmode="numeric" required>
+          </div>
+
+          <div class="form-group">
+            <label for="orderDownpayment">
+              Downpayment
+              <span class="optional">Optional — can be ₱0</span>
+            </label>
+            <div class="price-input">
+              <span>₱</span>
+              <input id="orderDownpayment" type="number" min="0" step="0.01" value="0" inputmode="decimal">
+            </div>
+          </div>
+
+          <div class="order-total-box">
+            <div>
+              <span>Total</span>
+              <strong id="orderCreateTotal">₱0.00</strong>
+            </div>
+            <div>
+              <span>Remaining Balance</span>
+              <strong id="orderCreateBalance">₱0.00</strong>
+            </div>
+          </div>
+
+          <div class="order-form-actions">
+            <button id="orderCancelButton" class="secondary-button" type="button">Cancel</button>
+            <button id="orderSaveButton" type="submit">Save Order</button>
+          </div>
+
+          <p id="orderCreateMessage" class="form-message" role="alert"></p>
+        </form>
+      </section>
+    </div>
+  </section>
+
+  <section id="orderDetailScreen" class="screen" hidden>
+    <div class="app-container">
+
+      <header class="page-header">
+        <div>
+          <button id="orderDetailBackButton" class="back-button" type="button">← Back</button>
+          <h1 id="orderDetailTitle">Order</h1>
+          <p id="orderDetailCustomer" class="page-subtitle"></p>
+        </div>
+      </header>
+
+      <section class="order-detail-card">
+        <div class="order-detail-heading">
+          <div>
+            <span class="detail-label">ORDER</span>
+            <strong id="orderDetailNumber">#—</strong>
+          </div>
+          <div>
+            <span class="detail-label">Customer</span>
+            <strong id="orderDetailCustomerName">—</strong>
+          </div>
+        </div>
+
+        <div id="orderDetailItems" class="order-detail-items"></div>
+
+        <div class="order-total-box">
+          <div><span>Total</span><strong id="orderDetailTotal">₱0.00</strong></div>
+          <div><span>Paid</span><strong id="orderDetailPaid">₱0.00</strong></div>
+          <div><span>Remaining Balance</span><strong id="orderDetailBalance">₱0.00</strong></div>
+        </div>
+
+        <button id="orderDetailAddItemButton" type="button">Add Another Item</button>
+
+        <p id="orderDetailMessage" class="form-message" role="alert"></p>
+      </section>
+    </div>
+  </section>
+
+<section id="productsScreen" class="screen" hidden>
     <div class="app-container">
       <header class="page-header">
         <div>
@@ -312,6 +470,7 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script type="module" src="./js/app.js"></script>
 
 <script>

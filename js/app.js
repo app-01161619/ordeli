@@ -34,7 +34,16 @@ const screens = {
     $("workflowScreen"),
 
   qr:
-    $("qrScreen")
+    $("qrScreen"),
+
+  scanner:
+    $("scannerScreen"),
+
+  orderCreate:
+    $("orderCreateScreen"),
+
+  orderDetail:
+    $("orderDetailScreen")
 
 };
 
@@ -60,6 +69,12 @@ let workflowStages =
 
 let qrProducts = [];
 
+let pendingQrToken = null;
+let pendingProduct = null;
+let currentOrderId = null;
+let scannerInstance = null;
+let qrScanBusy = false;
+
 
 // ============================================================
 // ROUTING
@@ -72,7 +87,10 @@ const validRoutes = [
   "home",
   "products",
   "workflow",
-  "qr"
+  "qr",
+  "scanner",
+  "order-create",
+  "order-detail"
 ];
 
 
@@ -307,6 +325,62 @@ async function renderApplication() {
       showScreen(
         "shopSetup"
       );
+
+      return;
+
+    }
+
+
+    if (
+      getRoute() ===
+      "scanner"
+    ) {
+
+      showScreen(
+        "scanner"
+      );
+
+      await startQrScanner();
+
+      return;
+
+    }
+
+
+    if (
+      getRoute() ===
+      "order-create"
+    ) {
+
+      showScreen(
+        "orderCreate"
+      );
+
+      updateOrderCreateTotals();
+
+      return;
+
+    }
+
+
+    if (
+      getRoute() ===
+      "order-detail"
+    ) {
+
+      showScreen(
+        "orderDetail"
+      );
+
+      if (
+        currentOrderId
+      ) {
+
+        await loadOrderDetail(
+          currentOrderId
+        );
+
+      }
 
       return;
 
@@ -3544,6 +3618,1449 @@ $("printQrPairsButton")
   );
 
 
+
+// ============================================================
+// SELLER QR SCANNER / ORDER CREATION
+// ============================================================
+
+$("homeScanButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      pendingQrToken =
+        null;
+
+      pendingProduct =
+        null;
+
+      navigate(
+        "scanner"
+      );
+
+    }
+  );
+
+
+$("scannerBackButton")
+  .addEventListener(
+    "click",
+    async () => {
+
+      await stopQrScanner();
+
+      navigate(
+        "home"
+      );
+
+    }
+  );
+
+
+$("scannerManualButton")
+  .addEventListener(
+    "click",
+    async () => {
+
+      const value =
+        window.prompt(
+          "Enter the QR tracking URL or token:"
+        );
+
+
+      if (
+        !value
+      ) {
+
+        return;
+
+      }
+
+
+      await handleScannedQr(
+        value
+      );
+
+    }
+  );
+
+
+async function startQrScanner() {
+
+  if (
+    scannerInstance ||
+    typeof Html5Qrcode ===
+      "undefined"
+  ) {
+
+    if (
+      typeof Html5Qrcode ===
+      "undefined"
+    ) {
+
+      $("scannerMessage")
+        .textContent =
+          "QR scanner library could not be loaded.";
+
+    }
+
+    return;
+
+  }
+
+
+  scannerInstance =
+    new Html5Qrcode(
+      "qrReader"
+    );
+
+
+  try {
+
+    await scannerInstance.start(
+      {
+        facingMode:
+          "environment"
+      },
+      {
+        fps:
+          10,
+
+        qrbox:
+          {
+            width:
+              250,
+
+            height:
+              250
+          }
+      },
+      async (
+        decodedText
+      ) => {
+
+        await handleScannedQr(
+          decodedText
+        );
+
+      },
+      () => {}
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Camera start failed:",
+      error
+    );
+
+
+    $("scannerMessage")
+      .textContent =
+        "Unable to access the camera. Check camera permission or use manual QR entry.";
+
+
+    await stopQrScanner();
+
+  }
+
+}
+
+
+async function stopQrScanner() {
+
+  if (
+    !scannerInstance
+  ) {
+
+    return;
+
+  }
+
+
+  try {
+
+    if (
+      scannerInstance.isScanning
+    ) {
+
+      await scannerInstance.stop();
+
+    }
+
+
+    await scannerInstance.clear();
+
+
+  } catch (
+    error
+  ) {
+
+    console.warn(
+      "Scanner cleanup failed:",
+      error
+    );
+
+
+  } finally {
+
+    scannerInstance =
+      null;
+
+  }
+
+}
+
+
+function extractQrToken(
+  value
+) {
+
+  const text =
+    String(
+      value ||
+      ""
+    ).trim();
+
+
+  if (
+    !text
+  ) {
+
+    return null;
+
+  }
+
+
+  try {
+
+    const url =
+      new URL(
+        text
+      );
+
+
+    const match =
+      url.pathname.match(
+        /^\/t\/([^/]+)\/?$/
+      );
+
+
+    if (
+      match?.[1]
+    ) {
+
+      return match[1];
+
+    }
+
+  } catch {
+    /*
+     * Raw token is accepted below.
+     */
+
+  }
+
+
+  return text;
+
+}
+
+
+async function handleScannedQr(
+  scannedText
+) {
+
+  if (
+    qrScanBusy
+  ) {
+
+    return;
+
+  }
+
+
+  qrScanBusy =
+    true;
+
+
+  try {
+
+    const token =
+      extractQrToken(
+        scannedText
+      );
+
+
+    if (
+      !token
+    ) {
+
+      throw new Error(
+        "The scanned QR does not contain a valid Ordeli tracking token."
+      );
+
+    }
+
+
+    await stopQrScanner();
+
+
+    const user =
+      await getCurrentUser();
+
+
+    const {
+      data:
+        qr,
+      error
+    } =
+    await supabase
+      .from(
+        "qr_codes"
+      )
+      .select(`
+        id,
+        product_id,
+        code,
+        public_token,
+        status,
+        order_item_id,
+        products(
+          id,
+          name,
+          default_price
+        )
+      `)
+      .eq(
+        "seller_id",
+        user.id
+      )
+      .eq(
+        "public_token",
+        token
+      )
+      .single();
+
+
+    if (
+      error
+    ) {
+
+      throw new Error(
+        "This QR code was not found in your shop."
+      );
+
+    }
+
+
+    pendingQrToken =
+      qr.public_token;
+
+
+    pendingProduct =
+      qr.products;
+
+
+    if (
+      qr.status ===
+      "available"
+    ) {
+
+      prepareOrderCreation(
+        qr
+      );
+
+      navigate(
+        "order-create"
+      );
+
+      return;
+
+    }
+
+
+    if (
+      qr.status ===
+        "assigned" &&
+      qr.order_item_id
+    ) {
+
+      currentOrderId =
+        await getOrderIdFromItem(
+          qr.order_item_id
+        );
+
+      navigate(
+        "order-detail"
+      );
+
+      return;
+
+    }
+
+
+    if (
+      qr.status ===
+      "revoked"
+    ) {
+
+      throw new Error(
+        "This QR code has been revoked."
+      );
+
+    }
+
+
+    throw new Error(
+      "This QR code is not currently available."
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "QR scan failed:",
+      error
+    );
+
+
+    $("scannerMessage")
+      .textContent =
+        error?.message ||
+        "Unable to process the scanned QR code.";
+
+
+    if (
+      !scannerInstance &&
+      getRoute() ===
+        "scanner"
+    ) {
+
+      setTimeout(
+        () => {
+
+          startQrScanner();
+
+        },
+        500
+      );
+
+    }
+
+  } finally {
+
+    qrScanBusy =
+      false;
+
+  }
+
+}
+
+
+async function getOrderIdFromItem(
+  orderItemId
+) {
+
+  const {
+    data,
+    error
+  } =
+  await supabase
+    .from(
+      "order_items"
+    )
+    .select(
+      "order_id"
+    )
+    .eq(
+      "id",
+      orderItemId
+    )
+    .single();
+
+
+  if (
+    error
+  ) {
+
+    throw error;
+
+  }
+
+
+  return data.order_id;
+
+}
+
+
+// ============================================================
+// ORDER CREATION
+// ============================================================
+
+function prepareOrderCreation(
+  qr
+) {
+
+  pendingQrToken =
+    qr.public_token;
+
+  pendingProduct =
+    qr.products;
+
+
+  $("orderDetectedProduct")
+    .textContent =
+      qr.products?.name ||
+      "Product";
+
+
+  $("orderDetectedPrice")
+    .textContent =
+      formatPrice(
+        qr.products?.default_price
+      );
+
+
+  $("orderQuantity")
+    .value =
+      "1";
+
+
+  $("orderDownpayment")
+    .value =
+      "0";
+
+
+  $("newCustomerChoice")
+    .checked =
+      true;
+
+
+  $("existingCustomerChoice")
+    .checked =
+      false;
+
+
+  toggleCustomerChoice();
+
+
+  clearOrderMessage();
+
+  updateOrderCreateTotals();
+
+  loadActiveCustomers();
+
+}
+
+
+async function loadActiveCustomers() {
+
+  const select =
+    $("existingCustomerSelect");
+
+
+  select.replaceChildren();
+
+
+  const placeholder =
+    document.createElement(
+      "option"
+    );
+
+
+  placeholder.value =
+    "";
+
+
+  placeholder.textContent =
+    "Select active customer";
+
+
+  select.appendChild(
+    placeholder
+  );
+
+
+  try {
+
+    const user =
+      await getCurrentUser();
+
+
+    /*
+     * Active means the customer has at least one
+     * non-cancelled order still in progress.
+     *
+     * At this stage, "in progress" uses the order's
+     * non-cancelled state. The final completed-state
+     * derivation is implemented later with production.
+     */
+
+    const {
+      data,
+      error
+    } =
+    await supabase
+      .from(
+        "customers"
+      )
+      .select(`
+        id,
+        name,
+        phone,
+        orders!inner(
+          id,
+          cancelled_at
+        )
+      `)
+      .eq(
+        "seller_id",
+        user.id
+      )
+      .is(
+        "orders.cancelled_at",
+        null
+      )
+      .order(
+        "name",
+        {
+          ascending:
+            true
+        }
+      );
+
+
+    if (
+      error
+    ) {
+
+      console.warn(
+        "Active customers could not be loaded:",
+        error
+      );
+
+      return;
+
+    }
+
+
+    const unique =
+      new Map();
+
+
+    (
+      data || []
+    ).forEach(
+      (
+        customer
+      ) => {
+
+        unique.set(
+          customer.id,
+          customer
+        );
+
+      }
+    );
+
+
+    unique.forEach(
+      (
+        customer
+      ) => {
+
+        const option =
+          document.createElement(
+            "option"
+          );
+
+
+        option.value =
+          customer.id;
+
+
+        option.textContent =
+          customer.phone
+            ? `${customer.name} — ${customer.phone}`
+            : customer.name;
+
+
+        select.appendChild(
+          option
+        );
+
+      }
+    );
+
+  } catch (
+    error
+  ) {
+
+    console.warn(
+      "Active customer loading failed:",
+      error
+    );
+
+  }
+
+}
+
+
+function toggleCustomerChoice() {
+
+  const existing =
+    $("existingCustomerChoice")
+      .checked;
+
+
+  $("newCustomerFields")
+    .hidden =
+      existing;
+
+
+  $("existingCustomerFields")
+    .hidden =
+      !existing;
+
+
+  $("orderCustomerName")
+    .required =
+      !existing;
+
+}
+
+
+$("newCustomerChoice")
+  .addEventListener(
+    "change",
+    toggleCustomerChoice
+  );
+
+
+$("existingCustomerChoice")
+  .addEventListener(
+    "change",
+    toggleCustomerChoice
+  );
+
+
+function updateOrderCreateTotals() {
+
+  const price =
+    Number(
+      pendingProduct?.default_price
+    ) || 0;
+
+
+  const quantity =
+    Number(
+      $("orderQuantity")
+        .value
+    ) || 0;
+
+
+  const total =
+    price *
+    quantity;
+
+
+  let downpayment =
+    Number(
+      $("orderDownpayment")
+        .value
+    );
+
+
+  if (
+    !Number.isFinite(
+      downpayment
+    ) ||
+    downpayment <
+      0
+  ) {
+
+    downpayment =
+      0;
+
+  }
+
+
+  $("orderCreateTotal")
+    .textContent =
+      formatPrice(
+        total
+      );
+
+
+  $("orderCreateBalance")
+    .textContent =
+      formatPrice(
+        Math.max(
+          0,
+          total -
+          Math.min(
+            downpayment,
+            total
+          )
+        )
+      );
+
+}
+
+
+$("orderQuantity")
+  .addEventListener(
+    "input",
+    updateOrderCreateTotals
+  );
+
+
+$("orderDownpayment")
+  .addEventListener(
+    "input",
+    updateOrderCreateTotals
+  );
+
+
+$("orderCreateForm")
+  .addEventListener(
+    "submit",
+    async (event) => {
+
+      event.preventDefault();
+
+      await createOrder();
+
+    }
+  );
+
+
+async function createOrder() {
+
+  clearOrderMessage();
+
+
+  if (
+    !pendingQrToken ||
+    !pendingProduct
+  ) {
+
+    $("orderCreateMessage")
+      .textContent =
+        "No scanned product QR is selected.";
+
+    return;
+
+  }
+
+
+  const quantity =
+    Number(
+      $("orderQuantity")
+        .value
+    );
+
+
+  const downpayment =
+    Number(
+      $("orderDownpayment")
+        .value
+    ) || 0;
+
+
+  const total =
+    (
+      Number(
+        pendingProduct
+          .default_price
+      ) || 0
+    ) *
+    quantity;
+
+
+  if (
+    !Number.isInteger(
+      quantity
+    ) ||
+    quantity <
+      1
+  ) {
+
+    $("orderCreateMessage")
+      .textContent =
+        "Quantity must be at least 1.";
+
+    return;
+
+  }
+
+
+  if (
+    downpayment <
+      0 ||
+    downpayment >
+      total
+  ) {
+
+    $("orderCreateMessage")
+      .textContent =
+        "Downpayment must be between ₱0 and the order total.";
+
+    return;
+
+  }
+
+
+  const usingExisting =
+    $("existingCustomerChoice")
+      .checked;
+
+
+  let customerId =
+    null;
+
+
+  let customerName =
+    null;
+
+
+  let customerPhone =
+    null;
+
+
+  if (
+    usingExisting
+  ) {
+
+    customerId =
+      $("existingCustomerSelect")
+        .value;
+
+
+    if (
+      !customerId
+    ) {
+
+      $("orderCreateMessage")
+        .textContent =
+          "Select an active customer.";
+
+      return;
+
+    }
+
+  } else {
+
+    customerName =
+      $("orderCustomerName")
+        .value
+        .trim();
+
+
+    customerPhone =
+      $("orderCustomerPhone")
+        .value
+        .trim() ||
+      null;
+
+
+    if (
+      !customerName
+    ) {
+
+      $("orderCreateMessage")
+        .textContent =
+          "Customer name is required.";
+
+      return;
+
+    }
+
+  }
+
+
+  setLoading(
+    $("orderSaveButton"),
+    "Saving Order..."
+  );
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+    await supabase
+      .rpc(
+        "create_order_from_qr",
+        {
+
+          p_qr_public_token:
+            pendingQrToken,
+
+          p_customer_id:
+            customerId,
+
+          p_customer_name:
+            customerName,
+
+          p_customer_phone:
+            customerPhone,
+
+          p_quantity:
+            quantity,
+
+          p_downpayment:
+            downpayment
+
+        }
+      );
+
+
+    if (
+      error
+    ) {
+
+      throw error;
+
+    }
+
+
+    if (
+      !data?.order_id
+    ) {
+
+      throw new Error(
+        "The order was not created."
+      );
+
+    }
+
+
+    currentOrderId =
+      data.order_id;
+
+
+    navigate(
+      "order-detail"
+    );
+
+
+  } catch (
+    error
+  ) {
+
+    console.error(
+      "Order creation failed:",
+      error
+    );
+
+
+    $("orderCreateMessage")
+      .textContent =
+        error?.message ||
+        "Unable to create the order.";
+
+  } finally {
+
+    resetButton(
+      $("orderSaveButton"),
+      "Save Order"
+    );
+
+  }
+
+}
+
+
+function clearOrderMessage() {
+
+  $("orderCreateMessage")
+    .textContent =
+      "";
+
+}
+
+
+// ============================================================
+// ORDER DETAILS
+// ============================================================
+
+async function loadOrderDetail(
+  orderId
+) {
+
+  $("orderDetailItems")
+    .replaceChildren();
+
+
+  $("orderDetailMessage")
+    .textContent =
+      "";
+
+
+  const user =
+    await getCurrentUser();
+
+
+  const {
+    data:
+      order,
+    error:
+      orderError
+  } =
+  await supabase
+    .from(
+      "orders"
+    )
+    .select(`
+      id,
+      order_number,
+      customer_id,
+      created_at,
+      customers(
+        id,
+        name,
+        phone
+      )
+    `)
+    .eq(
+      "id",
+      orderId
+    )
+    .eq(
+      "seller_id",
+      user.id
+    )
+    .single();
+
+
+  if (
+    orderError
+  ) {
+
+    throw orderError;
+
+  }
+
+
+  $("orderDetailTitle")
+    .textContent =
+      `Order #${order.order_number}`;
+
+
+  $("orderDetailNumber")
+    .textContent =
+      `#${order.order_number}`;
+
+
+  $("orderDetailCustomerName")
+    .textContent =
+      order.customers?.name ||
+      "Customer";
+
+
+  $("orderDetailCustomer")
+    .textContent =
+      order.customers?.phone ||
+      "";
+
+
+  const {
+    data:
+      items,
+    error:
+      itemsError
+  } =
+  await supabase
+    .from(
+      "order_items"
+    )
+    .select(`
+      id,
+      product_name,
+      quantity,
+      unit_price,
+      total_price,
+      cancelled_at
+    `)
+    .eq(
+      "order_id",
+      orderId
+    )
+    .eq(
+      "seller_id",
+      user.id
+    )
+    .order(
+      "created_at",
+      {
+        ascending:
+          true
+      }
+    );
+
+
+  if (
+    itemsError
+  ) {
+
+    throw itemsError;
+
+  }
+
+
+  let total =
+    0;
+
+
+  (items || []).forEach(
+    (
+      item
+    ) => {
+
+      total +=
+        Number(
+          item.total_price
+        ) || 0;
+
+
+      const row =
+        document.createElement(
+          "div"
+        );
+
+
+      row.className =
+        "order-detail-item";
+
+
+      const left =
+        document.createElement(
+          "div"
+        );
+
+
+      const name =
+        document.createElement(
+          "strong"
+        );
+
+
+      name.textContent =
+        item.product_name;
+
+
+      const qty =
+        document.createElement(
+          "span"
+        );
+
+
+      qty.textContent =
+        ` × ${item.quantity}`;
+
+
+      left.append(
+        name,
+        qty
+      );
+
+
+      const price =
+        document.createElement(
+          "strong"
+        );
+
+
+      price.textContent =
+        formatPrice(
+          item.total_price
+        );
+
+
+      row.append(
+        left,
+        price
+      );
+
+
+      if (
+        item.cancelled_at
+      ) {
+
+        row.classList.add(
+          "is-cancelled"
+        );
+
+      }
+
+
+      $("orderDetailItems")
+        .appendChild(
+          row
+        );
+
+    }
+  );
+
+
+  const {
+    data:
+      payments,
+    error:
+      paymentsError
+  } =
+  await supabase
+    .from(
+      "payments"
+    )
+    .select(
+      "amount,proof_status"
+    )
+    .eq(
+      "order_id",
+      orderId
+    )
+    .eq(
+      "seller_id",
+      user.id
+    );
+
+
+  if (
+    paymentsError
+  ) {
+
+    throw paymentsError;
+
+  }
+
+
+  const paid =
+    (
+      payments ||
+      []
+    ).reduce(
+      (
+        sum,
+        payment
+      ) =>
+        sum +
+        (
+          Number(
+            payment.amount
+          ) || 0
+        ),
+      0
+    );
+
+
+  $("orderDetailTotal")
+    .textContent =
+      formatPrice(
+        total
+      );
+
+
+  $("orderDetailPaid")
+    .textContent =
+      formatPrice(
+        paid
+      );
+
+
+  $("orderDetailBalance")
+    .textContent =
+      formatPrice(
+        Math.max(
+          0,
+          total -
+          paid
+        )
+      );
+
+}
+
+
+$("orderDetailAddItemButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      pendingQrToken =
+        null;
+
+      pendingProduct =
+        null;
+
+      navigate(
+        "scanner"
+      );
+
+    }
+  );
+
+
+$("orderCreateBackButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      pendingQrToken =
+        null;
+
+      pendingProduct =
+        null;
+
+      navigate(
+        "home"
+      );
+
+    }
+  );
+
+
+$("orderCancelButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      pendingQrToken =
+        null;
+
+      pendingProduct =
+        null;
+
+      navigate(
+        "home"
+      );
+
+    }
+  );
+
+
+$("orderDetailBackButton")
+  .addEventListener(
+    "click",
+    () => {
+
+      currentOrderId =
+        null;
+
+      navigate(
+        "home"
+      );
+
+    }
+  );
+
+
+
+
 // ============================================================
 // LOGOUT
 // ============================================================
@@ -3860,7 +5377,16 @@ supabase.auth.onAuthStateChange(
 
 window.addEventListener(
   "hashchange",
-  () => {
+  async () => {
+
+    if (
+      getRoute() !== "scanner" &&
+      scannerInstance
+    ) {
+
+      await stopQrScanner();
+
+    }
 
     renderApplication();
 
