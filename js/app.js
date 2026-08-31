@@ -72,6 +72,9 @@ let qrProducts = [];
 let pendingQrToken = null;
 let pendingProduct = null;
 let currentOrderId = null;
+
+let currentOrderTotal = 0;
+let currentOrderPaid = 0;
 let scannerInstance = null;
 let qrScanBusy = false;
 
@@ -4692,6 +4695,14 @@ function clearOrderMessage() {
 async function loadOrderDetail(
   orderId
 ) {
+
+  currentOrderTotal =
+    0;
+
+  currentOrderPaid =
+    0;
+
+
 
   $("orderDetailItems")
     .replaceChildren();
