@@ -46,6 +46,9 @@ const screens = {
 let editingProductId =
   null;
 
+let renderInFlight =
+  null;
+
 let workflowProductId =
   null;
 
@@ -94,8 +97,6 @@ function navigate(route) {
     window.location.hash ===
     `#${route}`
   ) {
-
-    renderApplication();
 
     return;
 
@@ -249,6 +250,14 @@ function shopComplete(
 // ============================================================
 
 async function renderApplication() {
+
+  if (renderInFlight) {
+    return renderInFlight;
+  }
+
+  renderInFlight =
+    (async () => {
+
 
   try {
 
@@ -404,6 +413,20 @@ async function renderApplication() {
     $("loginMessage").textContent =
       error?.message ||
       "Unable to load the application.";
+
+  }
+
+
+    })();
+
+  try {
+
+    return await renderInFlight;
+
+  } finally {
+
+    renderInFlight =
+      null;
 
   }
 
@@ -1220,33 +1243,18 @@ $("editShopButton")
 
 async function loadProducts() {
 
-  $("productList")
-    .innerHTML =
-      "";
+  const list = $("productList");
 
+  // Always replace the rendered list. This function never appends onto
+  // a previous database result.
+  list.replaceChildren();
+  $("emptyProductsState").hidden = true;
+  $("productEditor").hidden = true;
 
-  $("emptyProductsState")
-    .hidden =
-      true;
+  const user = await getCurrentUser();
 
-
-  $("productEditor")
-    .hidden =
-      true;
-
-
-  const user =
-    await getCurrentUser();
-
-
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .from(
-      "products"
-    )
+  const { data, error } = await supabase
+    .from("products")
     .select(`
       id,
       seller_id,
@@ -1257,55 +1265,29 @@ async function loadProducts() {
       created_at,
       updated_at
     `)
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .eq(
-      "is_active",
-      true
-    )
-    .order(
-      "name",
-      {
-        ascending:
-          true
-      }
-    );
+    .eq("seller_id", user.id)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
 
+  if (error) throw error;
 
-  if (error) {
+  // Ignore a response if the user navigated away while the request was running.
+  if (getRoute() !== "products") return;
 
-    throw error;
-
-  }
-
+  list.replaceChildren();
 
   if (!data.length) {
-
-    $("emptyProductsState")
-      .hidden =
-        false;
-
-
+    $("emptyProductsState").hidden = false;
     return;
-
   }
 
+  const fragment = document.createDocumentFragment();
 
-  data.forEach(
-    (product) => {
+  data.forEach((product) => {
+    fragment.appendChild(createProductCard(product));
+  });
 
-      $("productList")
-        .appendChild(
-          createProductCard(
-            product
-          )
-        );
-
-    }
-  );
-
+  list.appendChild(fragment);
 }
 
 
@@ -2684,16 +2666,198 @@ async function loadQrProducts() {
 }
 
 async function loadQrSeries() {
-  const list=$("qrSeriesList"); list.replaceChildren(); $("emptyQrState").hidden=true;
-  const user=await getCurrentUser();
-  const {data,error}=await supabase.from("qr_codes").select(`id,product_id,series_name,series_sequence,code,status,created_at,products(name)`).eq("seller_id",user.id).order("created_at",{ascending:false});
-  if(error) throw error;
-  const groups=new Map();
-  (data||[]).forEach(qr=>{ const key=`${qr.product_id}::${qr.series_name}`; if(!groups.has(key)) groups.set(key,{productId:qr.product_id,productName:qr.products?.name||"Product",seriesName:qr.series_name||"Unnamed Series",total:0,available:0,assigned:0,revoked:0}); const g=groups.get(key); g.total++; if(qr.status==="available")g.available++; else if(qr.status==="assigned")g.assigned++; else if(qr.status==="revoked")g.revoked++; });
-  if(!groups.size){ $("emptyQrState").hidden=false; return; }
-  const fragment=document.createDocumentFragment();
-  for(const group of groups.values()) fragment.appendChild(createQrSeriesCard(group));
-  list.appendChild(fragment);
+
+  const list =
+    $("qrSeriesList");
+
+
+  /*
+   * Always replace the list from one database snapshot.
+   * Never append a second copy onto an existing render.
+   */
+
+  list.replaceChildren();
+
+
+  $("emptyQrState")
+    .hidden =
+      true;
+
+
+  const user =
+    await getCurrentUser();
+
+
+  const {
+    data,
+    error
+  } =
+  await supabase
+    .from(
+      "qr_codes"
+    )
+    .select(`
+      id,
+      product_id,
+      series_name,
+      series_sequence,
+      code,
+      status,
+      created_at,
+      products(name)
+    `)
+    .eq(
+      "seller_id",
+      user.id
+    )
+    .order(
+      "created_at",
+      {
+        ascending:
+          false
+      }
+    );
+
+
+  if (error) {
+
+    throw error;
+
+  }
+
+
+  if (
+    getRoute() !==
+    "qr"
+  ) {
+
+    return;
+
+  }
+
+
+  const groups =
+    new Map();
+
+
+  (data || []).forEach(
+    (qr) => {
+
+      const key =
+        `${qr.product_id}::${qr.series_name}`;
+
+
+      if (
+        !groups.has(key)
+      ) {
+
+        groups.set(
+          key,
+          {
+
+            productId:
+              qr.product_id,
+
+            productName:
+              qr.products?.name ||
+              "Product",
+
+            seriesName:
+              qr.series_name ||
+              "Unnamed Series",
+
+            total:
+              0,
+
+            available:
+              0,
+
+            assigned:
+              0,
+
+            revoked:
+              0
+
+          }
+        );
+
+      }
+
+
+      const group =
+        groups.get(key);
+
+
+      group.total +=
+        1;
+
+
+      if (
+        qr.status ===
+        "available"
+      ) {
+
+        group.available +=
+          1;
+
+      } else if (
+        qr.status ===
+        "assigned"
+      ) {
+
+        group.assigned +=
+          1;
+
+      } else if (
+        qr.status ===
+        "revoked"
+      ) {
+
+        group.revoked +=
+          1;
+
+      }
+
+    }
+  );
+
+
+  if (
+    groups.size ===
+    0
+  ) {
+
+    $("emptyQrState")
+      .hidden =
+        false;
+
+    return;
+
+  }
+
+
+  const fragment =
+    document.createDocumentFragment();
+
+
+  for (
+    const group
+    of groups.values()
+  ) {
+
+    fragment.appendChild(
+      createQrSeriesCard(
+        group
+      )
+    );
+
+  }
+
+
+  list.replaceChildren(
+    fragment
+  );
+
 }
 
 function createQrSeriesCard(group){
