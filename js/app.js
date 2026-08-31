@@ -72,9 +72,6 @@ let qrProducts = [];
 let pendingQrToken = null;
 let pendingProduct = null;
 let currentOrderId = null;
-
-let currentOrderTotal = 0;
-let currentOrderPaid = 0;
 let scannerInstance = null;
 let qrScanBusy = false;
 
@@ -4696,14 +4693,6 @@ async function loadOrderDetail(
   orderId
 ) {
 
-  currentOrderTotal =
-    0;
-
-  currentOrderPaid =
-    0;
-
-
-
   $("orderDetailItems")
     .replaceChildren();
 
@@ -5018,23 +5007,17 @@ async function loadPayments(
   const list =
     $("paymentList");
 
-
   list.replaceChildren();
-
 
   const user =
     await getCurrentUser();
 
-
   const {
-    data:
-      payments,
+    data: payments,
     error
   } =
   await supabase
-    .from(
-      "payments"
-    )
+    .from("payments")
     .select(`
       id,
       amount,
@@ -5058,21 +5041,14 @@ async function loadPayments(
       }
     );
 
-
   if (error) {
     throw error;
   }
 
-
-  if (
-    !payments ||
-    payments.length === 0
-  ) {
+  if (!payments || payments.length === 0) {
 
     const empty =
-      document.createElement(
-        "p"
-      );
+      document.createElement("p");
 
     empty.className =
       "payment-empty";
@@ -5085,13 +5061,18 @@ async function loadPayments(
     );
 
     return;
-
   }
 
+  const totalPaid =
+    payments.reduce(
+      (sum, payment) =>
+        sum +
+        (Number(payment.amount) || 0),
+      0
+    );
 
   const fragment =
     document.createDocumentFragment();
-
 
   payments.forEach(
     (
@@ -5100,94 +5081,96 @@ async function loadPayments(
     ) => {
 
       const row =
-        document.createElement(
-          "div"
-        );
+        document.createElement("div");
 
       row.className =
         "payment-row";
 
-
       const left =
-        document.createElement(
-          "div"
-        );
-
+        document.createElement("div");
 
       const title =
-        document.createElement(
-          "strong"
-        );
+        document.createElement("strong");
+
+      const amount =
+        Number(payment.amount) || 0;
+
+      let label =
+        "Additional Payment";
+
+      if (index === 0) {
+        label = "Downpayment";
+      }
+
+      if (
+        index === payments.length - 1 &&
+        Math.abs(
+          totalPaid -
+          currentOrderTotal
+        ) < 0.01
+      ) {
+        label = "Final Payment";
+      }
+
+      /*
+       * Preserve old explicit labels already stored by the
+       * previous version of the application.
+       */
+      if (payment.payment_type === "downpayment") {
+        label = "Downpayment";
+      } else if (payment.payment_type === "final") {
+        label = "Final Payment";
+      }
 
       title.textContent =
-        paymentTypeLabel(
-          payment.payment_type
-        );
-
+        label;
 
       const meta =
-        document.createElement(
-          "span"
-        );
+        document.createElement("span");
 
       meta.textContent =
         formatDate(
           payment.created_at
         );
 
-
       left.append(
         title,
         meta
       );
 
-
       const right =
-        document.createElement(
-          "div"
-        );
+        document.createElement("div");
 
       right.className =
         "payment-row-right";
 
+      const amountEl =
+        document.createElement("strong");
 
-      const amount =
-        document.createElement(
-          "strong"
-        );
-
-      amount.textContent =
+      amountEl.textContent =
         formatPrice(
-          payment.amount
+          amount
         );
-
 
       const status =
-        document.createElement(
-          "span"
-        );
+        document.createElement("span");
 
       status.className =
         "payment-status";
 
-
       status.textContent =
-        payment.proof_status
-          ? payment.proof_status
-          : "Confirmed";
-
+        payment.proof_status ||
+        "Confirmed";
 
       right.append(
-        amount,
+        amountEl,
         status
       );
-
 
       row.append(
         left,
         right
       );
-
 
       fragment.appendChild(
         row
@@ -5195,7 +5178,6 @@ async function loadPayments(
 
     }
   );
-
 
   list.appendChild(
     fragment
@@ -5243,10 +5225,6 @@ function openPaymentEditor() {
       );
 
 
-  $("paymentType")
-    .value =
-      "additional";
-
 
   $("paymentEditor")
     .hidden =
@@ -5280,13 +5258,11 @@ async function savePayment() {
 
   clearPaymentMessage();
 
-
   const amount =
     Number(
       $("paymentAmount")
         .value
     );
-
 
   const remaining =
     Math.max(
@@ -5295,13 +5271,9 @@ async function savePayment() {
       currentOrderPaid
     );
 
-
   if (
-    !Number.isFinite(
-      amount
-    ) ||
-    amount <=
-      0
+    !Number.isFinite(amount) ||
+    amount <= 0
   ) {
 
     $("paymentMessage")
@@ -5311,7 +5283,6 @@ async function savePayment() {
     return;
 
   }
-
 
   if (
     amount >
@@ -5326,32 +5297,23 @@ async function savePayment() {
 
   }
 
-
   setLoading(
     $("savePaymentButton"),
     "Saving..."
   );
-
 
   try {
 
     const user =
       await getCurrentUser();
 
-
     const {
-      data:
-        order,
-      error:
-        orderError
+      data: order,
+      error: orderError
     } =
     await supabase
-      .from(
-        "orders"
-      )
-      .select(
-        "id"
-      )
+      .from("orders")
+      .select("id")
       .eq(
         "id",
         currentOrderId
@@ -5362,26 +5324,23 @@ async function savePayment() {
       )
       .single();
 
-
-    if (
-      orderError
-    ) {
-
+    if (orderError) {
       throw orderError;
-
     }
 
+    const paymentType =
+      currentOrderPaid <= 0
+        ? "downpayment"
+        : currentOrderPaid + amount >= currentOrderTotal
+          ? "final"
+          : "additional";
 
     const {
-      error:
-        insertError
+      error: insertError
     } =
     await supabase
-      .from(
-        "payments"
-      )
+      .from("payments")
       .insert({
-
         order_id:
           order.id,
 
@@ -5391,41 +5350,28 @@ async function savePayment() {
         amount,
 
         payment_type:
-          $("paymentType")
-            .value,
+          paymentType,
 
         proof_status:
           null
-
       });
 
-
-    if (
-      insertError
-    ) {
-
+    if (insertError) {
       throw insertError;
-
     }
 
-
     closePaymentEditor();
-
 
     await loadOrderDetail(
       currentOrderId
     );
 
-
-  } catch (
-    error
-  ) {
+  } catch (error) {
 
     console.error(
       "Payment save failed:",
       error
     );
-
 
     $("paymentMessage")
       .textContent =
