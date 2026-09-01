@@ -318,7 +318,23 @@
                 </div>
               </div>
 
-                            <div class="editor-actions">
+              <div class="form-group">
+                <label for="paymentType">
+                  Payment Type
+                </label>
+
+                <select
+                  id="paymentType"
+                  class="form-select"
+                >
+                  <option value="additional">Additional Payment</option>
+                  <option value="final">Final Payment</option>
+                  <option value="cash">Cash</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="editor-actions">
                 <button
                   id="cancelPaymentButton"
                   class="secondary-button"
