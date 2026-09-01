@@ -11,7 +11,7 @@
  * files handled by the service worker. Old caches are deleted on activate.
  */
 
-const CACHE_VERSION = "ordeli-v2026-08-29-03";
+const CACHE_VERSION = "ordeli-v2026-09-02-01";
 
 const APP_SHELL = [
   "./",
