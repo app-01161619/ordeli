@@ -646,14 +646,43 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script type="module" src="/js/app.js?v=2026-09-02-03"></script>
+<script type="module" src="/js/app.js?v=2026-09-02-04"></script>
 
 <script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(console.error);
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+
+  const isCustomerTrackingPage = window.location.pathname.startsWith('/t/');
+
+  window.addEventListener('load', async () => {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      if (isCustomerTrackingPage) {
+        const customerScoped = registrations.filter((registration) => {
+          try {
+            return new URL(registration.scope).pathname.startsWith('/t/');
+          } catch (_) {
+            return false;
+          }
+        });
+
+        if (customerScoped.length > 0) {
+          await Promise.all(customerScoped.map((registration) => registration.unregister()));
+          window.location.reload();
+          return;
+        }
+
+        // Customer tracking pages do not use the seller PWA service worker.
+        return;
+      }
+
+      await navigator.serviceWorker.register('/sw.js');
+    } catch (error) {
+      console.error('Service worker setup failed:', error);
+    }
   });
-}
+})();
 </script>
 
 </body>
