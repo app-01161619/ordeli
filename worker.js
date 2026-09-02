@@ -13,7 +13,7 @@ export default {
 
       const html = await assetResponse.text();
       const tokenScript = `<script>window.__ORDELI_TRACKING_TOKEN=${JSON.stringify(token)};</script>`;
-      const patchedHtml = html.replace(/<\\/head>/i, `${tokenScript}</head>`);
+      const patchedHtml = html.replace(/<\/head>/i, `${tokenScript}</head>`);
 
       const headers = new Headers(assetResponse.headers);
       headers.set("content-type", "text/html; charset=UTF-8");
