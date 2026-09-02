@@ -1,36 +1,20 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
 const SUPABASE_URL = "https://kbgdxhshxkhuelbxlggc.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_KJDx4oVgNF6z_5SYvyI-uw_h58jlimx";
-
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false
-    }
-  }
-);
 
 const $ = (id) => document.getElementById(id);
 let trackingPayload = null;
 let trackingOrderVisible = false;
+let activeLoadId = 0;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
   const match = pathname.match(/^\/t\/([^/]+)$/i);
   if (!match) return null;
-  try { return decodeURIComponent(match[1]); }
-  catch { return null; }
+  try { return decodeURIComponent(match[1]); } catch { return null; }
 }
 
 function formatPrice(value) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency", currency: "PHP"
-  }).format(Number(value) || 0);
+  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(value) || 0);
 }
 
 function trackingProductionStatusLabel(value) {
@@ -50,6 +34,12 @@ function trackingPaymentStatusLabel(value) {
     case "rejected": return "Payment Proof Rejected";
     default: return "Unpaid";
   }
+}
+
+function showTrackingLoading() {
+  $("trackingLoadingState").hidden = false;
+  $("trackingErrorState").hidden = true;
+  $("trackingContent").hidden = true;
 }
 
 function showTrackingContent() {
@@ -132,9 +122,7 @@ function renderCustomerTracking(payload) {
   const orderCancelled = Boolean(order.cancelled_at);
   const productionStatus = itemCancelled ? "Cancelled" : item.production_completed ? "Completed" : "In Progress";
   $("trackingItemStatus").textContent = orderCancelled ? "Order Cancelled" : productionStatus;
-  $("trackingItemStatus").className = `tracking-status-badge ${
-    orderCancelled || itemCancelled ? "is-cancelled" : productionStatus === "Completed" ? "is-complete" : ""
-  }`;
+  $("trackingItemStatus").className = `tracking-status-badge ${orderCancelled || itemCancelled ? "is-cancelled" : productionStatus === "Completed" ? "is-complete" : ""}`;
 
   if (orderCancelled || itemCancelled) {
     $("trackingProductionSummary").textContent = "This order item is no longer active.";
@@ -157,18 +145,44 @@ function renderCustomerTracking(payload) {
 }
 
 async function loadCustomerTracking(publicToken) {
+  const loadId = ++activeLoadId;
   trackingPayload = null;
   trackingOrderVisible = false;
-  $("trackingLoadingState").hidden = false;
-  $("trackingErrorState").hidden = true;
-  $("trackingContent").hidden = true;
+  showTrackingLoading();
+
   try {
-    const { data, error } = await supabase.rpc("get_customer_tracking", { p_public_token: publicToken });
-    if (error) throw error;
-    if (!data) throw new Error("Tracking information is not available.");
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_customer_tracking`, {
+      method: "POST",
+      mode: "cors",
+      cache: "no-store",
+      headers: {
+        "apikey": SUPABASE_PUBLISHABLE_KEY,
+        "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({ p_public_token: publicToken })
+    });
+
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { /* handled below */ }
+
+    if (loadId !== activeLoadId) return;
+
+    if (!response.ok) {
+      const message = data?.message || data?.hint || `Unable to load order information (HTTP ${response.status}).`;
+      throw new Error(message);
+    }
+
+    if (!data || typeof data !== "object") {
+      throw new Error("Tracking information is not available.");
+    }
+
     trackingPayload = { ...data, _token: publicToken };
     renderCustomerTracking(trackingPayload);
   } catch (error) {
+    if (loadId !== activeLoadId) return;
     console.error("Customer tracking load failed:", error);
     showTrackingError(error?.message || "This tracking link could not be loaded.");
   }
