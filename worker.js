@@ -6,24 +6,9 @@ export default {
 
     if (match) {
       const token = decodeURIComponent(match[1]);
-      const customerUrl = new URL("/customer/index.html", url);
-      const assetResponse = await env.ASSETS.fetch(new Request(customerUrl, request));
-
-      if (!assetResponse.ok) return assetResponse;
-
-      const html = await assetResponse.text();
-      const tokenScript = `<script>window.__ORDELI_TRACKING_TOKEN=${JSON.stringify(token)};</script>`;
-      const patchedHtml = html.replace(/<\/head>/i, `${tokenScript}</head>`);
-
-      const headers = new Headers(assetResponse.headers);
-      headers.set("content-type", "text/html; charset=UTF-8");
-      headers.set("cache-control", "no-store");
-
-      return new Response(patchedHtml, {
-        status: assetResponse.status,
-        statusText: assetResponse.statusText,
-        headers
-      });
+      const customerUrl = new URL("/customer/", url);
+      customerUrl.searchParams.set("token", token);
+      return Response.redirect(customerUrl.toString(), 302);
     }
 
     return env.ASSETS.fetch(request);

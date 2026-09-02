@@ -18,10 +18,12 @@ const supabase = createClient(
 const $ = (id) => document.getElementById(id);
 let trackingPayload = null;
 let trackingOrderVisible = false;
-let trackingBooted = false;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
+  const queryToken = new URLSearchParams(window.location.search).get("token");
+  if (queryToken) return queryToken;
+
   const match = pathname.match(/^\/t\/([^/]+)$/i);
   if (match) {
     try { return decodeURIComponent(match[1]); }
@@ -187,22 +189,13 @@ $("trackingViewOrderButton").addEventListener("click", () => {
   if (trackingPayload) renderCustomerTracking(trackingPayload);
 });
 
-async function bootCustomerTracking() {
-  if (trackingBooted) return;
-  trackingBooted = true;
-
+function bootCustomerTracking() {
   const token = getTrackingToken();
-  console.log("Ordeli customer tracking boot", {
-    pathname: window.location.pathname,
-    hasToken: Boolean(token)
-  });
-
   if (!token) {
     showTrackingError("This tracking link could not be loaded.");
     return;
   }
-
-  await loadCustomerTracking(token);
+  loadCustomerTracking(token);
 }
 
 if (document.readyState === "loading") {
