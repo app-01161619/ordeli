@@ -5062,7 +5062,580 @@ async function loadOrderDetail(
   );
 
 }
-\n\n// ============================================================\n// PRODUCTION EXECUTION\n// ============================================================\n\nfunction normaliseWorkflowSnapshot(snapshot) {\n\n  if (!Array.isArray(snapshot)) {\n    return [];\n  }\n\n  return snapshot\n    .map((stage, index) => ({\n      stage_order: Number(stage?.stage_order ?? index + 1),\n      name: String(stage?.name ?? `Stage ${index + 1}`).trim() || `Stage ${index + 1}`\n    }))\n    .filter((stage) => Number.isInteger(stage.stage_order) && stage.stage_order > 0)\n    .sort((a, b) => a.stage_order - b.stage_order);\n\n}\n\n\nasync function getProductionStageLogs(orderItemId) {\n\n  const {\n    data,\n    error\n  } = await supabase\n    .from("stage_logs")\n    .select("id,stage_order,stage_name,action,note,proof_photo_path,occurred_at,performed_by_user_id")\n    .eq("order_item_id", orderItemId)\n    .order("occurred_at", { ascending: true });\n\n  if (error) {\n    throw error;\n  }\n\n  return data || [];\n\n}\n\n\nfunction getLatestStageLog(logs, stageOrder) {\n\n  const matching =\n    logs.filter(\n      (log) => Number(log.stage_order) === Number(stageOrder)\n    );\n\n  return matching.length ? matching[matching.length - 1] : null;\n\n}\n\n\nfunction getProductionStageStates(workflow, logs) {\n\n  let previousFinished = true;\n\n  return workflow.map((stage) => {\n\n    const latest =\n      getLatestStageLog(\n        logs,\n        stage.stage_order\n      );\n\n    const finished = latest?.action === "finished";\n    const available = previousFinished && !finished;\n\n    if (!finished) {\n      previousFinished = false;\n    }\n\n    return {\n      ...stage,\n      latest,\n      finished,\n      available\n    };\n\n  });\n\n}\n\n\nfunction productionStatusLabel(states) {\n\n  if (!states.length) {\n    return "No workflow";\n  }\n\n  if (states.every((stage) => stage.finished)) {\n    return "Completed";\n  }\n\n  const active = states.find((stage) => stage.available);\n\n  return active\n    ? `${active.name} is next`\n    : "In progress";\n\n}\n\n\nfunction createProductionStageRow(\n  item,\n  stage,\n  panel\n) {\n\n  const row =\n    document.createElement("div");\n\n  row.className = "production-stage-row";\n\n  if (stage.finished) {\n    row.classList.add("is-finished");\n  } else if (stage.available) {\n    row.classList.add("is-current");\n  }\n\n  const main =\n    document.createElement("div");\n\n  main.className = "production-stage-main";\n\n  const title =\n    document.createElement("div");\n\n  title.className = "production-stage-title";\n\n  const marker =\n    document.createElement("span");\n\n  marker.className = "production-stage-marker";\n  marker.textContent = stage.finished ? "✓" : String(stage.stage_order);\n\n  const name =\n    document.createElement("strong");\n\n  name.textContent = stage.name;\n\n  title.append(marker, name);\n\n  const status =\n    document.createElement("span");\n\n  status.className = "production-stage-status";\n  status.textContent =\n    stage.finished ? `Finished${stage.latest?.occurred_at ? ` · ${formatDate(stage.latest.occurred_at)}` : ""}`\n    : stage.available ? "Next stage" : "Waiting";\n\n  main.append(title, status);\n\n  const actions =\n    document.createElement("div");\n\n  actions.className = "production-stage-actions";\n\n  if (stage.available && !item.cancelled_at) {\n\n    const finishButton =\n      document.createElement("button");\n\n    finishButton.type = "button";\n    finishButton.textContent = "Finish Stage";\n    finishButton.addEventListener("click", () => {\n      openFinishStageEditor(item, stage, panel);\n    });\n\n    actions.appendChild(finishButton);\n\n  }\n\n  const latestFinishedStage =\n    stage.latest?.action === "finished";\n\n  if (\n    latestFinishedStage &&\n    !item.cancelled_at &&\n    stagesCanBeSentBack(stage, item, panel)\n  ) {\n\n    const sendBackButton =\n      document.createElement("button");\n\n    sendBackButton.type = "button";\n    sendBackButton.className = "secondary-button";\n    sendBackButton.textContent = "Send Back";\n    sendBackButton.addEventListener("click", () => {\n      sendBackProductionStage(item, stage, panel);\n    });\n\n    actions.appendChild(sendBackButton);\n\n  }\n\n  if (stage.finished && stage.latest?.proof_photo_path) {\n\n    const viewButton =\n      document.createElement("button");\n\n    viewButton.type = "button";\n    viewButton.className = "secondary-button";\n    viewButton.textContent = "View Proof";\n    viewButton.addEventListener("click", () => {\n      viewProductionProof(stage.latest.proof_photo_path);\n    });\n\n    actions.appendChild(viewButton);\n\n  }\n\n  row.append(main, actions);\n  return row;\n\n}\n\n\nfunction stagesCanBeSentBack(\n  targetStage,\n  item,\n  panel\n) {\n\n  const rows =\n    panel.querySelectorAll(".production-stage-row.is-finished");\n\n  if (!rows.length) {\n    return false;\n  }\n\n  const highestFinishedOrder =\n    Math.max(\n      ...Array.from(rows).map((row) => {\n        const marker = row.querySelector(".production-stage-marker");\n        return Number(marker?.textContent === "✓" ? row.dataset.stageOrder : row.dataset.stageOrder) || 0;\n      })\n    );\n\n  return Number(targetStage.stage_order) === Number(panel.dataset.latestFinishedStage);\n\n}\n\n\nfunction setStageRowDataset(panel, states) {\n\n  const latestFinished =\n    [...states]\n      .filter((stage) => stage.finished)\n      .sort((a, b) => b.stage_order - a.stage_order)[0];\n\n  panel.dataset.latestFinishedStage =\n    latestFinished ? String(latestFinished.stage_order) : "";\n\n}\n\n\nasync function renderProductionPanel(item, panel) {\n\n  panel.innerHTML = "";\n\n  const heading =\n    document.createElement("div");\n\n  heading.className = "production-panel-heading";\n\n  const title =\n    document.createElement("h3");\n  title.textContent = "Production";\n\n  const status =\n    document.createElement("span");\n  status.className = "production-overall-status";\n  status.textContent = "Loading…";\n\n  heading.append(title, status);\n  panel.appendChild(heading);\n\n  const workflow =\n    normaliseWorkflowSnapshot(item.workflow_snapshot);\n\n  if (!workflow.length) {\n    status.textContent = "No workflow defined";\n\n    const empty = document.createElement("p");\n    empty.className = "production-empty";\n    empty.textContent = "This order item has no production stages.";\n    panel.appendChild(empty);\n    return;\n  }\n\n  try {\n\n    const logs =\n      await getProductionStageLogs(item.id);\n\n    const states =\n      getProductionStageStates(workflow, logs);\n\n    status.textContent =\n      productionStatusLabel(states);\n\n    setStageRowDataset(panel, states);\n\n    const list =\n      document.createElement("div");\n    list.className = "production-stage-list";\n\n    states.forEach((stage) => {\n      const row = createProductionStageRow(item, stage, panel);\n      row.dataset.stageOrder = String(stage.stage_order);\n      list.appendChild(row);\n    });\n\n    panel.appendChild(list);\n\n    if (item.cancelled_at) {\n      const note = document.createElement("p");\n      note.className = "production-cancelled-note";\n      note.textContent = "This order item is cancelled, so production updates are disabled.";\n      panel.appendChild(note);\n    }\n\n  } catch (error) {\n\n    console.error("Production load failed:", error);\n    status.textContent = "Unable to load";\n\n    const message = document.createElement("p");\n    message.className = "production-error";\n    message.textContent = error?.message || "Unable to load production progress.";\n    panel.appendChild(message);\n\n  }\n\n}\n\n\nfunction openFinishStageEditor(item, stage, panel) {\n\n  if (productionBusyItemId) {\n    return;\n  }\n\n  const existing =\n    panel.querySelector(".production-finish-editor");\n\n  if (existing) {\n    existing.remove();\n  }\n\n  const editor =\n    document.createElement("div");\n  editor.className = "production-finish-editor";\n\n  const title = document.createElement("h4");\n  title.textContent = `Finish: ${stage.name}`;\n\n  const noteLabel = document.createElement("label");\n  noteLabel.textContent = "Note (optional)";\n  const note = document.createElement("textarea");\n  note.rows = 3;\n  note.maxLength = 500;\n  note.placeholder = "Add an optional note about this stage.";\n\n  const photoLabel = document.createElement("label");\n  photoLabel.textContent = "Proof photo (optional)";\n  const photo = document.createElement("input");\n  photo.type = "file";\n  photo.accept = "image/jpeg,image/png,image/webp";\n\n  const actions = document.createElement("div");\n  actions.className = "production-editor-actions";\n\n  const cancel = document.createElement("button");\n  cancel.type = "button";\n  cancel.className = "secondary-button";\n  cancel.textContent = "Cancel";\n  cancel.addEventListener("click", () => editor.remove());\n\n  const finish = document.createElement("button");\n  finish.type = "button";\n  finish.textContent = "Confirm Finished";\n  finish.addEventListener("click", async () => {\n    await finishProductionStage(item, stage, note.value.trim(), photo.files?.[0] || null, panel, finish);\n  });\n\n  actions.append(cancel, finish);\n\n  editor.append(\n    title,\n    noteLabel,\n    note,\n    photoLabel,\n    photo,\n    actions\n  );\n\n  panel.appendChild(editor);\n\n}\n\n\nasync function finishProductionStage(\n  item,\n  stage,\n  note,\n  file,\n  panel,\n  button\n) {\n\n  if (productionBusyItemId) {\n    return;\n  }\n\n  productionBusyItemId = item.id;\n  setLoading(button, "Saving…");\n\n  let proofPath = null;\n\n  try {\n\n    const user = await getCurrentUser();\n\n    const { data: result, error } =\n      await supabase.rpc(\n        "finish_production_stage",\n        {\n          p_order_item_id: item.id,\n          p_stage_order: stage.stage_order,\n          p_stage_name: stage.name,\n          p_note: note || null\n        }\n      );\n\n    if (error) {\n      throw error;\n    }\n\n    const logId = result?.stage_log_id;\n\n    if (file && logId) {\n\n      const extension =\n        file.name.split(".").pop()?.toLowerCase() || "jpg";\n\n      proofPath = `${user.id}/${item.id}/${stage.stage_order}-${crypto.randomUUID()}.${extension}`;\n\n      const { error: uploadError } =\n        await supabase.storage\n          .from("production-proofs")\n          .upload(proofPath, file, {\n            cacheControl: "3600",\n            upsert: false,\n            contentType: file.type\n          });\n\n      if (uploadError) {\n        console.warn("Proof upload failed; stage remains finished:", uploadError);\n      } else {\n        const { error: updateError } =\n          await supabase\n            .from("stage_logs")\n            .update({ proof_photo_path: proofPath })\n            .eq("id", logId)\n            .eq("order_item_id", item.id);\n\n        if (updateError) {\n          console.warn("Proof path update failed:", updateError);\n        }\n      }\n\n    }\n\n    await loadOrderDetail(currentOrderId);\n\n  } catch (error) {\n\n    console.error("Finish production stage failed:", error);\n    alert(error?.message || "Unable to finish this production stage.");\n\n  } finally {\n    productionBusyItemId = null;\n    resetButton(button, "Confirm Finished");\n  }\n\n}\n\n\nasync function sendBackProductionStage(\n  item,\n  stage\n) {\n\n  if (productionBusyItemId) {\n    return;\n  }\n\n  const confirmed =\n    window.confirm(\n      `Send “${stage.name}” back for rework? This will make it the current production stage again.`\n    );\n\n  if (!confirmed) {\n    return;\n  }\n\n  productionBusyItemId = item.id;\n\n  try {\n\n    const { error } =\n      await supabase.rpc(\n        "send_back_production_stage",\n        {\n          p_order_item_id: item.id,\n          p_stage_order: stage.stage_order,\n          p_stage_name: stage.name\n        }\n      );\n\n    if (error) {\n      throw error;\n    }\n\n    await loadOrderDetail(currentOrderId);\n\n  } catch (error) {\n\n    console.error("Send back production stage failed:", error);\n    alert(error?.message || "Unable to send this stage back.");\n\n  } finally {\n    productionBusyItemId = null;\n  }\n\n}\n\n\nasync function viewProductionProof(path) {\n\n  if (!path) {\n    return;\n  }\n\n  try {\n\n    const { data, error } =\n      await supabase.storage\n        .from("production-proofs")\n        .createSignedUrl(path, 300);\n\n    if (error) {\n      throw error;\n    }\n\n    if (!data?.signedUrl) {\n      throw new Error("Proof photo could not be opened.");\n    }\n\n    window.open(data.signedUrl, "_blank", "noopener,noreferrer");\n\n  } catch (error) {\n\n    console.error("Proof photo open failed:", error);\n    alert(error?.message || "Unable to open the proof photo.");\n\n  }\n\n}\n
+
+
+// ============================================================
+// PRODUCTION EXECUTION
+// ============================================================
+
+function normaliseWorkflowSnapshot(snapshot) {
+
+  if (!Array.isArray(snapshot)) {
+    return [];
+  }
+
+  return snapshot
+    .map((stage, index) => ({
+      stage_order: Number(stage?.stage_order ?? index + 1),
+      name: String(stage?.name ?? `Stage ${index + 1}`).trim() || `Stage ${index + 1}`
+    }))
+    .filter((stage) => Number.isInteger(stage.stage_order) && stage.stage_order > 0)
+    .sort((a, b) => a.stage_order - b.stage_order);
+
+}
+
+
+async function getProductionStageLogs(orderItemId) {
+
+  const {
+    data,
+    error
+  } = await supabase
+    .from("stage_logs")
+    .select("id,stage_order,stage_name,action,note,proof_photo_path,occurred_at,performed_by_user_id")
+    .eq("order_item_id", orderItemId)
+    .order("occurred_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+
+}
+
+
+function getLatestStageLog(logs, stageOrder) {
+
+  const matching =
+    logs.filter(
+      (log) => Number(log.stage_order) === Number(stageOrder)
+    );
+
+  return matching.length ? matching[matching.length - 1] : null;
+
+}
+
+
+function getProductionStageStates(workflow, logs) {
+
+  let previousFinished = true;
+
+  return workflow.map((stage) => {
+
+    const latest =
+      getLatestStageLog(
+        logs,
+        stage.stage_order
+      );
+
+    const finished = latest?.action === "finished";
+    const available = previousFinished && !finished;
+
+    if (!finished) {
+      previousFinished = false;
+    }
+
+    return {
+      ...stage,
+      latest,
+      finished,
+      available
+    };
+
+  });
+
+}
+
+
+function productionStatusLabel(states) {
+
+  if (!states.length) {
+    return "No workflow";
+  }
+
+  if (states.every((stage) => stage.finished)) {
+    return "Completed";
+  }
+
+  const active = states.find((stage) => stage.available);
+
+  return active
+    ? `${active.name} is next`
+    : "In progress";
+
+}
+
+
+function createProductionStageRow(
+  item,
+  stage,
+  panel
+) {
+
+  const row =
+    document.createElement("div");
+
+  row.className = "production-stage-row";
+
+  if (stage.finished) {
+    row.classList.add("is-finished");
+  } else if (stage.available) {
+    row.classList.add("is-current");
+  }
+
+  const main =
+    document.createElement("div");
+
+  main.className = "production-stage-main";
+
+  const title =
+    document.createElement("div");
+
+  title.className = "production-stage-title";
+
+  const marker =
+    document.createElement("span");
+
+  marker.className = "production-stage-marker";
+  marker.textContent = stage.finished ? "✓" : String(stage.stage_order);
+
+  const name =
+    document.createElement("strong");
+
+  name.textContent = stage.name;
+
+  title.append(marker, name);
+
+  const status =
+    document.createElement("span");
+
+  status.className = "production-stage-status";
+  status.textContent =
+    stage.finished ? `Finished${stage.latest?.occurred_at ? ` · ${formatDate(stage.latest.occurred_at)}` : ""}`
+    : stage.available ? "Next stage" : "Waiting";
+
+  main.append(title, status);
+
+  const actions =
+    document.createElement("div");
+
+  actions.className = "production-stage-actions";
+
+  if (stage.available && !item.cancelled_at) {
+
+    const finishButton =
+      document.createElement("button");
+
+    finishButton.type = "button";
+    finishButton.textContent = "Finish Stage";
+    finishButton.addEventListener("click", () => {
+      openFinishStageEditor(item, stage, panel);
+    });
+
+    actions.appendChild(finishButton);
+
+  }
+
+  const latestFinishedStage =
+    stage.latest?.action === "finished";
+
+  if (
+    latestFinishedStage &&
+    !item.cancelled_at &&
+    stagesCanBeSentBack(stage, item, panel)
+  ) {
+
+    const sendBackButton =
+      document.createElement("button");
+
+    sendBackButton.type = "button";
+    sendBackButton.className = "secondary-button";
+    sendBackButton.textContent = "Send Back";
+    sendBackButton.addEventListener("click", () => {
+      sendBackProductionStage(item, stage, panel);
+    });
+
+    actions.appendChild(sendBackButton);
+
+  }
+
+  if (stage.finished && stage.latest?.proof_photo_path) {
+
+    const viewButton =
+      document.createElement("button");
+
+    viewButton.type = "button";
+    viewButton.className = "secondary-button";
+    viewButton.textContent = "View Proof";
+    viewButton.addEventListener("click", () => {
+      viewProductionProof(stage.latest.proof_photo_path);
+    });
+
+    actions.appendChild(viewButton);
+
+  }
+
+  row.append(main, actions);
+  return row;
+
+}
+
+
+function stagesCanBeSentBack(
+  targetStage,
+  item,
+  panel
+) {
+
+  const rows =
+    panel.querySelectorAll(".production-stage-row.is-finished");
+
+  if (!rows.length) {
+    return false;
+  }
+
+  const highestFinishedOrder =
+    Math.max(
+      ...Array.from(rows).map((row) => {
+        const marker = row.querySelector(".production-stage-marker");
+        return Number(marker?.textContent === "✓" ? row.dataset.stageOrder : row.dataset.stageOrder) || 0;
+      })
+    );
+
+  return Number(targetStage.stage_order) === Number(panel.dataset.latestFinishedStage);
+
+}
+
+
+function setStageRowDataset(panel, states) {
+
+  const latestFinished =
+    [...states]
+      .filter((stage) => stage.finished)
+      .sort((a, b) => b.stage_order - a.stage_order)[0];
+
+  panel.dataset.latestFinishedStage =
+    latestFinished ? String(latestFinished.stage_order) : "";
+
+}
+
+
+async function renderProductionPanel(item, panel) {
+
+  panel.innerHTML = "";
+
+  const heading =
+    document.createElement("div");
+
+  heading.className = "production-panel-heading";
+
+  const title =
+    document.createElement("h3");
+  title.textContent = "Production";
+
+  const status =
+    document.createElement("span");
+  status.className = "production-overall-status";
+  status.textContent = "Loading…";
+
+  heading.append(title, status);
+  panel.appendChild(heading);
+
+  const workflow =
+    normaliseWorkflowSnapshot(item.workflow_snapshot);
+
+  if (!workflow.length) {
+    status.textContent = "No workflow defined";
+
+    const empty = document.createElement("p");
+    empty.className = "production-empty";
+    empty.textContent = "This order item has no production stages.";
+    panel.appendChild(empty);
+    return;
+  }
+
+  try {
+
+    const logs =
+      await getProductionStageLogs(item.id);
+
+    const states =
+      getProductionStageStates(workflow, logs);
+
+    status.textContent =
+      productionStatusLabel(states);
+
+    setStageRowDataset(panel, states);
+
+    const list =
+      document.createElement("div");
+    list.className = "production-stage-list";
+
+    states.forEach((stage) => {
+      const row = createProductionStageRow(item, stage, panel);
+      row.dataset.stageOrder = String(stage.stage_order);
+      list.appendChild(row);
+    });
+
+    panel.appendChild(list);
+
+    if (item.cancelled_at) {
+      const note = document.createElement("p");
+      note.className = "production-cancelled-note";
+      note.textContent = "This order item is cancelled, so production updates are disabled.";
+      panel.appendChild(note);
+    }
+
+  } catch (error) {
+
+    console.error("Production load failed:", error);
+    status.textContent = "Unable to load";
+
+    const message = document.createElement("p");
+    message.className = "production-error";
+    message.textContent = error?.message || "Unable to load production progress.";
+    panel.appendChild(message);
+
+  }
+
+}
+
+
+function openFinishStageEditor(item, stage, panel) {
+
+  if (productionBusyItemId) {
+    return;
+  }
+
+  const existing =
+    panel.querySelector(".production-finish-editor");
+
+  if (existing) {
+    existing.remove();
+  }
+
+  const editor =
+    document.createElement("div");
+  editor.className = "production-finish-editor";
+
+  const title = document.createElement("h4");
+  title.textContent = `Finish: ${stage.name}`;
+
+  const noteLabel = document.createElement("label");
+  noteLabel.textContent = "Note (optional)";
+  const note = document.createElement("textarea");
+  note.rows = 3;
+  note.maxLength = 500;
+  note.placeholder = "Add an optional note about this stage.";
+
+  const photoLabel = document.createElement("label");
+  photoLabel.textContent = "Proof photo (optional)";
+  const photo = document.createElement("input");
+  photo.type = "file";
+  photo.accept = "image/jpeg,image/png,image/webp";
+
+  const actions = document.createElement("div");
+  actions.className = "production-editor-actions";
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "secondary-button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => editor.remove());
+
+  const finish = document.createElement("button");
+  finish.type = "button";
+  finish.textContent = "Confirm Finished";
+  finish.addEventListener("click", async () => {
+    await finishProductionStage(item, stage, note.value.trim(), photo.files?.[0] || null, panel, finish);
+  });
+
+  actions.append(cancel, finish);
+
+  editor.append(
+    title,
+    noteLabel,
+    note,
+    photoLabel,
+    photo,
+    actions
+  );
+
+  panel.appendChild(editor);
+
+}
+
+
+async function finishProductionStage(
+  item,
+  stage,
+  note,
+  file,
+  panel,
+  button
+) {
+
+  if (productionBusyItemId) {
+    return;
+  }
+
+  productionBusyItemId = item.id;
+  setLoading(button, "Saving…");
+
+  let proofPath = null;
+
+  try {
+
+    const user = await getCurrentUser();
+
+    const { data: result, error } =
+      await supabase.rpc(
+        "finish_production_stage",
+        {
+          p_order_item_id: item.id,
+          p_stage_order: stage.stage_order,
+          p_stage_name: stage.name,
+          p_note: note || null
+        }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    const logId = result?.stage_log_id;
+
+    if (file && logId) {
+
+      const extension =
+        file.name.split(".").pop()?.toLowerCase() || "jpg";
+
+      proofPath = `${user.id}/${item.id}/${stage.stage_order}-${crypto.randomUUID()}.${extension}`;
+
+      const { error: uploadError } =
+        await supabase.storage
+          .from("production-proofs")
+          .upload(proofPath, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type
+          });
+
+      if (uploadError) {
+        console.warn("Proof upload failed; stage remains finished:", uploadError);
+      } else {
+        const { error: updateError } =
+          await supabase
+            .from("stage_logs")
+            .update({ proof_photo_path: proofPath })
+            .eq("id", logId)
+            .eq("order_item_id", item.id);
+
+        if (updateError) {
+          console.warn("Proof path update failed:", updateError);
+        }
+      }
+
+    }
+
+    await loadOrderDetail(currentOrderId);
+
+  } catch (error) {
+
+    console.error("Finish production stage failed:", error);
+    alert(error?.message || "Unable to finish this production stage.");
+
+  } finally {
+    productionBusyItemId = null;
+    resetButton(button, "Confirm Finished");
+  }
+
+}
+
+
+async function sendBackProductionStage(
+  item,
+  stage
+) {
+
+  if (productionBusyItemId) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      `Send “${stage.name}” back for rework? This will make it the current production stage again.`
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  productionBusyItemId = item.id;
+
+  try {
+
+    const { error } =
+      await supabase.rpc(
+        "send_back_production_stage",
+        {
+          p_order_item_id: item.id,
+          p_stage_order: stage.stage_order,
+          p_stage_name: stage.name
+        }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    await loadOrderDetail(currentOrderId);
+
+  } catch (error) {
+
+    console.error("Send back production stage failed:", error);
+    alert(error?.message || "Unable to send this stage back.");
+
+  } finally {
+    productionBusyItemId = null;
+  }
+
+}
+
+
+async function viewProductionProof(path) {
+
+  if (!path) {
+    return;
+  }
+
+  try {
+
+    const { data, error } =
+      await supabase.storage
+        .from("production-proofs")
+        .createSignedUrl(path, 300);
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.signedUrl) {
+      throw new Error("Proof photo could not be opened.");
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+
+  } catch (error) {
+
+    console.error("Proof photo open failed:", error);
+    alert(error?.message || "Unable to open the proof photo.");
+
+  }
+
+}
+
 
 // ============================================================
 // PAYMENTS
