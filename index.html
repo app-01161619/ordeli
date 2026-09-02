@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli seller application">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./css/style.css">
   <title>Ordeli</title>
 </head>
 <body>
@@ -368,92 +368,7 @@
       </section>
     </div>
   </section>
-
-<section id="trackingScreen" class="screen" hidden>
-    <div class="tracking-page">
-      <header class="tracking-header">
-        <div class="tracking-brand">
-          <span class="tracking-brand-mark">O</span>
-          <div>
-            <strong>Ordeli</strong>
-            <span>Order Tracking</span>
-          </div>
-        </div>
-        <button id="trackingRefreshButton" class="secondary-button tracking-refresh-button" type="button">Refresh</button>
-      </header>
-
-      <section id="trackingLoadingState" class="tracking-card tracking-state-card">
-        <div class="tracking-spinner" aria-hidden="true"></div>
-        <h1>Loading your order</h1>
-        <p>Please wait while we load the latest information.</p>
-      </section>
-
-      <section id="trackingErrorState" class="tracking-card tracking-state-card" hidden>
-        <div class="tracking-error-icon" aria-hidden="true">!</div>
-        <h1>Tracking link unavailable</h1>
-        <p id="trackingErrorMessage">This tracking link could not be loaded.</p>
-      </section>
-
-      <section id="trackingContent" hidden>
-        <section class="tracking-card tracking-shop-card">
-          <span class="tracking-kicker">SHOP</span>
-          <h1 id="trackingShopName">Shop</h1>
-        </section>
-
-        <section class="tracking-card tracking-item-card">
-          <div class="tracking-order-meta">
-            <div>
-              <span class="tracking-kicker">ORDER</span>
-              <strong id="trackingOrderNumber">#—</strong>
-            </div>
-            <span id="trackingItemStatus" class="tracking-status-badge">In Progress</span>
-          </div>
-
-          <div class="tracking-product-heading">
-            <h2 id="trackingProductName">Product</h2>
-            <p id="trackingProductQuantity">Quantity: 1</p>
-          </div>
-
-          <div class="tracking-section-heading">
-            <div>
-              <h3>Production</h3>
-              <p id="trackingProductionSummary">Production is being updated as each stage is finished.</p>
-            </div>
-          </div>
-
-          <div id="trackingStageList" class="tracking-stage-list"></div>
-        </section>
-
-        <section class="tracking-card tracking-payment-card">
-          <div class="tracking-section-heading">
-            <div>
-              <h3>Payment</h3>
-              <p id="trackingPaymentStatusText">Payment status</p>
-            </div>
-          </div>
-          <div class="tracking-payment-grid">
-            <div><span>Total</span><strong id="trackingPaymentTotal">₱0.00</strong></div>
-            <div><span>Paid</span><strong id="trackingPaymentPaid">₱0.00</strong></div>
-            <div><span>Remaining</span><strong id="trackingPaymentRemaining">₱0.00</strong></div>
-          </div>
-        </section>
-
-        <button id="trackingViewOrderButton" class="tracking-order-toggle" type="button">View My Order</button>
-
-        <section id="trackingOrderCard" class="tracking-card tracking-order-card" hidden>
-          <div class="tracking-section-heading">
-            <div>
-              <h3>My Order</h3>
-              <p>Production progress for every product in this order.</p>
-            </div>
-          </div>
-          <div id="trackingOrderItems" class="tracking-order-items"></div>
-        </section>
-      </section>
-    </div>
-  </section>
-
-<section id="productsScreen" class="screen" hidden>
+  <section id="productsScreen" class="screen" hidden>
     <div class="app-container">
       <header class="page-header">
         <div>
@@ -646,43 +561,14 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script type="module" src="/js/app.js?v=2026-09-02-04"></script>
+<script type="module" src="./js/app.js?v=2026-09-02-02"></script>
 
 <script>
-(function () {
-  if (!('serviceWorker' in navigator)) return;
-
-  const isCustomerTrackingPage = window.location.pathname.startsWith('/t/');
-
-  window.addEventListener('load', async () => {
-    try {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-
-      if (isCustomerTrackingPage) {
-        const customerScoped = registrations.filter((registration) => {
-          try {
-            return new URL(registration.scope).pathname.startsWith('/t/');
-          } catch (_) {
-            return false;
-          }
-        });
-
-        if (customerScoped.length > 0) {
-          await Promise.all(customerScoped.map((registration) => registration.unregister()));
-          window.location.reload();
-          return;
-        }
-
-        // Customer tracking pages do not use the seller PWA service worker.
-        return;
-      }
-
-      await navigator.serviceWorker.register('/sw.js');
-    } catch (error) {
-      console.error('Service worker setup failed:', error);
-    }
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(console.error);
   });
-})();
+}
 </script>
 
 </body>
