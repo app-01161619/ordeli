@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli seller application">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./css/style.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/css/style.css">
   <title>Ordeli</title>
 </head>
 <body>
@@ -646,12 +646,12 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script type="module" src="./js/app.js?v=2026-09-02-02"></script>
+<script type="module" src="/js/app.js?v=2026-09-02-03"></script>
 
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(console.error);
+    navigator.serviceWorker.register("/sw.js").catch(console.error);
   });
 }
 </script>
