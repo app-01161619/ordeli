@@ -368,3 +368,6 @@ button:focus-visible {
     display: flex;
   }
 }
+
+/* Native hidden-state safety: author display rules should never override the hidden attribute. */
+[hidden] { display: none !important; }
