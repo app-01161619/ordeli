@@ -1273,3 +1273,170 @@ a:hover {
   }
 
 }
+
+
+/* ==========================================================
+   PRODUCTION EXECUTION
+========================================================== */
+
+.production-panel {
+  margin: -2px 0 16px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.production-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.production-panel-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.production-overall-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: #666;
+}
+
+.production-stage-list {
+  display: grid;
+  gap: 8px;
+}
+
+.production-stage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.production-stage-row.is-current {
+  border-color: #cdddf2;
+}
+
+.production-stage-row.is-finished {
+  background: #fafafa;
+}
+
+.production-stage-main {
+  min-width: 0;
+}
+
+.production-stage-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.production-stage-title strong {
+  overflow-wrap: anywhere;
+}
+
+.production-stage-marker {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d8dee7;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  background: #fff;
+}
+
+.production-stage-row.is-finished .production-stage-marker {
+  border-color: #cfd8d4;
+}
+
+.production-stage-status {
+  display: block;
+  margin: 4px 0 0 37px;
+  color: #777;
+  font-size: 12px;
+}
+
+.production-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.production-finish-editor {
+  margin-top: 10px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.production-finish-editor h4 {
+  margin: 0 0 14px;
+}
+
+.production-finish-editor label {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.production-finish-editor textarea,
+.production-finish-editor input[type="file"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.production-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.production-empty,
+.production-error,
+.production-cancelled-note {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.production-error {
+  color: #a33;
+}
+
+@media (max-width: 640px) {
+  .production-stage-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .production-stage-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .production-editor-actions {
+    flex-direction: column;
+  }
+
+  .production-editor-actions button {
+    width: 100%;
+  }
+}

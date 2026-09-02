@@ -43,7 +43,10 @@ const screens = {
     $("orderCreateScreen"),
 
   orderDetail:
-    $("orderDetailScreen")
+    $("orderDetailScreen"),
+
+  tracking:
+    $("trackingScreen")
 
 };
 
@@ -75,6 +78,8 @@ let currentOrderId = null;
 
 let currentOrderTotal = 0;
 let currentOrderPaid = 0;
+
+let productionBusyItemId = null;
 let scannerInstance = null;
 let qrScanBusy = false;
 
@@ -152,6 +157,27 @@ function showScreen(route) {
 
 }
 
+
+function getTrackingToken() {
+
+  const pathname =
+    window.location.pathname
+      .replace(/\/+$/, "");
+
+  const match =
+    pathname.match(/^\/t\/([^/]+)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(match[1]);
+  } catch (error) {
+    return null;
+  }
+
+}
 
 
 // ============================================================
@@ -282,6 +308,20 @@ async function renderApplication() {
 
 
   try {
+
+    const trackingToken =
+      getTrackingToken();
+
+
+    if (trackingToken) {
+
+      await renderTrackingPage(
+        trackingToken
+      );
+
+      return;
+
+    }
 
 
     const session =
@@ -4798,6 +4838,7 @@ async function loadOrderDetail(
       quantity,
       unit_price,
       total_price,
+      workflow_snapshot,
       cancelled_at
     `)
     .eq(
@@ -4912,9 +4953,23 @@ async function loadOrderDetail(
       }
 
 
+      const productionPanel =
+        document.createElement(
+          "section"
+        );
+
+      productionPanel.className =
+        "production-panel";
+
+      renderProductionPanel(
+        item,
+        productionPanel
+      );
+
       $("orderDetailItems")
-        .appendChild(
-          row
+        .append(
+          row,
+          productionPanel
         );
 
     }
@@ -5007,7 +5062,7 @@ async function loadOrderDetail(
   );
 
 }
-
+\n\n// ============================================================\n// PRODUCTION EXECUTION\n// ============================================================\n\nfunction normaliseWorkflowSnapshot(snapshot) {\n\n  if (!Array.isArray(snapshot)) {\n    return [];\n  }\n\n  return snapshot\n    .map((stage, index) => ({\n      stage_order: Number(stage?.stage_order ?? index + 1),\n      name: String(stage?.name ?? `Stage ${index + 1}`).trim() || `Stage ${index + 1}`\n    }))\n    .filter((stage) => Number.isInteger(stage.stage_order) && stage.stage_order > 0)\n    .sort((a, b) => a.stage_order - b.stage_order);\n\n}\n\n\nasync function getProductionStageLogs(orderItemId) {\n\n  const {\n    data,\n    error\n  } = await supabase\n    .from("stage_logs")\n    .select("id,stage_order,stage_name,action,note,proof_photo_path,occurred_at,performed_by_user_id")\n    .eq("order_item_id", orderItemId)\n    .order("occurred_at", { ascending: true });\n\n  if (error) {\n    throw error;\n  }\n\n  return data || [];\n\n}\n\n\nfunction getLatestStageLog(logs, stageOrder) {\n\n  const matching =\n    logs.filter(\n      (log) => Number(log.stage_order) === Number(stageOrder)\n    );\n\n  return matching.length ? matching[matching.length - 1] : null;\n\n}\n\n\nfunction getProductionStageStates(workflow, logs) {\n\n  let previousFinished = true;\n\n  return workflow.map((stage) => {\n\n    const latest =\n      getLatestStageLog(\n        logs,\n        stage.stage_order\n      );\n\n    const finished = latest?.action === "finished";\n    const available = previousFinished && !finished;\n\n    if (!finished) {\n      previousFinished = false;\n    }\n\n    return {\n      ...stage,\n      latest,\n      finished,\n      available\n    };\n\n  });\n\n}\n\n\nfunction productionStatusLabel(states) {\n\n  if (!states.length) {\n    return "No workflow";\n  }\n\n  if (states.every((stage) => stage.finished)) {\n    return "Completed";\n  }\n\n  const active = states.find((stage) => stage.available);\n\n  return active\n    ? `${active.name} is next`\n    : "In progress";\n\n}\n\n\nfunction createProductionStageRow(\n  item,\n  stage,\n  panel\n) {\n\n  const row =\n    document.createElement("div");\n\n  row.className = "production-stage-row";\n\n  if (stage.finished) {\n    row.classList.add("is-finished");\n  } else if (stage.available) {\n    row.classList.add("is-current");\n  }\n\n  const main =\n    document.createElement("div");\n\n  main.className = "production-stage-main";\n\n  const title =\n    document.createElement("div");\n\n  title.className = "production-stage-title";\n\n  const marker =\n    document.createElement("span");\n\n  marker.className = "production-stage-marker";\n  marker.textContent = stage.finished ? "✓" : String(stage.stage_order);\n\n  const name =\n    document.createElement("strong");\n\n  name.textContent = stage.name;\n\n  title.append(marker, name);\n\n  const status =\n    document.createElement("span");\n\n  status.className = "production-stage-status";\n  status.textContent =\n    stage.finished ? `Finished${stage.latest?.occurred_at ? ` · ${formatDate(stage.latest.occurred_at)}` : ""}`\n    : stage.available ? "Next stage" : "Waiting";\n\n  main.append(title, status);\n\n  const actions =\n    document.createElement("div");\n\n  actions.className = "production-stage-actions";\n\n  if (stage.available && !item.cancelled_at) {\n\n    const finishButton =\n      document.createElement("button");\n\n    finishButton.type = "button";\n    finishButton.textContent = "Finish Stage";\n    finishButton.addEventListener("click", () => {\n      openFinishStageEditor(item, stage, panel);\n    });\n\n    actions.appendChild(finishButton);\n\n  }\n\n  const latestFinishedStage =\n    stage.latest?.action === "finished";\n\n  if (\n    latestFinishedStage &&\n    !item.cancelled_at &&\n    stagesCanBeSentBack(stage, item, panel)\n  ) {\n\n    const sendBackButton =\n      document.createElement("button");\n\n    sendBackButton.type = "button";\n    sendBackButton.className = "secondary-button";\n    sendBackButton.textContent = "Send Back";\n    sendBackButton.addEventListener("click", () => {\n      sendBackProductionStage(item, stage, panel);\n    });\n\n    actions.appendChild(sendBackButton);\n\n  }\n\n  if (stage.finished && stage.latest?.proof_photo_path) {\n\n    const viewButton =\n      document.createElement("button");\n\n    viewButton.type = "button";\n    viewButton.className = "secondary-button";\n    viewButton.textContent = "View Proof";\n    viewButton.addEventListener("click", () => {\n      viewProductionProof(stage.latest.proof_photo_path);\n    });\n\n    actions.appendChild(viewButton);\n\n  }\n\n  row.append(main, actions);\n  return row;\n\n}\n\n\nfunction stagesCanBeSentBack(\n  targetStage,\n  item,\n  panel\n) {\n\n  const rows =\n    panel.querySelectorAll(".production-stage-row.is-finished");\n\n  if (!rows.length) {\n    return false;\n  }\n\n  const highestFinishedOrder =\n    Math.max(\n      ...Array.from(rows).map((row) => {\n        const marker = row.querySelector(".production-stage-marker");\n        return Number(marker?.textContent === "✓" ? row.dataset.stageOrder : row.dataset.stageOrder) || 0;\n      })\n    );\n\n  return Number(targetStage.stage_order) === Number(panel.dataset.latestFinishedStage);\n\n}\n\n\nfunction setStageRowDataset(panel, states) {\n\n  const latestFinished =\n    [...states]\n      .filter((stage) => stage.finished)\n      .sort((a, b) => b.stage_order - a.stage_order)[0];\n\n  panel.dataset.latestFinishedStage =\n    latestFinished ? String(latestFinished.stage_order) : "";\n\n}\n\n\nasync function renderProductionPanel(item, panel) {\n\n  panel.innerHTML = "";\n\n  const heading =\n    document.createElement("div");\n\n  heading.className = "production-panel-heading";\n\n  const title =\n    document.createElement("h3");\n  title.textContent = "Production";\n\n  const status =\n    document.createElement("span");\n  status.className = "production-overall-status";\n  status.textContent = "Loading…";\n\n  heading.append(title, status);\n  panel.appendChild(heading);\n\n  const workflow =\n    normaliseWorkflowSnapshot(item.workflow_snapshot);\n\n  if (!workflow.length) {\n    status.textContent = "No workflow defined";\n\n    const empty = document.createElement("p");\n    empty.className = "production-empty";\n    empty.textContent = "This order item has no production stages.";\n    panel.appendChild(empty);\n    return;\n  }\n\n  try {\n\n    const logs =\n      await getProductionStageLogs(item.id);\n\n    const states =\n      getProductionStageStates(workflow, logs);\n\n    status.textContent =\n      productionStatusLabel(states);\n\n    setStageRowDataset(panel, states);\n\n    const list =\n      document.createElement("div");\n    list.className = "production-stage-list";\n\n    states.forEach((stage) => {\n      const row = createProductionStageRow(item, stage, panel);\n      row.dataset.stageOrder = String(stage.stage_order);\n      list.appendChild(row);\n    });\n\n    panel.appendChild(list);\n\n    if (item.cancelled_at) {\n      const note = document.createElement("p");\n      note.className = "production-cancelled-note";\n      note.textContent = "This order item is cancelled, so production updates are disabled.";\n      panel.appendChild(note);\n    }\n\n  } catch (error) {\n\n    console.error("Production load failed:", error);\n    status.textContent = "Unable to load";\n\n    const message = document.createElement("p");\n    message.className = "production-error";\n    message.textContent = error?.message || "Unable to load production progress.";\n    panel.appendChild(message);\n\n  }\n\n}\n\n\nfunction openFinishStageEditor(item, stage, panel) {\n\n  if (productionBusyItemId) {\n    return;\n  }\n\n  const existing =\n    panel.querySelector(".production-finish-editor");\n\n  if (existing) {\n    existing.remove();\n  }\n\n  const editor =\n    document.createElement("div");\n  editor.className = "production-finish-editor";\n\n  const title = document.createElement("h4");\n  title.textContent = `Finish: ${stage.name}`;\n\n  const noteLabel = document.createElement("label");\n  noteLabel.textContent = "Note (optional)";\n  const note = document.createElement("textarea");\n  note.rows = 3;\n  note.maxLength = 500;\n  note.placeholder = "Add an optional note about this stage.";\n\n  const photoLabel = document.createElement("label");\n  photoLabel.textContent = "Proof photo (optional)";\n  const photo = document.createElement("input");\n  photo.type = "file";\n  photo.accept = "image/jpeg,image/png,image/webp";\n\n  const actions = document.createElement("div");\n  actions.className = "production-editor-actions";\n\n  const cancel = document.createElement("button");\n  cancel.type = "button";\n  cancel.className = "secondary-button";\n  cancel.textContent = "Cancel";\n  cancel.addEventListener("click", () => editor.remove());\n\n  const finish = document.createElement("button");\n  finish.type = "button";\n  finish.textContent = "Confirm Finished";\n  finish.addEventListener("click", async () => {\n    await finishProductionStage(item, stage, note.value.trim(), photo.files?.[0] || null, panel, finish);\n  });\n\n  actions.append(cancel, finish);\n\n  editor.append(\n    title,\n    noteLabel,\n    note,\n    photoLabel,\n    photo,\n    actions\n  );\n\n  panel.appendChild(editor);\n\n}\n\n\nasync function finishProductionStage(\n  item,\n  stage,\n  note,\n  file,\n  panel,\n  button\n) {\n\n  if (productionBusyItemId) {\n    return;\n  }\n\n  productionBusyItemId = item.id;\n  setLoading(button, "Saving…");\n\n  let proofPath = null;\n\n  try {\n\n    const user = await getCurrentUser();\n\n    const { data: result, error } =\n      await supabase.rpc(\n        "finish_production_stage",\n        {\n          p_order_item_id: item.id,\n          p_stage_order: stage.stage_order,\n          p_stage_name: stage.name,\n          p_note: note || null\n        }\n      );\n\n    if (error) {\n      throw error;\n    }\n\n    const logId = result?.stage_log_id;\n\n    if (file && logId) {\n\n      const extension =\n        file.name.split(".").pop()?.toLowerCase() || "jpg";\n\n      proofPath = `${user.id}/${item.id}/${stage.stage_order}-${crypto.randomUUID()}.${extension}`;\n\n      const { error: uploadError } =\n        await supabase.storage\n          .from("production-proofs")\n          .upload(proofPath, file, {\n            cacheControl: "3600",\n            upsert: false,\n            contentType: file.type\n          });\n\n      if (uploadError) {\n        console.warn("Proof upload failed; stage remains finished:", uploadError);\n      } else {\n        const { error: updateError } =\n          await supabase\n            .from("stage_logs")\n            .update({ proof_photo_path: proofPath })\n            .eq("id", logId)\n            .eq("order_item_id", item.id);\n\n        if (updateError) {\n          console.warn("Proof path update failed:", updateError);\n        }\n      }\n\n    }\n\n    await loadOrderDetail(currentOrderId);\n\n  } catch (error) {\n\n    console.error("Finish production stage failed:", error);\n    alert(error?.message || "Unable to finish this production stage.");\n\n  } finally {\n    productionBusyItemId = null;\n    resetButton(button, "Confirm Finished");\n  }\n\n}\n\n\nasync function sendBackProductionStage(\n  item,\n  stage\n) {\n\n  if (productionBusyItemId) {\n    return;\n  }\n\n  const confirmed =\n    window.confirm(\n      `Send “${stage.name}” back for rework? This will make it the current production stage again.`\n    );\n\n  if (!confirmed) {\n    return;\n  }\n\n  productionBusyItemId = item.id;\n\n  try {\n\n    const { error } =\n      await supabase.rpc(\n        "send_back_production_stage",\n        {\n          p_order_item_id: item.id,\n          p_stage_order: stage.stage_order,\n          p_stage_name: stage.name\n        }\n      );\n\n    if (error) {\n      throw error;\n    }\n\n    await loadOrderDetail(currentOrderId);\n\n  } catch (error) {\n\n    console.error("Send back production stage failed:", error);\n    alert(error?.message || "Unable to send this stage back.");\n\n  } finally {\n    productionBusyItemId = null;\n  }\n\n}\n\n\nasync function viewProductionProof(path) {\n\n  if (!path) {\n    return;\n  }\n\n  try {\n\n    const { data, error } =\n      await supabase.storage\n        .from("production-proofs")\n        .createSignedUrl(path, 300);\n\n    if (error) {\n      throw error;\n    }\n\n    if (!data?.signedUrl) {\n      throw new Error("Proof photo could not be opened.");\n    }\n\n    window.open(data.signedUrl, "_blank", "noopener,noreferrer");\n\n  } catch (error) {\n\n    console.error("Proof photo open failed:", error);\n    alert(error?.message || "Unable to open the proof photo.");\n\n  }\n\n}\n
 
 // ============================================================
 // PAYMENTS
@@ -5674,6 +5729,449 @@ async function logout() {
 
 
 // ============================================================
+// CUSTOMER TRACKING
+// ============================================================
+
+let trackingPayload = null;
+let trackingOrderVisible = false;
+
+
+async function renderTrackingPage(
+  publicToken
+) {
+
+  showScreen(
+    "tracking"
+  );
+
+  if (
+    !(
+      trackingPayload &&
+      trackingPayload._token ===
+        publicToken
+    )
+  ) {
+
+    await loadCustomerTracking(
+      publicToken
+    );
+
+  } else {
+
+    renderCustomerTracking(
+      trackingPayload
+    );
+
+  }
+
+}
+
+
+async function loadCustomerTracking(
+  publicToken
+) {
+
+  trackingOrderVisible =
+    false;
+
+  trackingPayload =
+    null;
+
+  $("trackingLoadingState").hidden =
+    false;
+  $("trackingErrorState").hidden =
+    true;
+  $("trackingContent").hidden =
+    true;
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await supabase.rpc(
+        "get_customer_tracking",
+        {
+          p_public_token: publicToken
+        }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error(
+        "Tracking information is not available."
+      );
+    }
+
+    trackingPayload = {
+      ...data,
+      _token: publicToken
+    };
+
+    renderCustomerTracking(
+      trackingPayload
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Customer tracking load failed:",
+      error
+    );
+
+    $("trackingLoadingState").hidden =
+      true;
+    $("trackingContent").hidden =
+      true;
+    $("trackingErrorState").hidden =
+      false;
+
+    $("trackingErrorMessage").textContent =
+      error?.message ||
+      "This tracking link could not be loaded.";
+
+  }
+
+}
+
+
+function renderCustomerTracking(
+  payload
+) {
+
+  $("trackingLoadingState").hidden =
+    true;
+  $("trackingErrorState").hidden =
+    true;
+  $("trackingContent").hidden =
+    false;
+
+  const shop =
+    payload?.shop || {};
+  const order =
+    payload?.order || {};
+  const item =
+    payload?.item || {};
+  const payment =
+    payload?.payment || {};
+
+  $("trackingShopName").textContent =
+    shop.name ||
+    "Shop";
+
+  $("trackingOrderNumber").textContent =
+    `#${order.order_number ?? "—"}`;
+
+  $("trackingProductName").textContent =
+    item.product_name ||
+    "Product";
+
+  $("trackingProductQuantity").textContent =
+    `Quantity: ${Number(item.quantity) || 0}`;
+
+  const itemCancelled =
+    Boolean(item.cancelled_at);
+  const orderCancelled =
+    Boolean(order.cancelled_at);
+
+  const productionStatus =
+    itemCancelled
+      ? "Cancelled"
+      : item.production_completed
+        ? "Completed"
+        : "In Progress";
+
+  $("trackingItemStatus").textContent =
+    orderCancelled
+      ? "Order Cancelled"
+      : productionStatus;
+
+  $("trackingItemStatus").className =
+    `tracking-status-badge ${
+      orderCancelled || itemCancelled
+        ? "is-cancelled"
+        : productionStatus === "Completed"
+          ? "is-complete"
+          : ""
+    }`;
+
+  if (orderCancelled || itemCancelled) {
+
+    $("trackingProductionSummary").textContent =
+      "This order item is no longer active.";
+
+  } else if (item.production_completed) {
+
+    $("trackingProductionSummary").textContent =
+      "All production stages for this item are finished.";
+
+  } else if (!item.production_stages?.length) {
+
+    $("trackingProductionSummary").textContent =
+      "Production stages have not been configured yet.";
+
+  } else {
+
+    $("trackingProductionSummary").textContent =
+      "The production timeline updates as each stage is finished.";
+
+  }
+
+  renderTrackingStages(
+    item.production_stages || []
+  );
+
+  $("trackingPaymentTotal").textContent =
+    formatPrice(payment.total);
+
+  $("trackingPaymentPaid").textContent =
+    formatPrice(payment.paid);
+
+  $("trackingPaymentRemaining").textContent =
+    formatPrice(payment.remaining);
+
+  $("trackingPaymentStatusText").textContent =
+    trackingPaymentStatusLabel(
+      payment.status
+    );
+
+  renderTrackingOrderItems(
+    payload?.order_items || []
+  );
+
+  $("trackingOrderCard").hidden =
+    !trackingOrderVisible;
+
+  $("trackingViewOrderButton").textContent =
+    trackingOrderVisible
+      ? "Hide My Order"
+      : "View My Order";
+
+}
+
+
+function renderTrackingStages(
+  stages
+) {
+
+  const list =
+    $("trackingStageList");
+
+  list.replaceChildren();
+
+  if (!stages.length) {
+
+    const empty =
+      document.createElement("p");
+
+    empty.className =
+      "tracking-stage-empty";
+    empty.textContent =
+      "No production stages have been added yet.";
+    list.appendChild(empty);
+    return;
+
+  }
+
+  const fragment =
+    document.createDocumentFragment();
+
+  stages.forEach(
+    (stage) => {
+
+      const row =
+        document.createElement("div");
+      row.className =
+        `tracking-stage-row is-${stage.status || "upcoming"}`;
+
+      const icon =
+        document.createElement("span");
+      icon.className =
+        "tracking-stage-icon";
+      icon.textContent =
+        stage.status === "finished"
+          ? "✓"
+          : stage.status === "in_progress"
+            ? "→"
+            : "○";
+
+      const body =
+        document.createElement("div");
+      body.className =
+        "tracking-stage-body";
+
+      const name =
+        document.createElement("strong");
+      name.textContent =
+        stage.name ||
+        `Stage ${stage.stage_order || ""}`;
+
+      const status =
+        document.createElement("span");
+      status.textContent =
+        stage.status === "finished"
+          ? "Finished"
+          : stage.status === "in_progress"
+            ? "In Progress"
+            : "Upcoming";
+
+      body.append(
+        name,
+        status
+      );
+
+      row.append(
+        icon,
+        body
+      );
+
+      fragment.appendChild(
+        row
+      );
+
+    }
+  );
+
+  list.appendChild(
+    fragment
+  );
+
+}
+
+
+function renderTrackingOrderItems(
+  items
+) {
+
+  const list =
+    $("trackingOrderItems");
+
+  list.replaceChildren();
+
+  const fragment =
+    document.createDocumentFragment();
+
+  items.forEach(
+    (entry) => {
+
+      const row =
+        document.createElement("div");
+      row.className =
+        `tracking-order-item ${entry.cancelled ? "is-cancelled" : ""}`;
+
+      const left =
+        document.createElement("div");
+      const name =
+        document.createElement("strong");
+      name.textContent =
+        entry.product_name ||
+        "Product";
+      const quantity =
+        document.createElement("span");
+      quantity.textContent =
+        ` × ${Number(entry.quantity) || 0}`;
+      left.append(
+        name,
+        quantity
+      );
+
+      const status =
+        document.createElement("span");
+      status.textContent =
+        trackingProductionStatusLabel(
+          entry.production_status
+        );
+
+      row.append(
+        left,
+        status
+      );
+
+      fragment.appendChild(
+        row
+      );
+
+    }
+  );
+
+  list.appendChild(
+    fragment
+  );
+
+}
+
+
+function trackingProductionStatusLabel(
+  value
+) {
+
+  switch (value) {
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
+    case "pending":
+      return "Pending";
+    default:
+      return "In Progress";
+  }
+
+}
+
+
+function trackingPaymentStatusLabel(
+  value
+) {
+
+  switch (value) {
+    case "fully_paid":
+      return "Fully Paid";
+    case "partially_paid":
+      return "Partially Paid";
+    case "pending_verification":
+      return "Payment Pending Verification";
+    case "rejected":
+      return "Payment Proof Rejected";
+    default:
+      return "Unpaid";
+  }
+
+}
+
+
+$("trackingRefreshButton")
+  .addEventListener(
+    "click",
+    () => {
+      const token =
+        getTrackingToken();
+      if (token) {
+        loadCustomerTracking(
+          token
+        );
+      }
+    }
+  );
+
+
+$("trackingViewOrderButton")
+  .addEventListener(
+    "click",
+    () => {
+      trackingOrderVisible =
+        !trackingOrderVisible;
+      renderCustomerTracking(
+        trackingPayload
+      );
+    }
+  );
+
+
+// ============================================================
 // COMMON HELPERS
 // ============================================================
 
@@ -5905,7 +6403,15 @@ supabase.auth.onAuthStateChange(
     setTimeout(
       () => {
 
-        if (currentSession) {
+        if (
+          getTrackingToken()
+        ) {
+
+          renderApplication();
+
+        } else if (
+          currentSession
+        ) {
 
           renderApplication();
 
