@@ -1276,6 +1276,13 @@ $("shopLogo")
   );
 
 
+$("shopSetupLogoutButton")
+  .addEventListener(
+    "click",
+    logout
+  );
+
+
 $("editShopButton")
   .addEventListener(
     "click",
@@ -1815,6 +1822,13 @@ async function saveProduct() {
   }
 
 }
+
+
+$("homeLogoutButton")
+  .addEventListener(
+    "click",
+    logout
+  );
 
 
 $("productsButton")
@@ -6202,6 +6216,224 @@ $("orderDetailBackButton")
 
 
 
+
+// ============================================================
+// COMMON HELPERS
+// ============================================================
+
+function populateShopForm(
+  seller
+) {
+
+  $("shopName")
+    .value =
+      seller?.shop_name ||
+      "";
+
+
+  $("shopAddress")
+    .value =
+      seller?.shop_address ||
+      "";
+
+
+  $("shopLogo")
+    .value =
+      "";
+
+
+  $("shopLogoPreviewContainer")
+    .hidden =
+      true;
+
+
+  $("shopLogoPreview")
+    .removeAttribute(
+      "src"
+    );
+
+}
+
+
+function validateLogo(
+  file
+) {
+
+  const allowed = [
+    "image/png",
+    "image/jpeg",
+    "image/webp"
+  ];
+
+
+  if (
+    !allowed.includes(
+      file.type
+    )
+  ) {
+
+    throw new Error(
+      "Shop logo must be PNG, JPEG, or WebP."
+    );
+
+  }
+
+
+  if (
+    file.size >
+    5 *
+    1024 *
+    1024
+  ) {
+
+    throw new Error(
+      "Shop logo must be 5 MB or smaller."
+    );
+
+  }
+
+}
+
+
+function safeExtension(
+  fileName
+) {
+
+  const extension =
+    fileName
+      .split(".")
+      .pop()
+      .toLowerCase();
+
+
+  return [
+    "png",
+    "jpg",
+    "jpeg",
+    "webp"
+  ].includes(
+    extension
+  )
+    ? extension
+    : "jpg";
+
+}
+
+
+function setLoading(
+  button,
+  text
+) {
+
+  button.disabled =
+    true;
+
+  button.textContent =
+    text;
+
+}
+
+
+function resetButton(
+  button,
+  text
+) {
+
+  button.disabled =
+    false;
+
+  button.textContent =
+    text;
+
+}
+
+
+function clearMessages() {
+
+  $("loginMessage")
+    .textContent =
+      "";
+
+  $("registerMessage")
+    .textContent =
+      "";
+
+  $("shopSetupMessage")
+    .textContent =
+      "";
+
+}
+
+
+function getAuthError(
+  error
+) {
+
+  const message =
+    String(
+      error?.message ||
+      ""
+    );
+
+
+  const lower =
+    message.toLowerCase();
+
+
+  if (
+    lower.includes(
+      "invalid login credentials"
+    )
+  ) {
+
+    return (
+      "Invalid email or password."
+    );
+
+  }
+
+
+  if (
+    lower.includes(
+      "email not confirmed"
+    )
+  ) {
+
+    return (
+      "Please confirm your email before logging in."
+    );
+
+  }
+
+
+  return (
+    message ||
+    "Authentication failed."
+  );
+
+}
+
+
+function formatPrice(
+  value
+) {
+
+  return new Intl.NumberFormat(
+    "en-PH",
+    {
+
+      style:
+        "currency",
+
+      currency:
+        "PHP"
+
+    }
+  ).format(
+    Number(value) || 0
+  );
+
+}
 
 // ============================================================
 // LOGOUT
