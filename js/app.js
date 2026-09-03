@@ -258,35 +258,6 @@ async function updateConnectivityIndicator() {
   indicator.classList.toggle("has-pending", pending > 0);
   indicator.textContent = !online ? (pending ? `Offline · ${pending} waiting to sync` : "Offline") : (pending ? `Waiting to Sync · ${pending}` : "Online");
 }
-function bindOrderDetailTransactionActions() {
-  if (window.__ordeliOrderDetailActionsBound) return;
-  window.__ordeliOrderDetailActionsBound = true;
-
-  document.addEventListener("click", (event) => {
-    const addItemButton = event.target.closest("#orderDetailAddItemButton");
-    const newTransactionButton = event.target.closest("#orderDetailNewTransactionButton");
-
-    if (!addItemButton && !newTransactionButton) return;
-    event.preventDefault();
-
-    if (addItemButton) {
-      try {
-        sessionStorage.setItem("ordeli-add-item-order-id", currentOrderId || "");
-      } catch (_) {}
-    } else {
-      try {
-        sessionStorage.removeItem("ordeli-add-item-order-id");
-      } catch (_) {}
-      currentOrderId = null;
-      currentOrderShowProduction = false;
-    }
-
-    pendingQrToken = null;
-    pendingProduct = null;
-    navigate("scanner");
-  });
-}
-
 function initializeOfflineFoundation() {
   ensureConnectivityIndicator();
   runtimeOffline = !navigator.onLine;
@@ -4801,6 +4772,40 @@ async function createOrder() {
       sessionStorage.setItem(`ordeli-order-detail-mode:${currentOrderId}`, "fresh");
     } catch (_) {}
 
+    // Cache a complete local snapshot immediately so a second render, a
+    // transient auth event, or a momentary network drop cannot blank the
+    // freshly-created order detail screen.
+    const createdAt = new Date().toISOString();
+    const orderNumber =
+      data.order_number ||
+      `LOCAL-${String(data.order_id).slice(0, 8).toUpperCase()}`;
+    const cachedOrder = {
+      id: data.order_id,
+      order_number: orderNumber,
+      customer_id: customerId,
+      created_at: createdAt,
+      customers: {
+        id: customerId,
+        name: usingExisting
+          ? ($("existingCustomerSelect").selectedOptions[0]?.textContent || "Customer")
+          : customerName,
+        phone: customerPhone
+      }
+    };
+    await cacheNamed(`order:${currentOrderId}`, cachedOrder);
+    await cacheNamed(`order-items:${currentOrderId}`, [{
+      id: `local-item:${data.order_id}`,
+      product_name: pendingProduct?.name || "Product",
+      quantity,
+      unit_price: Number(pendingProduct?.default_price) || 0,
+      total_price: total,
+      workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [],
+      cancelled_at: null
+    }]);
+    await cacheNamed(`order-payments:${currentOrderId}`, downpayment > 0
+      ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment", created_at: createdAt }]
+      : []);
+
     navigate(
       "order-detail"
     );
@@ -4855,7 +4860,8 @@ async function loadOrderDetail(
   currentOrderPaid = 0;
   $("orderDetailItems").replaceChildren();
   $("orderDetailMessage").textContent = "";
-  const user = await getCurrentUser();
+  const session = await getSession().catch(() => null);
+  const user = session?.user || null;
   const orderKey = `order:${orderId}`;
   const itemsKey = `order-items:${orderId}`;
   const paymentsKey = `order-payments:${orderId}`;
@@ -4865,7 +4871,7 @@ async function loadOrderDetail(
   } catch (_) {}
   let order = null, items = null, payments = null;
 
-  if (!runtimeOffline && navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine && user?.id) {
     try {
       const orderResult = await supabase.from("orders").select(`id,order_number,customer_id,created_at,customers(id,name,phone)`).eq("id", orderId).eq("seller_id", user.id).single();
       if (orderResult.error) throw orderResult.error;
@@ -4892,7 +4898,9 @@ async function loadOrderDetail(
     payments = await getCachedSnapshot(paymentsKey);
   }
 
-  if (!order) throw new Error("This order has not been cached for offline use yet.");
+  if (!order) {
+    throw new Error("This order could not be loaded. Please reconnect to the internet and try again.");
+  }
   items = items || [];
   payments = payments || [];
   $("orderDetailTitle").textContent = `Order #${order.order_number}`;
@@ -4947,6 +4955,25 @@ if (orderDetailBackButton) {
   });
 }
 
+const orderDetailAddItemButton = $("orderDetailAddItemButton");
+if (orderDetailAddItemButton) {
+  orderDetailAddItemButton.addEventListener("click", () => {
+    pendingQrToken = null;
+    pendingProduct = null;
+    navigate("scanner");
+  });
+}
+
+const orderDetailNewTransactionButton = $("orderDetailNewTransactionButton");
+if (orderDetailNewTransactionButton) {
+  orderDetailNewTransactionButton.addEventListener("click", () => {
+    currentOrderId = null;
+    currentOrderShowProduction = false;
+    pendingQrToken = null;
+    pendingProduct = null;
+    navigate("scanner");
+  });
+}
 
 
 // ============================================================
@@ -5531,10 +5558,11 @@ async function loadPayments(
 
   const list = $("paymentList");
   list.replaceChildren();
-  const user = await getCurrentUser();
+  const session = await getSession().catch(() => null);
+  const user = session?.user || null;
   const cacheKey = `order-payments-full:${orderId}`;
   let payments = null;
-  if (navigator.onLine) {
+  if (navigator.onLine && user?.id) {
     try {
       const result = await supabase.from("payments").select(`id,amount,payment_type,proof_status,created_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
       if (result.error) throw result.error;
@@ -5862,8 +5890,6 @@ supabase.auth.onAuthStateChange((event, currentSession) => {
   }, 0);
 });
 
-
-bindOrderDetailTransactionActions();
 
 initializeOfflineFoundation();
 
