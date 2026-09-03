@@ -10,6 +10,7 @@ function readPersistedSession() {
       const parsed = JSON.parse(raw);
       if (parsed?.user?.id) return parsed;
       if (parsed?.currentSession?.user?.id) return parsed.currentSession;
+      if (parsed?.session?.user?.id) return parsed.session;
     }
   } catch (_) {}
   return null;
@@ -47,24 +48,48 @@ async function ensureSupabase() {
 
 const auth = {
   async getSession() {
+    const persisted = readPersistedSession();
+    // Local persisted session is authoritative for UI startup. When online,
+    // refresh the Supabase client in the background instead of blocking startup.
+    if (persisted?.user?.id) {
+      if (navigator.onLine && !client) {
+        queueMicrotask(async () => {
+          try {
+            const c = await ensureSupabase();
+            await c.auth.getSession();
+          } catch (_) {}
+        });
+      } else if (navigator.onLine && client) {
+        queueMicrotask(() => client.auth.getSession().catch(() => {}));
+      }
+      return { data: { session: persisted }, error: null };
+    }
+
+    if (!navigator.onLine) return { data: { session: null }, error: null };
+
     try {
-      if (!client && !navigator.onLine) return { data: { session: readPersistedSession() }, error: null };
       const c = await ensureSupabase();
       return await c.auth.getSession();
     } catch (error) {
-      const session = readPersistedSession();
-      if (session) return { data: { session }, error: null };
-      throw error;
+      return { data: { session: null }, error };
     }
   },
   async getUser() {
     const result = await this.getSession();
-    return { data: { user: result?.data?.session?.user || null }, error: null };
+    return { data: { user: result?.data?.session?.user || null }, error: result?.error || null };
   },
   async signOut() {
-    if (!client && !navigator.onLine) return { error: null };
-    const c = await ensureSupabase();
-    return c.auth.signOut();
+    try {
+      if (client) return await client.auth.signOut();
+      // Explicit logout must also clear the persisted Supabase session locally.
+      try {
+        const keys = Object.keys(localStorage).filter((key) => /^sb-.+-auth-token$/.test(key));
+        keys.forEach((key) => localStorage.removeItem(key));
+      } catch (_) {}
+      return { error: null };
+    } catch (error) {
+      return { error };
+    }
   },
   async signInWithPassword(...args) { return (await ensureSupabase()).auth.signInWithPassword(...args); },
   async signUp(...args) { return (await ensureSupabase()).auth.signUp(...args); },
