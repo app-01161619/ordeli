@@ -340,6 +340,7 @@ let qrProducts = [];
 
 let pendingQrToken = null;
 let pendingProduct = null;
+let pendingAddToOrderId = null;
 let currentOrderId = null;
 let currentOrderShowProduction = false;
 
@@ -3715,6 +3716,9 @@ $("homeScanButton")
       pendingProduct =
         null;
 
+      pendingAddToOrderId =
+        null;
+
       navigate(
         "scanner"
       );
@@ -4226,7 +4230,7 @@ async function getOrderIdFromItem(
 
 function persistPendingOrderDraft() {
   try {
-    sessionStorage.setItem("ordeli-pending-order-draft", JSON.stringify({ qrToken: pendingQrToken, product: pendingProduct }));
+    sessionStorage.setItem("ordeli-pending-order-draft", JSON.stringify({ qrToken: pendingQrToken, product: pendingProduct, addToOrderId: pendingAddToOrderId }));
   } catch (_) {}
 }
 
@@ -4239,9 +4243,21 @@ function restorePendingOrderDraft() {
     if (!draft?.qrToken || !draft?.product) return;
     pendingQrToken = draft.qrToken;
     pendingProduct = draft.product;
+    pendingAddToOrderId = draft.addToOrderId || null;
     $("orderDetectedProduct").textContent = pendingProduct?.name || "Product";
     $("orderDetectedPrice").textContent = formatPrice(pendingProduct?.default_price);
+    updateOrderCreateMode();
   } catch (_) {}
+}
+
+function updateOrderCreateMode() {
+  const addingItem = Boolean(pendingAddToOrderId);
+  const customerChoice = document.querySelector(".customer-choice");
+  if (customerChoice) customerChoice.hidden = addingItem;
+  $("newCustomerFields").hidden = addingItem;
+  $("existingCustomerFields").hidden = addingItem;
+  $("orderCustomerName").required = !addingItem;
+  $("orderCreateScreen").querySelector("h1").textContent = addingItem ? "Add Item" : "Create Order";
 }
 
 function prepareOrderCreation(
@@ -4253,6 +4269,8 @@ function prepareOrderCreation(
 
   pendingProduct =
     qr.products;
+
+  updateOrderCreateMode();
 
   persistPendingOrderDraft();
 
@@ -4342,20 +4360,23 @@ function toggleCustomerChoice() {
     $("existingCustomerChoice")
       .checked;
 
+  const addingItem =
+    Boolean(pendingAddToOrderId);
+
 
   $("newCustomerFields")
     .hidden =
-      existing;
+      existing || addingItem;
 
 
   $("existingCustomerFields")
     .hidden =
-      !existing;
+      !existing || addingItem;
 
 
   $("orderCustomerName")
     .required =
-      !existing;
+      !existing && !addingItem;
 
 }
 
@@ -4606,7 +4627,7 @@ async function createOrder() {
 
     }
 
-  } else {
+  } else if (!pendingAddToOrderId) {
 
     customerName =
       $("orderCustomerName")
@@ -4637,6 +4658,10 @@ async function createOrder() {
 
 
   if (runtimeOffline || !navigator.onLine) {
+    if (pendingAddToOrderId) {
+      $("orderCreateMessage").textContent = "Adding an item to an existing order requires an internet connection.";
+      return;
+    }
     if (usingExisting) {
       $("orderCreateMessage").textContent = "Existing customer linking is unavailable while offline. Choose New customer.";
       return;
@@ -4710,6 +4735,25 @@ async function createOrder() {
   try {
 
     await ensureSupabase();
+
+    if (pendingAddToOrderId) {
+      const { data, error } = await supabase.rpc("add_order_item_from_qr", {
+        p_order_id: pendingAddToOrderId,
+        p_qr_public_token: pendingQrToken,
+        p_quantity: quantity
+      });
+      if (error) throw error;
+      if (!data?.order_item_id) throw new Error("The item was not added to the order.");
+      currentOrderId = pendingAddToOrderId;
+      currentOrderShowProduction = false;
+      pendingAddToOrderId = null;
+      try {
+        sessionStorage.setItem(`ordeli-order-detail-mode:${currentOrderId}`, "fresh");
+        sessionStorage.removeItem("ordeli-pending-order-draft");
+      } catch (_) {}
+      navigate("order-detail");
+      return;
+    }
 
     const {
       data,
@@ -4815,7 +4859,7 @@ async function createOrder() {
     console.error("Order creation failed:", error);
     const message = error?.message || "Unable to create the order.";
     const looksLikeConnectivityFailure = !navigator.onLine || runtimeOffline || /network|fetch|offline|failed to fetch|load failed|timeout|supabase network/i.test(message);
-    if (looksLikeConnectivityFailure) {
+    if (looksLikeConnectivityFailure && !pendingAddToOrderId) {
       runtimeOffline = true;
       try {
         await createOrderOfflineFallback();
@@ -4838,6 +4882,20 @@ async function createOrder() {
 
 }
 
+  $("orderCreateBackButton").addEventListener("click", () => {
+    const orderId = pendingAddToOrderId;
+    pendingAddToOrderId = null;
+    pendingQrToken = null;
+    pendingProduct = null;
+    try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+    if (orderId) {
+      currentOrderId = orderId;
+      currentOrderShowProduction = false;
+      navigate("order-detail");
+    } else {
+      navigate("scanner");
+    }
+  });
 
 function clearOrderMessage() {
 
@@ -4958,6 +5016,11 @@ if (orderDetailBackButton) {
 const orderDetailAddItemButton = $("orderDetailAddItemButton");
 if (orderDetailAddItemButton) {
   orderDetailAddItemButton.addEventListener("click", () => {
+    if (runtimeOffline || !navigator.onLine) {
+      alert("Adding an item to an existing order requires an internet connection.");
+      return;
+    }
+    pendingAddToOrderId = currentOrderId;
     pendingQrToken = null;
     pendingProduct = null;
     navigate("scanner");
@@ -4969,6 +5032,7 @@ if (orderDetailNewTransactionButton) {
   orderDetailNewTransactionButton.addEventListener("click", () => {
     currentOrderId = null;
     currentOrderShowProduction = false;
+    pendingAddToOrderId = null;
     pendingQrToken = null;
     pendingProduct = null;
     navigate("scanner");
