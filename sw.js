@@ -1,14 +1,14 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-04-01";
+const CACHE_VERSION = "ordeli-v2026-09-03-07";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-04-01"
+  "/js/app.js?v=2026-09-03-07"
 ];
 
 self.addEventListener("install", (event) => {
@@ -49,15 +49,16 @@ self.addEventListener("fetch", (event) => {
 
   if (isAppAsset) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
+      fetch(request)
+        .then((response) => {
           if (response && response.ok) {
-            caches.open(CACHE_VERSION).then((cache) => cache.put(request, response.clone())).catch(() => {});
+            caches.open(CACHE_VERSION)
+              .then((cache) => cache.put(request, response.clone()))
+              .catch(() => {});
           }
           return response;
-        });
-      }).catch(() => caches.match("/index.html"))
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
     );
     return;
   }
