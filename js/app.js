@@ -4299,14 +4299,17 @@ function prepareOrderCreation(
       "0";
 
 
-  $("newCustomerChoice")
-    .checked =
-      true;
-
-
-  $("existingCustomerChoice")
-    .checked =
-      false;
+  if (!pendingAddToOrderId) {
+    $("orderCustomerName").value = "";
+    $("orderCustomerPhone").value = "";
+    $("existingCustomerSelect").value = "";
+    $("newCustomerChoice")
+      .checked =
+        true;
+    $("existingCustomerChoice")
+      .checked =
+        false;
+  }
 
 
   toggleCustomerChoice();
@@ -4661,7 +4664,49 @@ async function createOrder() {
 
   if (runtimeOffline || !navigator.onLine) {
     if (pendingAddToOrderId) {
-      $("orderCreateMessage").textContent = "Adding an item to an existing order requires an internet connection.";
+      try {
+        const existingOrderId = pendingAddToOrderId;
+        const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
+        const existingOrder = await getCachedSnapshot(`order:${existingOrderId}`);
+        if (!existingOrder || existingOrderId.indexOf("offline:") !== 0) {
+          $("orderCreateMessage").textContent = "This offline order cannot add another item yet.";
+          return;
+        }
+        const cachedQr = await getOfflineQr(pendingQrToken);
+        if (!cachedQr || cachedQr.used) {
+          $("orderCreateMessage").textContent = "This QR is not reserved and available for offline use on this device.";
+          return;
+        }
+        const itemTotal = total;
+        existingItems.push({
+          id: `offline-item:${Date.now()}`,
+          product_name: pendingProduct?.name || "Product",
+          quantity,
+          unit_price: Number(pendingProduct?.default_price) || 0,
+          total_price: itemTotal,
+          workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [],
+          cancelled_at: null,
+          offline: true
+        });
+        await cacheNamed(`order-items:${existingOrderId}`, existingItems);
+        const existingPayments = (await getCachedSnapshot(`order-payments:${existingOrderId}`)) || [];
+        const existingPaid = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const existingTotal = existingItems.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
+        if (existingOrder.customers) existingOrder.customers.phone = existingOrder.customers.phone || null;
+        await cacheNamed(`order:${existingOrderId}`, { ...existingOrder, cached_total: existingTotal, cached_paid: existingPaid });
+        await markOfflineQrUsed(pendingQrToken, `${existingOrderId}:item:${Date.now()}`);
+        currentOrderId = existingOrderId;
+        currentOrderShowProduction = false;
+        pendingAddToOrderId = null;
+        pendingQrToken = null;
+        pendingProduct = null;
+        try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+        await updateConnectivityIndicator();
+        navigate("order-detail");
+      } catch (error) {
+        console.error("Offline add-item failed:", error);
+        $("orderCreateMessage").textContent = error?.message || "Unable to add the item offline.";
+      }
       return;
     }
     if (usingExisting) {
@@ -5018,13 +5063,13 @@ if (orderDetailBackButton) {
 const orderDetailAddItemButton = $("orderDetailAddItemButton");
 if (orderDetailAddItemButton) {
   orderDetailAddItemButton.addEventListener("click", () => {
-    if (runtimeOffline || !navigator.onLine) {
-      alert("Adding an item to an existing order requires an internet connection.");
-      return;
-    }
+    if (!currentOrderId) return;
     pendingAddToOrderId = currentOrderId;
     pendingQrToken = null;
     pendingProduct = null;
+    try {
+      sessionStorage.removeItem("ordeli-pending-order-draft");
+    } catch (_) {}
     navigate("scanner");
   });
 }
@@ -5037,6 +5082,20 @@ if (orderDetailNewTransactionButton) {
     pendingAddToOrderId = null;
     pendingQrToken = null;
     pendingProduct = null;
+    try {
+      sessionStorage.removeItem("ordeli-pending-order-draft");
+    } catch (_) {}
+    $("orderCustomerName").value = "";
+    $("orderCustomerPhone").value = "";
+    $("existingCustomerSelect").value = "";
+    $("orderQuantity").value = "1";
+    $("orderDownpayment").value = "0";
+    $("orderDetectedProduct").textContent = "Product";
+    $("orderDetectedPrice").textContent = "₱0.00";
+    $("newCustomerChoice").checked = true;
+    $("existingCustomerChoice").checked = false;
+    updateOrderCreateMode();
+    clearOrderMessage();
     navigate("scanner");
   });
 }
