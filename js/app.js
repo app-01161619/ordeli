@@ -8,123 +8,75 @@ import { supabase } from "./supabase.js";
 const $ = (id) =>
   document.getElementById(id);
 
-
 // ============================================================
 // OFFLINE / SYNC FOUNDATION
 // ============================================================
-
 const OFFLINE_DB_NAME = "ordeli-offline";
 const OFFLINE_DB_VERSION = 1;
 const OFFLINE_QUEUE_STORE = "sync_queue";
+const OFFLINE_DEVICE_KEY = "ordeli-device-id";
 let offlineDbPromise = null;
-
-function openOfflineDb() {
-
-  if (offlineDbPromise) {
-    return offlineDbPromise;
+function getOfflineDeviceId() {
+  let id = localStorage.getItem(OFFLINE_DEVICE_KEY);
+  if (!id) {
+    id = (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    localStorage.setItem(OFFLINE_DEVICE_KEY, id);
   }
-
+  return id;
+}
+function openOfflineDb() {
+  if (offlineDbPromise) return offlineDbPromise;
   offlineDbPromise = new Promise((resolve, reject) => {
-
-    if (!("indexedDB" in window)) {
-      resolve(null);
-      return;
-    }
-
+    if (!("indexedDB" in window)) { resolve(null); return; }
     const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
-
     request.onupgradeneeded = () => {
       const db = request.result;
-
       if (!db.objectStoreNames.contains(OFFLINE_QUEUE_STORE)) {
         const store = db.createObjectStore(OFFLINE_QUEUE_STORE, { keyPath: "id", autoIncrement: true });
         store.createIndex("status", "status", { unique: false });
         store.createIndex("createdAt", "createdAt", { unique: false });
       }
     };
-
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error || new Error("Unable to open offline storage."));
   });
-
   return offlineDbPromise;
-
 }
-
 async function getPendingSyncCount() {
-
   const db = await openOfflineDb();
-
-  if (!db) {
-    return 0;
-  }
-
-  return new Promise((resolve) => {
-    const tx = db.transaction(OFFLINE_QUEUE_STORE, "readonly");
-    const store = tx.objectStore(OFFLINE_QUEUE_STORE);
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      const rows = Array.isArray(request.result) ? request.result : [];
-      resolve(rows.filter((row) => row.status === "waiting" || row.status === "syncing" || row.status === "error").length);
-    };
-
+  if (!db) return 0;
+  return new Promise(resolve => {
+    const request = db.transaction(OFFLINE_QUEUE_STORE, "readonly").objectStore(OFFLINE_QUEUE_STORE).getAll();
+    request.onsuccess = () => resolve((request.result || []).filter(row => ["waiting","syncing","error"].includes(row.status)).length);
     request.onerror = () => resolve(0);
   });
-
 }
-
 function ensureConnectivityIndicator() {
-
   let indicator = $("connectivityIndicator");
-
-  if (indicator) {
-    return indicator;
-  }
-
+  if (indicator) return indicator;
   indicator = document.createElement("div");
   indicator.id = "connectivityIndicator";
   indicator.className = "connectivity-indicator";
   indicator.setAttribute("role", "status");
   indicator.setAttribute("aria-live", "polite");
   document.body.appendChild(indicator);
-
   return indicator;
 }
-
 async function updateConnectivityIndicator() {
-
   const indicator = ensureConnectivityIndicator();
   const online = navigator.onLine;
   const pending = await getPendingSyncCount();
-
   indicator.classList.toggle("is-offline", !online);
   indicator.classList.toggle("is-online", online && pending === 0);
   indicator.classList.toggle("has-pending", pending > 0);
-
-  if (!online) {
-    indicator.textContent = pending > 0
-      ? `Offline · ${pending} waiting to sync`
-      : "Offline";
-    return;
-  }
-
-  indicator.textContent = pending > 0
-    ? `Waiting to Sync · ${pending}`
-    : "Online";
-
+  indicator.textContent = !online ? (pending ? `Offline · ${pending} waiting to sync` : "Offline") : (pending ? `Waiting to Sync · ${pending}` : "Online");
 }
-
 function initializeOfflineFoundation() {
-
   ensureConnectivityIndicator();
   updateConnectivityIndicator();
-
   window.addEventListener("online", updateConnectivityIndicator);
   window.addEventListener("offline", updateConnectivityIndicator);
-
   window.setInterval(updateConnectivityIndicator, 5000);
-
 }
 
 
@@ -1395,6 +1347,13 @@ $("shopLogo")
   );
 
 
+$("shopSetupLogoutButton")
+  .addEventListener(
+    "click",
+    logout
+  );
+
+
 $("editShopButton")
   .addEventListener(
     "click",
@@ -1934,6 +1893,13 @@ async function saveProduct() {
   }
 
 }
+
+
+$("homeLogoutButton")
+  .addEventListener(
+    "click",
+    logout
+  );
 
 
 $("productsButton")
@@ -2885,6 +2851,17 @@ async function loadQrSeries() {
   const user =
     await getCurrentUser();
 
+  let reservationRows = [];
+  try {
+    const { data: reservations, error: reservationError } = await supabase
+      .from("offline_qr_reservations")
+      .select("qr_code_id, device_id, qr_codes(product_id,series_name)")
+      .eq("seller_id", user.id);
+    if (!reservationError) reservationRows = reservations || [];
+  } catch (_) {
+    reservationRows = [];
+  }
+
 
   const {
     data,
@@ -2974,6 +2951,12 @@ async function loadQrSeries() {
               0,
 
             revoked:
+              0,
+
+            reserved:
+              0,
+
+            reservedByDevice:
               0
 
           }
@@ -3018,6 +3001,15 @@ async function loadQrSeries() {
 
     }
   );
+
+
+  reservationRows.forEach((reservation) => {
+    const key = `${reservation.qr_codes?.product_id}::${reservation.qr_codes?.series_name}`;
+    const group = groups.get(key);
+    if (!group) return;
+    group.reserved += 1;
+    if (reservation.device_id === getOfflineDeviceId()) group.reservedByDevice += 1;
+  });
 
 
   if (
@@ -3106,7 +3098,7 @@ function createQrSeriesCard(group){
 
 
   status.textContent =
-    `Available: ${group.available} · Assigned: ${group.assigned} · Revoked: ${group.revoked}`;
+    `Available: ${group.available} · Reserved: ${group.reserved} · Assigned: ${group.assigned} · Revoked: ${group.revoked}`;
 
 
   const actions =
@@ -3146,6 +3138,26 @@ function createQrSeriesCard(group){
     print
   );
 
+  const reserve = document.createElement("button");
+  reserve.type = "button";
+  reserve.className = "secondary-button";
+  reserve.textContent = group.reservedByDevice > 0 ? `Reserved for Offline (${group.reservedByDevice})` : "Reserve for Offline";
+  reserve.disabled = group.available < 1 && group.reservedByDevice < 1;
+  reserve.addEventListener("click", async () => {
+    if (group.reservedByDevice > 0) {
+      if (!window.confirm(`Release your ${group.reservedByDevice} reserved QR pair(s) from this series?`)) return;
+      await releaseOfflineQrReservations(group.productId, group.seriesName);
+      return;
+    }
+    const max = Math.max(1, group.available);
+    const raw = window.prompt(`How many QR pairs do you want to reserve for offline use? (1-${max})`, String(Math.min(10, max)));
+    if (raw === null) return;
+    const quantity = Number(raw);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > max) { alert(`Enter a whole number between 1 and ${max}.`); return; }
+    await reserveOfflineQrSeries(group.productId, group.seriesName, quantity);
+  });
+  actions.appendChild(reserve);
+
 
   card.append(
     title,
@@ -3159,6 +3171,41 @@ function createQrSeriesCard(group){
   return card;
 
 }
+
+async function reserveOfflineQrSeries(productId, seriesName, quantity) {
+  try {
+    const { data, error } = await supabase.rpc("reserve_qr_codes_for_offline", {
+      p_product_id: productId,
+      p_series_name: seriesName,
+      p_quantity: quantity,
+      p_device_id: getOfflineDeviceId()
+    });
+    if (error) throw error;
+    const count = Number(data) || 0;
+    alert(`${count} QR pair${count === 1 ? "" : "s"} reserved for this device.`);
+    await loadQrSeries();
+  } catch (error) {
+    console.error("Offline QR reservation failed:", error);
+    alert(error?.message || "Unable to reserve QR codes for offline use.");
+  }
+}
+
+async function releaseOfflineQrReservations(productId, seriesName) {
+  try {
+    const { data, error } = await supabase.rpc("release_qr_reservations_for_offline", {
+      p_product_id: productId,
+      p_series_name: seriesName,
+      p_device_id: getOfflineDeviceId()
+    });
+    if (error) throw error;
+    alert(`${Number(data) || 0} reserved QR pair(s) released.`);
+    await loadQrSeries();
+  } catch (error) {
+    console.error("Offline QR release failed:", error);
+    alert(error?.message || "Unable to release QR reservations.");
+  }
+}
+
 
 $("qrSeriesForm").addEventListener("submit",async event=>{
   event.preventDefault(); clearQrMessage();
@@ -4738,7 +4785,10 @@ async function createOrder() {
             quantity,
 
           p_downpayment:
-            downpayment
+            downpayment,
+
+          p_device_id:
+            getOfflineDeviceId()
 
         }
       );
@@ -6323,6 +6373,224 @@ $("orderDetailBackButton")
 
 
 // ============================================================
+// COMMON HELPERS
+// ============================================================
+
+function populateShopForm(
+  seller
+) {
+
+  $("shopName")
+    .value =
+      seller?.shop_name ||
+      "";
+
+
+  $("shopAddress")
+    .value =
+      seller?.shop_address ||
+      "";
+
+
+  $("shopLogo")
+    .value =
+      "";
+
+
+  $("shopLogoPreviewContainer")
+    .hidden =
+      true;
+
+
+  $("shopLogoPreview")
+    .removeAttribute(
+      "src"
+    );
+
+}
+
+
+function validateLogo(
+  file
+) {
+
+  const allowed = [
+    "image/png",
+    "image/jpeg",
+    "image/webp"
+  ];
+
+
+  if (
+    !allowed.includes(
+      file.type
+    )
+  ) {
+
+    throw new Error(
+      "Shop logo must be PNG, JPEG, or WebP."
+    );
+
+  }
+
+
+  if (
+    file.size >
+    5 *
+    1024 *
+    1024
+  ) {
+
+    throw new Error(
+      "Shop logo must be 5 MB or smaller."
+    );
+
+  }
+
+}
+
+
+function safeExtension(
+  fileName
+) {
+
+  const extension =
+    fileName
+      .split(".")
+      .pop()
+      .toLowerCase();
+
+
+  return [
+    "png",
+    "jpg",
+    "jpeg",
+    "webp"
+  ].includes(
+    extension
+  )
+    ? extension
+    : "jpg";
+
+}
+
+
+function setLoading(
+  button,
+  text
+) {
+
+  button.disabled =
+    true;
+
+  button.textContent =
+    text;
+
+}
+
+
+function resetButton(
+  button,
+  text
+) {
+
+  button.disabled =
+    false;
+
+  button.textContent =
+    text;
+
+}
+
+
+function clearMessages() {
+
+  $("loginMessage")
+    .textContent =
+      "";
+
+  $("registerMessage")
+    .textContent =
+      "";
+
+  $("shopSetupMessage")
+    .textContent =
+      "";
+
+}
+
+
+function getAuthError(
+  error
+) {
+
+  const message =
+    String(
+      error?.message ||
+      ""
+    );
+
+
+  const lower =
+    message.toLowerCase();
+
+
+  if (
+    lower.includes(
+      "invalid login credentials"
+    )
+  ) {
+
+    return (
+      "Invalid email or password."
+    );
+
+  }
+
+
+  if (
+    lower.includes(
+      "email not confirmed"
+    )
+  ) {
+
+    return (
+      "Please confirm your email before logging in."
+    );
+
+  }
+
+
+  return (
+    message ||
+    "Authentication failed."
+  );
+
+}
+
+
+function formatPrice(
+  value
+) {
+
+  return new Intl.NumberFormat(
+    "en-PH",
+    {
+
+      style:
+        "currency",
+
+      currency:
+        "PHP"
+
+    }
+  ).format(
+    Number(value) || 0
+  );
+
+}
+
+// ============================================================
 // LOGOUT
 // ============================================================
 
@@ -6418,6 +6686,8 @@ supabase.auth.onAuthStateChange(
 );
 
 
+initializeOfflineFoundation();
+
 window.addEventListener(
   "hashchange",
   async () => {
@@ -6441,5 +6711,4 @@ window.addEventListener(
 // INITIALIZE
 // ============================================================
 
-initializeOfflineFoundation();
 renderApplication();
