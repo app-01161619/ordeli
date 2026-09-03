@@ -158,7 +158,7 @@ async function enqueueOfflineOrder(payload) {
   if (!db) throw new Error("Offline storage is not available on this device.");
   const clientOrderId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const row = {
-    type: "create_order",
+    type: payload?.action === "add_item" ? "add_order_item" : "create_order",
     status: "waiting",
     clientOrderId,
     deviceId: getOfflineDeviceId(),
@@ -180,7 +180,7 @@ async function getQueuedOrders() {
   if (!db) return [];
   return new Promise(resolve => {
     const request = db.transaction(OFFLINE_QUEUE_STORE, "readonly").objectStore(OFFLINE_QUEUE_STORE).getAll();
-    request.onsuccess = () => resolve((request.result || []).filter(row => row.type === "create_order" && ["waiting","error","syncing"].includes(row.status)));
+    request.onsuccess = () => resolve((request.result || []).filter(row => ["create_order","add_order_item"].includes(row.type) && ["waiting","error","syncing"].includes(row.status)));
     request.onerror = () => resolve([]);
   });
 }
@@ -198,39 +198,72 @@ async function updateQueuedOrder(row) {
 
 async function syncOfflineOrders() {
   if (!navigator.onLine || offlineSyncInProgress) return;
-  const session = await supabase.auth.getSession();
-  if (!session?.data?.session) return;
   offlineSyncInProgress = true;
   try {
+    try { await ensureSupabase(); } catch (_) { return; }
+    const session = await supabase.auth.getSession();
+    if (!session?.data?.session?.user?.id) return;
     const queue = await getQueuedOrders();
     for (const row of queue) {
+      if (!navigator.onLine) break;
       row.status = "syncing";
       row.attempts = Number(row.attempts || 0) + 1;
       await updateQueuedOrder(row);
       await updateConnectivityIndicator();
       try {
-        const p = row.payload;
-        const { data, error } = await supabase.rpc("sync_offline_order", {
-          p_client_order_id: row.clientOrderId,
-          p_device_id: row.deviceId,
-          p_qr_public_token: p.qrToken,
-          p_customer_id: p.customerId || null,
-          p_customer_name: p.customerName || null,
-          p_customer_phone: p.customerPhone || null,
-          p_quantity: p.quantity,
-          p_downpayment: p.downpayment
-        });
-        if (error) throw error;
+        const p = row.payload || {};
+        if (row.type === "add_order_item") {
+          let serverOrderId = p.orderId || null;
+          if (!serverOrderId && p.parentClientOrderId) {
+            const parent = (await getQueuedOrders()).find(q => q.clientOrderId === p.parentClientOrderId);
+            serverOrderId = parent?.serverResult?.order_id || null;
+          }
+          if (!serverOrderId) throw new Error("Parent order is not synchronized yet.");
+          const { data, error } = await supabase.rpc("add_order_item_from_qr", {
+            p_order_id: serverOrderId,
+            p_qr_public_token: p.qrToken,
+            p_quantity: p.quantity
+          });
+          if (error) throw error;
+          row.serverResult = data;
+        } else {
+          const { data, error } = await supabase.rpc("sync_offline_order", {
+            p_client_order_id: row.clientOrderId,
+            p_device_id: row.deviceId,
+            p_qr_public_token: p.qrToken,
+            p_customer_id: p.customerId || null,
+            p_customer_name: p.customerName || null,
+            p_customer_phone: p.customerPhone || null,
+            p_quantity: p.quantity,
+            p_downpayment: p.downpayment
+          });
+          if (error) throw error;
+          row.serverResult = data;
+          if (data?.order_id) {
+            const oldId = `offline:${row.clientOrderId}`;
+            const cachedOrder = await getCachedSnapshot(`order:${oldId}`);
+            const cachedItems = await getCachedSnapshot(`order-items:${oldId}`);
+            const cachedPayments = await getCachedSnapshot(`order-payments:${oldId}`);
+            const serverId = data.order_id;
+            await cacheNamed(`order:${serverId}`, { ...cachedOrder, id: serverId, order_number: data.order_number || cachedOrder?.order_number, offline: false, sync_status: "synchronized" });
+            if (cachedItems != null) await cacheNamed(`order-items:${serverId}`, cachedItems);
+            if (cachedPayments != null) await cacheNamed(`order-payments:${serverId}`, cachedPayments);
+            try {
+              sessionStorage.setItem(`ordeli-order-detail-mode:${serverId}`, "fresh");
+            } catch (_) {}
+            if (currentOrderId === oldId) currentOrderId = serverId;
+          }
+        }
         row.status = "synced";
         row.syncedAt = new Date().toISOString();
-        row.serverResult = data;
         await updateQueuedOrder(row);
       } catch (error) {
-        row.status = "error";
+        row.status = navigator.onLine ? "error" : "waiting";
         row.lastError = error?.message || "Synchronization failed.";
         row.lastErrorAt = new Date().toISOString();
         await updateQueuedOrder(row);
-        console.error("Offline order sync failed:", error);
+        console.error("Offline queue sync failed:", error);
+        if (!navigator.onLine) break;
       }
     }
   } finally {
@@ -4299,17 +4332,14 @@ function prepareOrderCreation(
       "0";
 
 
-  if (!pendingAddToOrderId) {
-    $("orderCustomerName").value = "";
-    $("orderCustomerPhone").value = "";
-    $("existingCustomerSelect").value = "";
-    $("newCustomerChoice")
-      .checked =
-        true;
-    $("existingCustomerChoice")
-      .checked =
-        false;
-  }
+  $("newCustomerChoice")
+    .checked =
+      true;
+
+
+  $("existingCustomerChoice")
+    .checked =
+      false;
 
 
   toggleCustomerChoice();
@@ -4665,46 +4695,31 @@ async function createOrder() {
   if (runtimeOffline || !navigator.onLine) {
     if (pendingAddToOrderId) {
       try {
+        if (!pendingQrToken || !pendingProduct) throw new Error("No scanned product QR is selected.");
+        if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Quantity must be at least 1.");
         const existingOrderId = pendingAddToOrderId;
-        const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
-        const existingOrder = await getCachedSnapshot(`order:${existingOrderId}`);
-        if (!existingOrder || existingOrderId.indexOf("offline:") !== 0) {
-          $("orderCreateMessage").textContent = "This offline order cannot add another item yet.";
-          return;
-        }
+        const parentOrder = await getCachedSnapshot(`order:${existingOrderId}`);
+        if (!parentOrder) throw new Error("This order is not available offline on this device.");
         const cachedQr = await getOfflineQr(pendingQrToken);
-        if (!cachedQr || cachedQr.used) {
-          $("orderCreateMessage").textContent = "This QR is not reserved and available for offline use on this device.";
-          return;
-        }
-        const itemTotal = total;
-        existingItems.push({
-          id: `offline-item:${Date.now()}`,
-          product_name: pendingProduct?.name || "Product",
-          quantity,
-          unit_price: Number(pendingProduct?.default_price) || 0,
-          total_price: itemTotal,
-          workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [],
-          cancelled_at: null,
-          offline: true
-        });
-        await cacheNamed(`order-items:${existingOrderId}`, existingItems);
-        const existingPayments = (await getCachedSnapshot(`order-payments:${existingOrderId}`)) || [];
-        const existingPaid = existingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-        const existingTotal = existingItems.reduce((sum, item) => sum + (Number(item.total_price) || 0), 0);
-        if (existingOrder.customers) existingOrder.customers.phone = existingOrder.customers.phone || null;
-        await cacheNamed(`order:${existingOrderId}`, { ...existingOrder, cached_total: existingTotal, cached_paid: existingPaid });
-        await markOfflineQrUsed(pendingQrToken, `${existingOrderId}:item:${Date.now()}`);
+        if (!cachedQr || cachedQr.used) throw new Error("This QR is not reserved and available for offline use on this device.");
+        const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
+        const newItemId = `offline-item:${crypto?.randomUUID ? crypto.randomUUID() : Date.now()}`;
+        const newItem = { id: newItemId, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [], cancelled_at: null, offline: true };
+        await cacheNamed(`order-items:${existingOrderId}`, [...existingItems, newItem]);
+        const addRow = await enqueueOfflineOrder({ action: "add_item", orderId: existingOrderId, parentClientOrderId: existingOrderId.startsWith("offline:") ? existingOrderId.slice("offline:".length) : null, qrToken: pendingQrToken, quantity, product: pendingProduct, productName: pendingProduct?.name || "Product", unitPrice: Number(pendingProduct?.default_price) || 0, total });
+        addRow.type = "add_order_item";
+        addRow.payload = { ...addRow.payload, action: "add_item" };
+        await updateQueuedOrder(addRow);
+        await markOfflineQrUsed(pendingQrToken, addRow.clientOrderId);
         currentOrderId = existingOrderId;
         currentOrderShowProduction = false;
         pendingAddToOrderId = null;
         pendingQrToken = null;
         pendingProduct = null;
-        try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+        try { sessionStorage.removeItem("ordeli-pending-order-draft"); sessionStorage.setItem(`ordeli-order-detail-mode:${existingOrderId}`, "fresh"); } catch (_) {}
         await updateConnectivityIndicator();
         navigate("order-detail");
       } catch (error) {
-        console.error("Offline add-item failed:", error);
         $("orderCreateMessage").textContent = error?.message || "Unable to add the item offline.";
       }
       return;
@@ -5045,6 +5060,16 @@ async function loadOrderDetail(
 }
 
 
+function startNewTransaction() {
+  currentOrderId = null;
+  currentOrderShowProduction = false;
+  pendingAddToOrderId = null;
+  pendingQrToken = null;
+  pendingProduct = null;
+  try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+  navigate("scanner");
+}
+
 // ============================================================
 // ORDER DETAIL ACTIONS
 // ============================================================
@@ -5063,13 +5088,9 @@ if (orderDetailBackButton) {
 const orderDetailAddItemButton = $("orderDetailAddItemButton");
 if (orderDetailAddItemButton) {
   orderDetailAddItemButton.addEventListener("click", () => {
-    if (!currentOrderId) return;
     pendingAddToOrderId = currentOrderId;
     pendingQrToken = null;
     pendingProduct = null;
-    try {
-      sessionStorage.removeItem("ordeli-pending-order-draft");
-    } catch (_) {}
     navigate("scanner");
   });
 }
@@ -5077,26 +5098,7 @@ if (orderDetailAddItemButton) {
 const orderDetailNewTransactionButton = $("orderDetailNewTransactionButton");
 if (orderDetailNewTransactionButton) {
   orderDetailNewTransactionButton.addEventListener("click", () => {
-    currentOrderId = null;
-    currentOrderShowProduction = false;
-    pendingAddToOrderId = null;
-    pendingQrToken = null;
-    pendingProduct = null;
-    try {
-      sessionStorage.removeItem("ordeli-pending-order-draft");
-    } catch (_) {}
-    $("orderCustomerName").value = "";
-    $("orderCustomerPhone").value = "";
-    $("existingCustomerSelect").value = "";
-    $("orderQuantity").value = "1";
-    $("orderDownpayment").value = "0";
-    $("orderDetectedProduct").textContent = "Product";
-    $("orderDetectedPrice").textContent = "₱0.00";
-    $("newCustomerChoice").checked = true;
-    $("existingCustomerChoice").checked = false;
-    updateOrderCreateMode();
-    clearOrderMessage();
-    navigate("scanner");
+    startNewTransaction();
   });
 }
 
