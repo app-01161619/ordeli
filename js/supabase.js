@@ -2,24 +2,14 @@ const SUPABASE_URL = "https://kbgdxhshxkhuelbxlggc.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_KJDx4oVgNF6z_5SYvyI-uw_h58jlimx";
 
 function readPersistedSession() {
-  const candidates = new Map();
   try {
-    for (const key of Object.keys(localStorage)) {
-      if (!/^sb-.+-auth-token(?:\.\d+)?$/.test(key)) continue;
-      const base = key.replace(/\.\d+$/, "");
-      candidates.set(base, [...(candidates.get(base) || []), [key, localStorage.getItem(key)]]);
-    }
-
-    for (const entries of candidates.values()) {
-      entries.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
-      let raw = entries.length === 1 ? entries[0][1] : entries.map(([, value]) => value || "").join("");
+    const keys = Object.keys(localStorage).filter((key) => /^sb-.+-auth-token$/.test(key));
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
       if (!raw) continue;
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed?.user?.id) return parsed;
-        if (parsed?.currentSession?.user?.id) return parsed.currentSession;
-        if (parsed?.session?.user?.id) return parsed.session;
-      } catch (_) {}
+      const parsed = JSON.parse(raw);
+      if (parsed?.user?.id) return parsed;
+      if (parsed?.currentSession?.user?.id) return parsed.currentSession;
     }
   } catch (_) {}
   return null;
@@ -71,8 +61,7 @@ function createOfflineStub() {
 let client = null;
 let supabaseReady = false;
 
-if (navigator.onLine) {
-  try {
+try {
     const mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
     client = mod.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: {
@@ -83,9 +72,8 @@ if (navigator.onLine) {
     });
     supabaseReady = true;
   } catch (error) {
-    console.warn("Supabase client unavailable; booting in offline mode.", error);
+    console.warn("Supabase client unavailable; using offline stub until a cached client is available.", error);
   }
-}
 
 export const supabase = client || createOfflineStub();
 export const isSupabaseReady = supabaseReady;

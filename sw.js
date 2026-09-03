@@ -1,69 +1,8 @@
-/* Ordeli seller PWA service worker.
-   Customer tracking pages (/t/<token>) do not use this worker. */
-
-const CACHE_VERSION = "ordeli-v2026-09-03-06";
-const APP_SHELL = [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/css/style.css",
-  "/js/supabase.js",
-  "/js/app.js?v=2026-09-03-06"
-];
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys
-          .filter((key) => key !== CACHE_VERSION)
-          .map((key) => caches.delete(key))
-      ))
-      .then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener("fetch", (event) => {
-  const request = event.request;
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/t/")) return;
-
-  const isAppAsset =
-    url.pathname === "/" ||
-    url.pathname.endsWith("/") ||
-    url.pathname.endsWith(".html") ||
-    url.pathname.endsWith(".js") ||
-    url.pathname.endsWith(".css") ||
-    url.pathname.endsWith(".webmanifest");
-
-  if (isAppAsset) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.ok) {
-            caches.open(CACHE_VERSION)
-              .then((cache) => cache.put(request, response.clone()))
-              .catch(() => {});
-          }
-          return response;
-        })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request))
-  );
-});
+/* Ordeli seller PWA service worker. Customer tracking pages (/t/<token>) do not use this worker. */
+const CACHE_VERSION="ordeli-v2026-09-03-07";
+const APP_SHELL=["/","/index.html","/manifest.webmanifest","/css/style.css","/js/supabase.js","/js/app.js?v=2026-09-03-07","https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js","https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js","https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"];
+self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_VERSION).then(async cache=>{for(const url of APP_SHELL){try{const r=await fetch(url,{cache:"no-cache"});if(r.ok)await cache.put(url,r.clone());}catch(_){}}}).then(()=>self.skipWaiting()))});
+self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
+self.addEventListener("fetch",event=>{const r=event.request;if(r.method!=="GET")return;const u=new URL(r.url);if(u.origin===self.location.origin&&u.pathname.startsWith("/t/"))return;const same=u.origin===self.location.origin;const isAsset=same&&(u.pathname==="/"||u.pathname.endsWith(".html")||u.pathname.endsWith(".js")||u.pathname.endsWith(".css")||u.pathname.endsWith(".webmanifest"));
+if(isAsset){event.respondWith(caches.match(r,{ignoreSearch:true}).then(cached=>{const network=fetch(r).then(resp=>{if(resp.ok)caches.open(CACHE_VERSION).then(c=>c.put(r,resp.clone())).catch(()=>{});return resp}).catch(()=>cached||caches.match("/index.html")); return cached||network;}));return;}
+if(!same){event.respondWith(caches.match(r).then(c=>c||fetch(r)));return;} event.respondWith(caches.match(r).then(c=>c||fetch(r)));});
