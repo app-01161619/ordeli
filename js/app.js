@@ -12,10 +12,12 @@ const $ = (id) =>
 // OFFLINE / SYNC FOUNDATION
 // ============================================================
 const OFFLINE_DB_NAME = "ordeli-offline";
-const OFFLINE_DB_VERSION = 1;
+const OFFLINE_DB_VERSION = 2;
 const OFFLINE_QUEUE_STORE = "sync_queue";
+const OFFLINE_QR_STORE = "offline_qr_cache";
 const OFFLINE_DEVICE_KEY = "ordeli-device-id";
 let offlineDbPromise = null;
+let offlineSyncInProgress = false;
 function getOfflineDeviceId() {
   let id = localStorage.getItem(OFFLINE_DEVICE_KEY);
   if (!id) {
@@ -35,6 +37,12 @@ function openOfflineDb() {
         const store = db.createObjectStore(OFFLINE_QUEUE_STORE, { keyPath: "id", autoIncrement: true });
         store.createIndex("status", "status", { unique: false });
         store.createIndex("createdAt", "createdAt", { unique: false });
+        store.createIndex("clientOrderId", "clientOrderId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(OFFLINE_QR_STORE)) {
+        const qrStore = db.createObjectStore(OFFLINE_QR_STORE, { keyPath: "public_token" });
+        qrStore.createIndex("used", "used", { unique: false });
+        qrStore.createIndex("seriesKey", "seriesKey", { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -50,6 +58,155 @@ async function getPendingSyncCount() {
     request.onsuccess = () => resolve((request.result || []).filter(row => ["waiting","syncing","error"].includes(row.status)).length);
     request.onerror = () => resolve(0);
   });
+}
+
+
+async function putOfflineQrRecords(records) {
+  const db = await openOfflineDb();
+  if (!db || !records?.length) return;
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(OFFLINE_QR_STORE, "readwrite");
+    const store = tx.objectStore(OFFLINE_QR_STORE);
+    records.forEach(record => store.put(record));
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error || new Error("Unable to cache offline QR inventory."));
+  });
+}
+
+async function getOfflineQr(publicToken) {
+  const db = await openOfflineDb();
+  if (!db) return null;
+  return new Promise(resolve => {
+    const request = db.transaction(OFFLINE_QR_STORE, "readonly").objectStore(OFFLINE_QR_STORE).get(publicToken);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => resolve(null);
+  });
+}
+
+async function markOfflineQrUsed(publicToken, clientOrderId) {
+  const record = await getOfflineQr(publicToken);
+  if (!record) return;
+  record.used = true;
+  record.usedByClientOrderId = clientOrderId;
+  record.usedAt = new Date().toISOString();
+  await putOfflineQrRecords([record]);
+}
+
+async function refreshOfflineQrCache() {
+  if (!navigator.onLine) return;
+  try {
+    const user = await getCurrentUser();
+    const deviceId = getOfflineDeviceId();
+    const { data, error } = await supabase
+      .from("offline_qr_reservations")
+      .select("qr_code_id,device_id,qr_codes(id,product_id,series_name,series_sequence,code,public_token,status,products(id,name,default_price))")
+      .eq("seller_id", user.id)
+      .eq("device_id", deviceId);
+    if (error) throw error;
+    const records = (data || []).map(row => ({
+      public_token: row.qr_codes?.public_token,
+      qr_code_id: row.qr_codes?.id,
+      product_id: row.qr_codes?.product_id,
+      series_name: row.qr_codes?.series_name,
+      series_sequence: row.qr_codes?.series_sequence,
+      code: row.qr_codes?.code,
+      status: row.qr_codes?.status,
+      product: row.qr_codes?.products || null,
+      device_id: deviceId,
+      used: false,
+      seriesKey: `${row.qr_codes?.product_id}::${row.qr_codes?.series_name}`,
+      cachedAt: Date.now()
+    })).filter(record => record.public_token);
+    if (records.length) await putOfflineQrRecords(records);
+  } catch (error) {
+    console.warn("Offline QR cache refresh failed:", error);
+  }
+}
+
+async function enqueueOfflineOrder(payload) {
+  const db = await openOfflineDb();
+  if (!db) throw new Error("Offline storage is not available on this device.");
+  const clientOrderId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const row = {
+    type: "create_order",
+    status: "waiting",
+    clientOrderId,
+    deviceId: getOfflineDeviceId(),
+    createdAt: new Date().toISOString(),
+    attempts: 0,
+    payload
+  };
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(OFFLINE_QUEUE_STORE, "readwrite");
+    tx.objectStore(OFFLINE_QUEUE_STORE).add(row);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error || new Error("Unable to save the order offline."));
+  });
+  return row;
+}
+
+async function getQueuedOrders() {
+  const db = await openOfflineDb();
+  if (!db) return [];
+  return new Promise(resolve => {
+    const request = db.transaction(OFFLINE_QUEUE_STORE, "readonly").objectStore(OFFLINE_QUEUE_STORE).getAll();
+    request.onsuccess = () => resolve((request.result || []).filter(row => row.type === "create_order" && ["waiting","error","syncing"].includes(row.status)));
+    request.onerror = () => resolve([]);
+  });
+}
+
+async function updateQueuedOrder(row) {
+  const db = await openOfflineDb();
+  if (!db || !row?.id) return;
+  await new Promise(resolve => {
+    const tx = db.transaction(OFFLINE_QUEUE_STORE, "readwrite");
+    tx.objectStore(OFFLINE_QUEUE_STORE).put(row);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+  });
+}
+
+async function syncOfflineOrders() {
+  if (!navigator.onLine || offlineSyncInProgress) return;
+  const session = await supabase.auth.getSession();
+  if (!session?.data?.session) return;
+  offlineSyncInProgress = true;
+  try {
+    const queue = await getQueuedOrders();
+    for (const row of queue) {
+      row.status = "syncing";
+      row.attempts = Number(row.attempts || 0) + 1;
+      await updateQueuedOrder(row);
+      await updateConnectivityIndicator();
+      try {
+        const p = row.payload;
+        const { data, error } = await supabase.rpc("sync_offline_order", {
+          p_client_order_id: row.clientOrderId,
+          p_device_id: row.deviceId,
+          p_qr_public_token: p.qrToken,
+          p_customer_id: p.customerId || null,
+          p_customer_name: p.customerName || null,
+          p_customer_phone: p.customerPhone || null,
+          p_quantity: p.quantity,
+          p_downpayment: p.downpayment
+        });
+        if (error) throw error;
+        row.status = "synced";
+        row.syncedAt = new Date().toISOString();
+        row.serverResult = data;
+        await updateQueuedOrder(row);
+      } catch (error) {
+        row.status = "error";
+        row.lastError = error?.message || "Synchronization failed.";
+        row.lastErrorAt = new Date().toISOString();
+        await updateQueuedOrder(row);
+        console.error("Offline order sync failed:", error);
+      }
+    }
+  } finally {
+    offlineSyncInProgress = false;
+    await updateConnectivityIndicator();
+  }
 }
 function ensureConnectivityIndicator() {
   let indicator = $("connectivityIndicator");
@@ -74,9 +231,15 @@ async function updateConnectivityIndicator() {
 function initializeOfflineFoundation() {
   ensureConnectivityIndicator();
   updateConnectivityIndicator();
-  window.addEventListener("online", updateConnectivityIndicator);
+  window.addEventListener("online", async () => {
+    await updateConnectivityIndicator();
+    await refreshOfflineQrCache();
+    await syncOfflineOrders();
+  });
   window.addEventListener("offline", updateConnectivityIndicator);
   window.setInterval(updateConnectivityIndicator, 5000);
+  refreshOfflineQrCache();
+  if (navigator.onLine) syncOfflineOrders();
 }
 
 
@@ -3182,6 +3345,7 @@ async function reserveOfflineQrSeries(productId, seriesName, quantity) {
     });
     if (error) throw error;
     const count = Number(data) || 0;
+    await refreshOfflineQrCache();
     alert(`${count} QR pair${count === 1 ? "" : "s"} reserved for this device.`);
     await loadQrSeries();
   } catch (error) {
@@ -3199,6 +3363,7 @@ async function releaseOfflineQrReservations(productId, seriesName) {
     });
     if (error) throw error;
     alert(`${Number(data) || 0} reserved QR pair(s) released.`);
+    await refreshOfflineQrCache();
     await loadQrSeries();
   } catch (error) {
     console.error("Offline QR release failed:", error);
@@ -4075,6 +4240,23 @@ async function handleScannedQr(
     }
 
 
+    if (!navigator.onLine) {
+      const cached = await getOfflineQr(token);
+      if (!cached || cached.used) {
+        throw new Error("This QR is not reserved and available for offline use on this device.");
+      }
+      await stopQrScanner();
+      pendingQrToken = cached.public_token;
+      pendingProduct = cached.product;
+      prepareOrderCreation({
+        public_token: cached.public_token,
+        products: cached.product
+      });
+      navigate("order-create");
+      return;
+    }
+
+
     await stopQrScanner();
 
 
@@ -4132,6 +4314,29 @@ async function handleScannedQr(
 
     pendingProduct =
       qr.products;
+
+    try {
+      const { data: reservation } = await supabase
+        .from("offline_qr_reservations")
+        .select("qr_code_id,device_id")
+        .eq("qr_code_id", qr.id)
+        .eq("seller_id", user.id)
+        .eq("device_id", getOfflineDeviceId())
+        .maybeSingle();
+      if (reservation) {
+        await putOfflineQrRecords([{
+          public_token: qr.public_token,
+          qr_code_id: qr.id,
+          product_id: qr.product_id,
+          code: qr.code,
+          status: qr.status,
+          product: qr.products || null,
+          device_id: getOfflineDeviceId(),
+          used: false,
+          cachedAt: Date.now()
+        }]);
+      }
+    } catch (_) {}
 
 
     if (
@@ -4749,6 +4954,41 @@ async function createOrder() {
 
     }
 
+  }
+
+
+  if (!navigator.onLine) {
+    if (usingExisting) {
+      $("orderCreateMessage").textContent = "Existing customer linking is unavailable while offline. Choose New customer.";
+      return;
+    }
+    const cachedQr = await getOfflineQr(pendingQrToken);
+    if (!cachedQr || cachedQr.used) {
+      $("orderCreateMessage").textContent = "This QR is not reserved and available for offline use on this device.";
+      return;
+    }
+    try {
+      const row = await enqueueOfflineOrder({
+        qrToken: pendingQrToken,
+        customerId: null,
+        customerName,
+        customerPhone,
+        quantity,
+        downpayment,
+        productName: pendingProduct?.name || "Product",
+        unitPrice: Number(pendingProduct?.default_price) || 0,
+        total
+      });
+      await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
+      $("orderCreateMessage").textContent = `Saved offline. Order is waiting to sync when you reconnect.`;
+      $("orderCreateMessage").classList.add("success-message");
+      await updateConnectivityIndicator();
+      setTimeout(() => navigate("home"), 700);
+    } catch (error) {
+      console.error("Offline order save failed:", error);
+      $("orderCreateMessage").textContent = error?.message || "Unable to save the order offline.";
+    }
+    return;
   }
 
 
