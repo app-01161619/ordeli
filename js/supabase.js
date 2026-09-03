@@ -61,7 +61,8 @@ function createOfflineStub() {
 let client = null;
 let supabaseReady = false;
 
-try {
+if (navigator.onLine) {
+  try {
     const mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
     client = mod.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       auth: {
@@ -72,8 +73,9 @@ try {
     });
     supabaseReady = true;
   } catch (error) {
-    console.warn("Supabase client unavailable; using offline stub until a cached client is available.", error);
+    console.warn("Supabase client unavailable; booting in offline mode.", error);
   }
+}
 
 export const supabase = client || createOfflineStub();
 export const isSupabaseReady = supabaseReady;
