@@ -1440,3 +1440,42 @@ a:hover {
     width: 100%;
   }
 }
+
+
+/* OFFLINE / SYNC STATUS */
+
+.connectivity-indicator {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 9999;
+  max-width: calc(100vw - 28px);
+  padding: 8px 12px;
+  border: 1px solid #d9dee7;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .96);
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.connectivity-indicator.is-offline {
+  border-color: #efc7c7;
+  color: #9b3434;
+}
+
+.connectivity-indicator.has-pending {
+  border-color: #ead7a1;
+  color: #745d17;
+}
+
+@media (max-width: 640px) {
+  .connectivity-indicator {
+    right: 10px;
+    bottom: 10px;
+  }
+}

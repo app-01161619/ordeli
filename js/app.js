@@ -10,6 +10,125 @@ const $ = (id) =>
 
 
 // ============================================================
+// OFFLINE / SYNC FOUNDATION
+// ============================================================
+
+const OFFLINE_DB_NAME = "ordeli-offline";
+const OFFLINE_DB_VERSION = 1;
+const OFFLINE_QUEUE_STORE = "sync_queue";
+let offlineDbPromise = null;
+
+function openOfflineDb() {
+
+  if (offlineDbPromise) {
+    return offlineDbPromise;
+  }
+
+  offlineDbPromise = new Promise((resolve, reject) => {
+
+    if (!("indexedDB" in window)) {
+      resolve(null);
+      return;
+    }
+
+    const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains(OFFLINE_QUEUE_STORE)) {
+        const store = db.createObjectStore(OFFLINE_QUEUE_STORE, { keyPath: "id", autoIncrement: true });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Unable to open offline storage."));
+  });
+
+  return offlineDbPromise;
+
+}
+
+async function getPendingSyncCount() {
+
+  const db = await openOfflineDb();
+
+  if (!db) {
+    return 0;
+  }
+
+  return new Promise((resolve) => {
+    const tx = db.transaction(OFFLINE_QUEUE_STORE, "readonly");
+    const store = tx.objectStore(OFFLINE_QUEUE_STORE);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const rows = Array.isArray(request.result) ? request.result : [];
+      resolve(rows.filter((row) => row.status === "waiting" || row.status === "syncing" || row.status === "error").length);
+    };
+
+    request.onerror = () => resolve(0);
+  });
+
+}
+
+function ensureConnectivityIndicator() {
+
+  let indicator = $("connectivityIndicator");
+
+  if (indicator) {
+    return indicator;
+  }
+
+  indicator = document.createElement("div");
+  indicator.id = "connectivityIndicator";
+  indicator.className = "connectivity-indicator";
+  indicator.setAttribute("role", "status");
+  indicator.setAttribute("aria-live", "polite");
+  document.body.appendChild(indicator);
+
+  return indicator;
+}
+
+async function updateConnectivityIndicator() {
+
+  const indicator = ensureConnectivityIndicator();
+  const online = navigator.onLine;
+  const pending = await getPendingSyncCount();
+
+  indicator.classList.toggle("is-offline", !online);
+  indicator.classList.toggle("is-online", online && pending === 0);
+  indicator.classList.toggle("has-pending", pending > 0);
+
+  if (!online) {
+    indicator.textContent = pending > 0
+      ? `Offline · ${pending} waiting to sync`
+      : "Offline";
+    return;
+  }
+
+  indicator.textContent = pending > 0
+    ? `Waiting to Sync · ${pending}`
+    : "Online";
+
+}
+
+function initializeOfflineFoundation() {
+
+  ensureConnectivityIndicator();
+  updateConnectivityIndicator();
+
+  window.addEventListener("online", updateConnectivityIndicator);
+  window.addEventListener("offline", updateConnectivityIndicator);
+
+  window.setInterval(updateConnectivityIndicator, 5000);
+
+}
+
+
+// ============================================================
 // SCREENS
 // ============================================================
 
@@ -1276,13 +1395,6 @@ $("shopLogo")
   );
 
 
-$("shopSetupLogoutButton")
-  .addEventListener(
-    "click",
-    logout
-  );
-
-
 $("editShopButton")
   .addEventListener(
     "click",
@@ -1822,13 +1934,6 @@ async function saveProduct() {
   }
 
 }
-
-
-$("homeLogoutButton")
-  .addEventListener(
-    "click",
-    logout
-  );
 
 
 $("productsButton")
@@ -6218,224 +6323,6 @@ $("orderDetailBackButton")
 
 
 // ============================================================
-// COMMON HELPERS
-// ============================================================
-
-function populateShopForm(
-  seller
-) {
-
-  $("shopName")
-    .value =
-      seller?.shop_name ||
-      "";
-
-
-  $("shopAddress")
-    .value =
-      seller?.shop_address ||
-      "";
-
-
-  $("shopLogo")
-    .value =
-      "";
-
-
-  $("shopLogoPreviewContainer")
-    .hidden =
-      true;
-
-
-  $("shopLogoPreview")
-    .removeAttribute(
-      "src"
-    );
-
-}
-
-
-function validateLogo(
-  file
-) {
-
-  const allowed = [
-    "image/png",
-    "image/jpeg",
-    "image/webp"
-  ];
-
-
-  if (
-    !allowed.includes(
-      file.type
-    )
-  ) {
-
-    throw new Error(
-      "Shop logo must be PNG, JPEG, or WebP."
-    );
-
-  }
-
-
-  if (
-    file.size >
-    5 *
-    1024 *
-    1024
-  ) {
-
-    throw new Error(
-      "Shop logo must be 5 MB or smaller."
-    );
-
-  }
-
-}
-
-
-function safeExtension(
-  fileName
-) {
-
-  const extension =
-    fileName
-      .split(".")
-      .pop()
-      .toLowerCase();
-
-
-  return [
-    "png",
-    "jpg",
-    "jpeg",
-    "webp"
-  ].includes(
-    extension
-  )
-    ? extension
-    : "jpg";
-
-}
-
-
-function setLoading(
-  button,
-  text
-) {
-
-  button.disabled =
-    true;
-
-  button.textContent =
-    text;
-
-}
-
-
-function resetButton(
-  button,
-  text
-) {
-
-  button.disabled =
-    false;
-
-  button.textContent =
-    text;
-
-}
-
-
-function clearMessages() {
-
-  $("loginMessage")
-    .textContent =
-      "";
-
-  $("registerMessage")
-    .textContent =
-      "";
-
-  $("shopSetupMessage")
-    .textContent =
-      "";
-
-}
-
-
-function getAuthError(
-  error
-) {
-
-  const message =
-    String(
-      error?.message ||
-      ""
-    );
-
-
-  const lower =
-    message.toLowerCase();
-
-
-  if (
-    lower.includes(
-      "invalid login credentials"
-    )
-  ) {
-
-    return (
-      "Invalid email or password."
-    );
-
-  }
-
-
-  if (
-    lower.includes(
-      "email not confirmed"
-    )
-  ) {
-
-    return (
-      "Please confirm your email before logging in."
-    );
-
-  }
-
-
-  return (
-    message ||
-    "Authentication failed."
-  );
-
-}
-
-
-function formatPrice(
-  value
-) {
-
-  return new Intl.NumberFormat(
-    "en-PH",
-    {
-
-      style:
-        "currency",
-
-      currency:
-        "PHP"
-
-    }
-  ).format(
-    Number(value) || 0
-  );
-
-}
-
-// ============================================================
 // LOGOUT
 // ============================================================
 
@@ -6554,4 +6441,5 @@ window.addEventListener(
 // INITIALIZE
 // ============================================================
 
+initializeOfflineFoundation();
 renderApplication();
