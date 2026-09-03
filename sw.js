@@ -1,37 +1,33 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-03-02";
+const CACHE_VERSION = "ordeli-v2026-09-03-03";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-03-02",
-  "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js",
-  "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
+  "/js/app.js?v=2026-09-02-03"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then(async (cache) => {
-      for (const url of APP_SHELL) {
-        try {
-          await cache.add(url);
-        } catch (error) {
-          console.warn("Unable to pre-cache", url, error);
-        }
-      }
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_VERSION)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))
-    )).then(() => self.clients.claim())
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys
+          .filter((key) => key !== CACHE_VERSION)
+          .map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
@@ -43,7 +39,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/t/")) return;
 
-  const networkFirst =
+  const isAppAsset =
     url.pathname === "/" ||
     url.pathname.endsWith("/") ||
     url.pathname.endsWith(".html") ||
@@ -51,15 +47,18 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".css") ||
     url.pathname.endsWith(".webmanifest");
 
-  if (networkFirst) {
+  if (isAppAsset) {
     event.respondWith(
-      fetch(request).then((response) => {
-        if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy)).catch(() => {});
-        }
-        return response;
-      }).catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            caches.open(CACHE_VERSION)
+              .then((cache) => cache.put(request, response.clone()))
+              .catch(() => {});
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
     );
     return;
   }

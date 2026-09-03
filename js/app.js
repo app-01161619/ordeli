@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { supabase, isSupabaseReady, readPersistedSession } from "./supabase.js";
 
 
 // ============================================================
@@ -12,10 +12,11 @@ const $ = (id) =>
 // OFFLINE / SYNC FOUNDATION
 // ============================================================
 const OFFLINE_DB_NAME = "ordeli-offline";
-const OFFLINE_DB_VERSION = 2;
+const OFFLINE_DB_VERSION = 3;
 const OFFLINE_QUEUE_STORE = "sync_queue";
 const OFFLINE_QR_STORE = "offline_qr_cache";
 const OFFLINE_DEVICE_KEY = "ordeli-device-id";
+const OFFLINE_CACHE_STORE = "entity_cache";
 let offlineDbPromise = null;
 let offlineSyncInProgress = false;
 function getOfflineDeviceId() {
@@ -44,12 +45,40 @@ function openOfflineDb() {
         qrStore.createIndex("used", "used", { unique: false });
         qrStore.createIndex("seriesKey", "seriesKey", { unique: false });
       }
+      if (!db.objectStoreNames.contains(OFFLINE_CACHE_STORE)) {
+        db.createObjectStore(OFFLINE_CACHE_STORE, { keyPath: "key" });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error || new Error("Unable to open offline storage."));
   });
   return offlineDbPromise;
 }
+async function cacheSnapshot(key, value) {
+  const db = await openOfflineDb();
+  if (!db) return;
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(OFFLINE_CACHE_STORE, "readwrite");
+    tx.objectStore(OFFLINE_CACHE_STORE).put({ key, value, cachedAt: Date.now() });
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error || new Error("Unable to cache offline data."));
+  });
+}
+
+async function getCachedSnapshot(key) {
+  const db = await openOfflineDb();
+  if (!db) return null;
+  return new Promise(resolve => {
+    const request = db.transaction(OFFLINE_CACHE_STORE, "readonly").objectStore(OFFLINE_CACHE_STORE).get(key);
+    request.onsuccess = () => resolve(request.result?.value ?? null);
+    request.onerror = () => resolve(null);
+  });
+}
+
+async function cacheNamed(key, value) {
+  try { await cacheSnapshot(key, value); } catch (error) { console.warn("Offline cache write failed:", key, error); }
+}
+
 async function getPendingSyncCount() {
   const db = await openOfflineDb();
   if (!db) return 0;
@@ -233,6 +262,10 @@ function initializeOfflineFoundation() {
   updateConnectivityIndicator();
   window.addEventListener("online", async () => {
     await updateConnectivityIndicator();
+    if (!isSupabaseReady) {
+      window.location.reload();
+      return;
+    }
     await refreshOfflineQrCache();
     await syncOfflineOrders();
   });
@@ -456,37 +489,29 @@ async function getSeller(
   userId
 ) {
 
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .from("sellers")
-    .select(`
-      id,
-      email,
-      login_method,
-      google_id,
-      shop_name,
-      shop_address,
-      shop_logo_path
-    `)
-    .eq(
-      "id",
-      userId
-    )
-    .maybeSingle();
+  const cacheKey = `seller:${userId}`;
 
+  try {
+    const { data, error } = await supabase
+      .from("sellers")
+      .select(`
+        id, email, login_method, google_id,
+        shop_name, shop_address, shop_logo_path
+      `)
+      .eq("id", userId)
+      .maybeSingle();
 
-  if (error) {
-
+    if (error) throw error;
+    if (data) await cacheNamed(cacheKey, data);
+    return data;
+  } catch (error) {
+    const cached = await getCachedSnapshot(cacheKey);
+    if (cached) {
+      console.warn("Using cached seller data while offline.");
+      return cached;
+    }
     throw error;
-
   }
-
-
-  return data;
-
 }
 
 
@@ -1564,49 +1589,43 @@ $("editShopButton")
 async function loadProducts() {
 
   const list = $("productList");
-
-  // Always replace the rendered list. This function never appends onto
-  // a previous database result.
   list.replaceChildren();
   $("emptyProductsState").hidden = true;
   $("productEditor").hidden = true;
 
   const user = await getCurrentUser();
+  const cacheKey = `products:${user.id}`;
+  let data = null;
 
-  const { data, error } = await supabase
-    .from("products")
-    .select(`
-      id,
-      seller_id,
-      name,
-      default_price,
-      customer_cancellable_until_stage,
-      is_active,
-      created_at,
-      updated_at
-    `)
-    .eq("seller_id", user.id)
-    .eq("is_active", true)
-    .order("name", { ascending: true });
-
-  if (error) throw error;
-
-  // Ignore a response if the user navigated away while the request was running.
-  if (getRoute() !== "products") return;
-
-  list.replaceChildren();
-
-  if (!data.length) {
-    $("emptyProductsState").hidden = false;
-    return;
+  if (navigator.onLine) {
+    try {
+      const result = await supabase
+        .from("products")
+        .select(`
+          id, seller_id, name, default_price,
+          customer_cancellable_until_stage, is_active,
+          created_at, updated_at
+        `)
+        .eq("seller_id", user.id)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      if (result.error) throw result.error;
+      data = result.data || [];
+      await cacheNamed(cacheKey, data);
+    } catch (error) {
+      data = await getCachedSnapshot(cacheKey);
+      if (data == null) throw error;
+      console.warn("Using cached products while offline.");
+    }
+  } else {
+    data = await getCachedSnapshot(cacheKey);
   }
 
+  data = data || [];
+  if (getRoute() !== "products") return;
+  if (!data.length) { $("emptyProductsState").hidden = false; return; }
   const fragment = document.createDocumentFragment();
-
-  data.forEach((product) => {
-    fragment.appendChild(createProductCard(product));
-  });
-
+  data.forEach(product => fragment.appendChild(createProductCard(product)));
   list.appendChild(fragment);
 }
 
@@ -2187,118 +2206,41 @@ async function openWorkflow(
 
 async function loadWorkflow() {
 
-  $("stageList")
-    .innerHTML =
-      "";
+  $("stageList").innerHTML = "";
+  $("emptyStagesState").hidden = true;
+  const user = await getCurrentUser();
+  const productKey = `workflow-product:${workflowProductId}`;
+  const stagesKey = `workflow-stages:${workflowProductId}`;
+  let product = null;
+  let stages = null;
 
-
-  $("emptyStagesState")
-    .hidden =
-      true;
-
-
-  const user =
-    await getCurrentUser();
-
-
-  const {
-    data:
-      product,
-    error:
-      productError
-  } =
-  await supabase
-    .from(
-      "products"
-    )
-    .select(
-      "id,name"
-    )
-    .eq(
-      "id",
-      workflowProductId
-    )
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .single();
-
-
-  if (
-    productError
-  ) {
-
-    throw productError;
-
+  if (navigator.onLine) {
+    try {
+      const productResult = await supabase.from("products").select("id,name").eq("id", workflowProductId).eq("seller_id", user.id).single();
+      if (productResult.error) throw productResult.error;
+      product = productResult.data;
+      const stagesResult = await supabase.from("production_stages").select("id,name,stage_order").eq("product_id", workflowProductId).order("stage_order", { ascending: true });
+      if (stagesResult.error) throw stagesResult.error;
+      stages = stagesResult.data || [];
+      await cacheNamed(productKey, product);
+      await cacheNamed(stagesKey, stages);
+    } catch (error) {
+      product = await getCachedSnapshot(productKey);
+      stages = await getCachedSnapshot(stagesKey);
+      if (!product || stages == null) throw error;
+      console.warn("Using cached workflow while offline.");
+    }
+  } else {
+    product = await getCachedSnapshot(productKey);
+    stages = await getCachedSnapshot(stagesKey);
   }
 
-
-  workflowProductName =
-    product.name;
-
-
-  $("workflowProductName")
-    .textContent =
-      product.name;
-
-
-  const {
-    data:
-      stages,
-    error:
-      stagesError
-  } =
-  await supabase
-    .from(
-      "production_stages"
-    )
-    .select(`
-      id,
-      name,
-      stage_order
-    `)
-    .eq(
-      "product_id",
-      workflowProductId
-    )
-    .order(
-      "stage_order",
-      {
-        ascending:
-          true
-      }
-    );
-
-
-  if (
-    stagesError
-  ) {
-
-    throw stagesError;
-
-  }
-
-
-  workflowStages =
-    stages.map(
-      (stage) => ({
-
-        id:
-          stage.id,
-
-        name:
-          stage.name,
-
-        stage_order:
-          stage.stage_order
-
-      })
-    );
-
-
+  if (!product) throw new Error("This product is not available offline yet.");
+  stages = stages || [];
+  workflowProductName = product.name;
+  $("workflowProductName").textContent = product.name;
+  workflowStages = stages.map(stage => ({ id: stage.id, name: stage.name, stage_order: stage.stage_order }));
   renderWorkflowStages();
-
 }
 
 
@@ -2986,232 +2928,93 @@ async function loadQrProducts() {
   placeholder.value = ""; placeholder.textContent = "Select product";
   select.appendChild(placeholder);
   const user = await getCurrentUser();
-  const { data, error } = await supabase.from("products").select("id,name,is_active").eq("seller_id", user.id).eq("is_active", true).order("name", {ascending:true});
-  if (error) throw error;
+  const cacheKey = `qr-products:${user.id}`;
+  let data = null;
+  if (navigator.onLine) {
+    try {
+      const result = await supabase.from("products").select("id,name,is_active").eq("seller_id", user.id).eq("is_active", true).order("name", {ascending:true});
+      if (result.error) throw result.error;
+      data = result.data || [];
+      await cacheNamed(cacheKey, data);
+    } catch (error) {
+      data = await getCachedSnapshot(cacheKey);
+      if (data == null) throw error;
+    }
+  } else {
+    data = await getCachedSnapshot(cacheKey);
+  }
   qrProducts = data || [];
   qrProducts.forEach(product => { const option=document.createElement("option"); option.value=product.id; option.textContent=product.name; select.appendChild(option); });
 }
 
+
 async function loadQrSeries() {
 
-  const list =
-    $("qrSeriesList");
-
-
-  /*
-   * Always replace the list from one database snapshot.
-   * Never append a second copy onto an existing render.
-   */
-
+  const list = $("qrSeriesList");
   list.replaceChildren();
+  $("emptyQrState").hidden = true;
+  const user = await getCurrentUser();
+  const cacheKey = `qr-series:${user.id}`;
+  let snapshot = null;
 
-
-  $("emptyQrState")
-    .hidden =
-      true;
-
-
-  const user =
-    await getCurrentUser();
-
-  let reservationRows = [];
-  try {
-    const { data: reservations, error: reservationError } = await supabase
-      .from("offline_qr_reservations")
-      .select("qr_code_id, device_id, qr_codes(product_id,series_name)")
-      .eq("seller_id", user.id);
-    if (!reservationError) reservationRows = reservations || [];
-  } catch (_) {
-    reservationRows = [];
-  }
-
-
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .from(
-      "qr_codes"
-    )
-    .select(`
-      id,
-      product_id,
-      series_name,
-      series_sequence,
-      code,
-      status,
-      created_at,
-      products(name)
-    `)
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .order(
-      "created_at",
-      {
-        ascending:
-          false
-      }
-    );
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-
-  if (
-    getRoute() !==
-    "qr"
-  ) {
-
-    return;
-
-  }
-
-
-  const groups =
-    new Map();
-
-
-  (data || []).forEach(
-    (qr) => {
-
-      const key =
-        `${qr.product_id}::${qr.series_name}`;
-
-
-      if (
-        !groups.has(key)
-      ) {
-
-        groups.set(
-          key,
-          {
-
-            productId:
-              qr.product_id,
-
-            productName:
-              qr.products?.name ||
-              "Product",
-
-            seriesName:
-              qr.series_name ||
-              "Unnamed Series",
-
-            total:
-              0,
-
-            available:
-              0,
-
-            assigned:
-              0,
-
-            revoked:
-              0,
-
-            reserved:
-              0,
-
-            reservedByDevice:
-              0
-
-          }
-        );
-
-      }
-
-
-      const group =
-        groups.get(key);
-
-
-      group.total +=
-        1;
-
-
-      if (
-        qr.status ===
-        "available"
-      ) {
-
-        group.available +=
-          1;
-
-      } else if (
-        qr.status ===
-        "assigned"
-      ) {
-
-        group.assigned +=
-          1;
-
-      } else if (
-        qr.status ===
-        "revoked"
-      ) {
-
-        group.revoked +=
-          1;
-
-      }
-
+  if (navigator.onLine) {
+    try {
+      let reservationRows = [];
+      try {
+        const { data: reservations, error: reservationError } = await supabase.from("offline_qr_reservations").select("qr_code_id, device_id, qr_codes(product_id,series_name)").eq("seller_id", user.id);
+        if (!reservationError) reservationRows = reservations || [];
+      } catch (_) {}
+      const { data, error } = await supabase.from("qr_codes").select(`id,product_id,series_name,series_sequence,code,status,created_at,products(name)`).eq("seller_id", user.id).order("created_at", { ascending:false });
+      if (error) throw error;
+      snapshot = { data: data || [], reservationRows };
+      await cacheNamed(cacheKey, snapshot);
+    } catch (error) {
+      snapshot = await getCachedSnapshot(cacheKey);
+      if (!snapshot) throw error;
+      console.warn("Using cached QR inventory while offline.");
     }
-  );
+  } else {
+    snapshot = await getCachedSnapshot(cacheKey);
+  }
 
-
-  reservationRows.forEach((reservation) => {
+  const data = snapshot?.data || [];
+  const reservationRows = snapshot?.reservationRows || [];
+  if (getRoute() !== "qr") return;
+  const groups = new Map();
+  data.forEach(qr => {
+    const key = `${qr.product_id}::${qr.series_name}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        productId: qr.product_id,
+        productName: qr.products?.name || "Product",
+        seriesName: qr.series_name || "Unnamed Series",
+        total: 0,
+        available: 0,
+        assigned: 0,
+        revoked: 0,
+        reserved: 0,
+        reservedByDevice: 0
+      });
+    }
+    const group = groups.get(key);
+    group.total += 1;
+    if (qr.status === "available") group.available += 1;
+    else if (qr.status === "assigned") group.assigned += 1;
+    else if (qr.status === "revoked") group.revoked += 1;
+  });
+  reservationRows.forEach(reservation => {
     const key = `${reservation.qr_codes?.product_id}::${reservation.qr_codes?.series_name}`;
     const group = groups.get(key);
     if (!group) return;
     group.reserved += 1;
     if (reservation.device_id === getOfflineDeviceId()) group.reservedByDevice += 1;
   });
-
-
-  if (
-    groups.size ===
-    0
-  ) {
-
-    $("emptyQrState")
-      .hidden =
-        false;
-
-    return;
-
-  }
-
-
-  const fragment =
-    document.createDocumentFragment();
-
-
-  for (
-    const group
-    of groups.values()
-  ) {
-
-    fragment.appendChild(
-      createQrSeriesCard(
-        group
-      )
-    );
-
-  }
-
-
-  list.replaceChildren(
-    fragment
-  );
-
+  if (!groups.size) { $("emptyQrState").hidden = false; return; }
+  const fragment = document.createDocumentFragment();
+  groups.forEach(group => fragment.appendChild(createQrSeriesCard(group)));
+  list.appendChild(fragment);
 }
+
 
 function createQrSeriesCard(group){
 
@@ -4532,155 +4335,37 @@ function prepareOrderCreation(
 
 
 async function loadActiveCustomers() {
-
-  const select =
-    $("existingCustomerSelect");
-
-
+  const select = $("existingCustomerSelect");
   select.replaceChildren();
-
-
-  const placeholder =
-    document.createElement(
-      "option"
-    );
-
-
-  placeholder.value =
-    "";
-
-
-  placeholder.textContent =
-    "Select active customer";
-
-
-  select.appendChild(
-    placeholder
-  );
-
-
-  try {
-
-    const user =
-      await getCurrentUser();
-
-
-    /*
-     * Active means the customer has at least one
-     * non-cancelled order still in progress.
-     *
-     * At this stage, "in progress" uses the order's
-     * non-cancelled state. The final completed-state
-     * derivation is implemented later with production.
-     */
-
-    const {
-      data,
-      error
-    } =
-    await supabase
-      .from(
-        "customers"
-      )
-      .select(`
-        id,
-        name,
-        phone,
-        orders!inner(
-          id,
-          cancelled_at
-        )
-      `)
-      .eq(
-        "seller_id",
-        user.id
-      )
-      .is(
-        "orders.cancelled_at",
-        null
-      )
-      .order(
-        "name",
-        {
-          ascending:
-            true
-        }
-      );
-
-
-    if (
-      error
-    ) {
-
-      console.warn(
-        "Active customers could not be loaded:",
-        error
-      );
-
-      return;
-
+  const placeholder = document.createElement("option");
+  placeholder.value = ""; placeholder.textContent = "Select active customer";
+  select.appendChild(placeholder);
+  const user = await getCurrentUser();
+  const cacheKey = `customers:${user.id}`;
+  let data = null;
+  if (navigator.onLine) {
+    try {
+      const result = await supabase.from("customers").select(`id,name,phone,orders!inner(id,cancelled_at)`).eq("seller_id", user.id).is("orders.cancelled_at", null).order("name", {ascending:true});
+      if (result.error) throw result.error;
+      data = result.data || [];
+      await cacheNamed(cacheKey, data);
+    } catch (error) {
+      data = await getCachedSnapshot(cacheKey);
+      if (data == null) { console.warn("Active customers unavailable offline:", error); return; }
     }
-
-
-    const unique =
-      new Map();
-
-
-    (
-      data || []
-    ).forEach(
-      (
-        customer
-      ) => {
-
-        unique.set(
-          customer.id,
-          customer
-        );
-
-      }
-    );
-
-
-    unique.forEach(
-      (
-        customer
-      ) => {
-
-        const option =
-          document.createElement(
-            "option"
-          );
-
-
-        option.value =
-          customer.id;
-
-
-        option.textContent =
-          customer.phone
-            ? `${customer.name} — ${customer.phone}`
-            : customer.name;
-
-
-        select.appendChild(
-          option
-        );
-
-      }
-    );
-
-  } catch (
-    error
-  ) {
-
-    console.warn(
-      "Active customer loading failed:",
-      error
-    );
-
+  } else {
+    data = await getCachedSnapshot(cacheKey);
   }
-
+  const unique = new Map();
+  (data || []).forEach(customer => {
+    if (!unique.has(customer.id)) unique.set(customer.id, customer);
+  });
+  unique.forEach(customer => {
+    const option = document.createElement("option");
+    option.value = customer.id;
+    option.textContent = customer.phone ? `${customer.name} · ${customer.phone}` : customer.name;
+    select.appendChild(option);
+  });
 }
 
 
@@ -5107,329 +4792,76 @@ async function loadOrderDetail(
   orderId
 ) {
 
-  currentOrderTotal =
-    0;
-
-  currentOrderPaid =
-    0;
-
-
-
-  $("orderDetailItems")
-    .replaceChildren();
-
-
-  $("orderDetailMessage")
-    .textContent =
-      "";
-
-
-  const user =
-    await getCurrentUser();
-
-
-  const {
-    data:
-      order,
-    error:
-      orderError
-  } =
-  await supabase
-    .from(
-      "orders"
-    )
-    .select(`
-      id,
-      order_number,
-      customer_id,
-      created_at,
-      customers(
-        id,
-        name,
-        phone
-      )
-    `)
-    .eq(
-      "id",
-      orderId
-    )
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .single();
-
-
-  if (
-    orderError
-  ) {
-
-    throw orderError;
-
-  }
-
-
-  $("orderDetailTitle")
-    .textContent =
-      `Order #${order.order_number}`;
-
-
-  $("orderDetailNumber")
-    .textContent =
-      `#${order.order_number}`;
-
-
-  $("orderDetailCustomerName")
-    .textContent =
-      order.customers?.name ||
-      "Customer";
-
-
-  $("orderDetailCustomer")
-    .textContent =
-      order.customers?.phone ||
-      "";
-
-
-  const {
-    data:
-      items,
-    error:
-      itemsError
-  } =
-  await supabase
-    .from(
-      "order_items"
-    )
-    .select(`
-      id,
-      product_name,
-      quantity,
-      unit_price,
-      total_price,
-      workflow_snapshot,
-      cancelled_at
-    `)
-    .eq(
-      "order_id",
-      orderId
-    )
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .order(
-      "created_at",
-      {
-        ascending:
-          true
-      }
-    );
-
-
-  if (
-    itemsError
-  ) {
-
-    throw itemsError;
-
-  }
-
-
-  let total =
-    0;
-
-
-  (items || []).forEach(
-    (
-      item
-    ) => {
-
-      total +=
-        Number(
-          item.total_price
-        ) || 0;
-
-
-      const row =
-        document.createElement(
-          "div"
-        );
-
-
-      row.className =
-        "order-detail-item";
-
-
-      const left =
-        document.createElement(
-          "div"
-        );
-
-
-      const name =
-        document.createElement(
-          "strong"
-        );
-
-
-      name.textContent =
-        item.product_name;
-
-
-      const qty =
-        document.createElement(
-          "span"
-        );
-
-
-      qty.textContent =
-        ` × ${item.quantity}`;
-
-
-      left.append(
-        name,
-        qty
-      );
-
-
-      const price =
-        document.createElement(
-          "strong"
-        );
-
-
-      price.textContent =
-        formatPrice(
-          item.total_price
-        );
-
-
-      row.append(
-        left,
-        price
-      );
-
-
-      if (
-        item.cancelled_at
-      ) {
-
-        row.classList.add(
-          "is-cancelled"
-        );
-
-      }
-
-
-      const productionPanel =
-        document.createElement(
-          "section"
-        );
-
-      productionPanel.className =
-        "production-panel";
-
-      renderProductionPanel(
-        item,
-        productionPanel
-      );
-
-      $("orderDetailItems")
-        .append(
-          row,
-          productionPanel
-        );
-
+  currentOrderTotal = 0;
+  currentOrderPaid = 0;
+  $("orderDetailItems").replaceChildren();
+  $("orderDetailMessage").textContent = "";
+  const user = await getCurrentUser();
+  const orderKey = `order:${orderId}`;
+  const itemsKey = `order-items:${orderId}`;
+  const paymentsKey = `order-payments:${orderId}`;
+  let order = null, items = null, payments = null;
+
+  if (navigator.onLine) {
+    try {
+      const orderResult = await supabase.from("orders").select(`id,order_number,customer_id,created_at,customers(id,name,phone)`).eq("id", orderId).eq("seller_id", user.id).single();
+      if (orderResult.error) throw orderResult.error;
+      order = orderResult.data;
+      const itemsResult = await supabase.from("order_items").select(`id,product_name,quantity,unit_price,total_price,workflow_snapshot,cancelled_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
+      if (itemsResult.error) throw itemsResult.error;
+      items = itemsResult.data || [];
+      const paymentsResult = await supabase.from("payments").select("amount,proof_status").eq("order_id", orderId).eq("seller_id", user.id);
+      if (paymentsResult.error) throw paymentsResult.error;
+      payments = paymentsResult.data || [];
+      await cacheNamed(orderKey, order);
+      await cacheNamed(itemsKey, items);
+      await cacheNamed(paymentsKey, payments);
+    } catch (error) {
+      order = await getCachedSnapshot(orderKey);
+      items = await getCachedSnapshot(itemsKey);
+      payments = await getCachedSnapshot(paymentsKey);
+      if (!order || items == null || payments == null) throw error;
+      console.warn("Using cached order details while offline.");
     }
-  );
-
-
-  const {
-    data:
-      payments,
-    error:
-      paymentsError
-  } =
-  await supabase
-    .from(
-      "payments"
-    )
-    .select(
-      "amount,proof_status"
-    )
-    .eq(
-      "order_id",
-      orderId
-    )
-    .eq(
-      "seller_id",
-      user.id
-    );
-
-
-  if (
-    paymentsError
-  ) {
-
-    throw paymentsError;
-
+  } else {
+    order = await getCachedSnapshot(orderKey);
+    items = await getCachedSnapshot(itemsKey);
+    payments = await getCachedSnapshot(paymentsKey);
   }
 
+  if (!order) throw new Error("This order has not been cached for offline use yet.");
+  items = items || [];
+  payments = payments || [];
+  $("orderDetailTitle").textContent = `Order #${order.order_number}`;
+  $("orderDetailNumber").textContent = `#${order.order_number}`;
+  $("orderDetailCustomerName").textContent = order.customers?.name || "Customer";
+  $("orderDetailCustomer").textContent = order.customers?.phone || "";
 
-  const paid =
-    (
-      payments ||
-      []
-    ).reduce(
-      (
-        sum,
-        payment
-      ) =>
-        sum +
-        (
-          Number(
-            payment.amount
-          ) || 0
-        ),
-      0
-    );
+  let total = 0;
+  items.forEach(item => {
+    total += Number(item.total_price) || 0;
+    const row = document.createElement("div");
+    row.className = "order-detail-item";
+    const left = document.createElement("div");
+    const name = document.createElement("strong"); name.textContent = item.product_name;
+    const qty = document.createElement("span"); qty.textContent = ` × ${item.quantity}`;
+    left.append(name, qty);
+    const price = document.createElement("strong"); price.textContent = formatPrice(item.total_price);
+    row.append(left, price);
+    if (item.cancelled_at) row.classList.add("is-cancelled");
+    const productionPanel = document.createElement("section");
+    productionPanel.className = "production-panel";
+    renderProductionPanel(item, productionPanel);
+    $("orderDetailItems").append(row, productionPanel);
+  });
 
-
-  $("orderDetailTotal")
-    .textContent =
-      formatPrice(
-        total
-      );
-
-
-  $("orderDetailPaid")
-    .textContent =
-      formatPrice(
-        paid
-      );
-
-
-  currentOrderTotal =
-    total;
-
-  currentOrderPaid =
-    paid;
-
-  $("orderDetailBalance")
-    .textContent =
-      formatPrice(
-        Math.max(
-          0,
-          total -
-          paid
-        )
-      );
-
-  await loadPayments(
-    orderId
-  );
-
+  const paid = payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+  $("orderDetailTotal").textContent = formatPrice(total);
+  $("orderDetailPaid").textContent = formatPrice(paid);
+  currentOrderTotal = total;
+  currentOrderPaid = paid;
+  $("orderDetailBalance").textContent = formatPrice(Math.max(0, total - paid));
+  await loadPayments(orderId);
 }
 
 
@@ -5455,22 +4887,21 @@ function normaliseWorkflowSnapshot(snapshot) {
 
 
 async function getProductionStageLogs(orderItemId) {
-
-  const {
-    data,
-    error
-  } = await supabase
-    .from("stage_logs")
-    .select("id,stage_order,stage_name,action,note,proof_photo_path,occurred_at,performed_by_user_id")
-    .eq("order_item_id", orderItemId)
-    .order("occurred_at", { ascending: true });
-
-  if (error) {
-    throw error;
+  const cacheKey = `stage-logs:${orderItemId}`;
+  if (navigator.onLine) {
+    try {
+      const result = await supabase.from("stage_logs").select("id,stage_order,stage_name,action,note,proof_photo_path,occurred_at,performed_by_user_id").eq("order_item_id", orderItemId).order("occurred_at", { ascending:true });
+      if (result.error) throw result.error;
+      const data = result.data || [];
+      await cacheNamed(cacheKey, data);
+      return data;
+    } catch (error) {
+      const cached = await getCachedSnapshot(cacheKey);
+      if (cached != null) return cached;
+      throw error;
+    }
   }
-
-  return data || [];
-
+  return (await getCachedSnapshot(cacheKey)) || [];
 }
 
 
@@ -6014,602 +5445,47 @@ async function loadPayments(
   orderId
 ) {
 
-  const list =
-    $("paymentList");
-
-
+  const list = $("paymentList");
   list.replaceChildren();
-
-
-  const user =
-    await getCurrentUser();
-
-
-  const {
-    data:
-      payments,
-    error
-  } =
-  await supabase
-    .from(
-      "payments"
-    )
-    .select(`
-      id,
-      amount,
-      payment_type,
-      proof_status,
-      created_at
-    `)
-    .eq(
-      "order_id",
-      orderId
-    )
-    .eq(
-      "seller_id",
-      user.id
-    )
-    .order(
-      "created_at",
-      {
-        ascending:
-          true
+  const user = await getCurrentUser();
+  const cacheKey = `order-payments-full:${orderId}`;
+  let payments = null;
+  if (navigator.onLine) {
+    try {
+      const result = await supabase.from("payments").select(`id,amount,payment_type,proof_status,created_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
+      if (result.error) throw result.error;
+      payments = result.data || [];
+      await cacheNamed(cacheKey, payments);
+    } catch (error) {
+      payments = await getCachedSnapshot(cacheKey);
+      if (payments == null) {
+        payments = await getCachedSnapshot(`order-payments:${orderId}`);
       }
-    );
-
-
-  if (error) {
-    throw error;
-  }
-
-
-  if (
-    !payments ||
-    payments.length === 0
-  ) {
-
-    const empty =
-      document.createElement(
-        "p"
-      );
-
-    empty.className =
-      "payment-empty";
-
-    empty.textContent =
-      "No payments recorded yet.";
-
-    list.appendChild(
-      empty
-    );
-
-    return;
-
-  }
-
-
-  const fragment =
-    document.createDocumentFragment();
-
-
-  payments.forEach(
-    (
-      payment,
-      index
-    ) => {
-
-      const row =
-        document.createElement(
-          "div"
-        );
-
-      row.className =
-        "payment-row";
-
-
-      const left =
-        document.createElement(
-          "div"
-        );
-
-
-      const title =
-        document.createElement(
-          "strong"
-        );
-
-      title.textContent =
-        paymentTypeLabel(
-          payment.payment_type
-        );
-
-
-      const meta =
-        document.createElement(
-          "span"
-        );
-
-      meta.textContent =
-        formatDate(
-          payment.created_at
-        );
-
-
-      left.append(
-        title,
-        meta
-      );
-
-
-      const right =
-        document.createElement(
-          "div"
-        );
-
-      right.className =
-        "payment-row-right";
-
-
-      const amount =
-        document.createElement(
-          "strong"
-        );
-
-      amount.textContent =
-        formatPrice(
-          payment.amount
-        );
-
-
-      const status =
-        document.createElement(
-          "span"
-        );
-
-      status.className =
-        "payment-status";
-
-
-      status.textContent =
-        payment.proof_status
-          ? payment.proof_status
-          : "Confirmed";
-
-
-      right.append(
-        amount,
-        status
-      );
-
-
-      row.append(
-        left,
-        right
-      );
-
-
-      fragment.appendChild(
-        row
-      );
-
+      if (payments == null) throw error;
     }
-  );
-
-
-  list.appendChild(
-    fragment
-  );
-
+  } else {
+    payments = await getCachedSnapshot(cacheKey);
+    if (payments == null) payments = await getCachedSnapshot(`order-payments:${orderId}`);
+  }
+  payments = payments || [];
+  if (!payments.length) {
+    const empty = document.createElement("p");
+    empty.className = "payment-empty"; empty.textContent = "No payments recorded yet."; list.appendChild(empty); return;
+  }
+  const fragment = document.createDocumentFragment();
+  payments.forEach((payment, index) => {
+    const row = document.createElement("div"); row.className = "payment-row";
+    const left = document.createElement("div");
+    const title = document.createElement("strong"); title.textContent = paymentTypeLabel(payment.payment_type);
+    const meta = document.createElement("span"); meta.textContent = formatDate(payment.created_at);
+    left.append(title, meta);
+    const right = document.createElement("div"); right.className = "payment-row-right";
+    const amount = document.createElement("strong"); amount.textContent = formatPrice(payment.amount);
+    right.appendChild(amount); row.append(left, right);
+    fragment.appendChild(row);
+  });
+  list.appendChild(fragment);
 }
-
-
-function openPaymentEditor() {
-
-  clearPaymentMessage();
-
-
-  const remaining =
-    Math.max(
-      0,
-      currentOrderTotal -
-      currentOrderPaid
-    );
-
-
-  if (
-    remaining <= 0
-  ) {
-
-    $("paymentMessage")
-      .textContent =
-        "This order is already fully paid.";
-
-
-    $("paymentEditor")
-      .hidden =
-        false;
-
-
-    return;
-
-  }
-
-
-  $("paymentAmount")
-    .value =
-      remaining.toFixed(
-        2
-      );
-
-
-  $("paymentType")
-    .value =
-      "additional";
-
-
-  $("paymentEditor")
-    .hidden =
-      false;
-
-
-  $("paymentAmount")
-    .focus();
-
-}
-
-
-function closePaymentEditor() {
-
-  $("paymentEditor")
-    .hidden =
-      true;
-
-
-  $("paymentAmount")
-    .value =
-      "";
-
-
-  clearPaymentMessage();
-
-}
-
-
-async function savePayment() {
-
-  clearPaymentMessage();
-
-
-  const amount =
-    Number(
-      $("paymentAmount")
-        .value
-    );
-
-
-  const remaining =
-    Math.max(
-      0,
-      currentOrderTotal -
-      currentOrderPaid
-    );
-
-
-  if (
-    !Number.isFinite(
-      amount
-    ) ||
-    amount <=
-      0
-  ) {
-
-    $("paymentMessage")
-      .textContent =
-        "Enter a valid payment amount.";
-
-    return;
-
-  }
-
-
-  if (
-    amount >
-    remaining
-  ) {
-
-    $("paymentMessage")
-      .textContent =
-        "Payment cannot exceed the remaining balance.";
-
-    return;
-
-  }
-
-
-  setLoading(
-    $("savePaymentButton"),
-    "Saving..."
-  );
-
-
-  try {
-
-    const user =
-      await getCurrentUser();
-
-
-    const {
-      data:
-        order,
-      error:
-        orderError
-    } =
-    await supabase
-      .from(
-        "orders"
-      )
-      .select(
-        "id"
-      )
-      .eq(
-        "id",
-        currentOrderId
-      )
-      .eq(
-        "seller_id",
-        user.id
-      )
-      .single();
-
-
-    if (
-      orderError
-    ) {
-
-      throw orderError;
-
-    }
-
-
-    const {
-      error:
-        insertError
-    } =
-    await supabase
-      .from(
-        "payments"
-      )
-      .insert({
-
-        order_id:
-          order.id,
-
-        seller_id:
-          user.id,
-
-        amount,
-
-        payment_type:
-          $("paymentType")
-            .value,
-
-        proof_status:
-          null
-
-      });
-
-
-    if (
-      insertError
-    ) {
-
-      throw insertError;
-
-    }
-
-
-    closePaymentEditor();
-
-
-    await loadOrderDetail(
-      currentOrderId
-    );
-
-
-  } catch (
-    error
-  ) {
-
-    console.error(
-      "Payment save failed:",
-      error
-    );
-
-
-    $("paymentMessage")
-      .textContent =
-        error?.message ||
-        "Unable to record payment.";
-
-  } finally {
-
-    resetButton(
-      $("savePaymentButton"),
-      "Record Payment"
-    );
-
-  }
-
-}
-
-
-function clearPaymentMessage() {
-
-  $("paymentMessage")
-    .textContent =
-      "";
-
-}
-
-
-function paymentTypeLabel(
-  value
-) {
-
-  switch (
-    value
-  ) {
-
-    case "downpayment":
-      return "Downpayment";
-
-    case "additional":
-      return "Additional Payment";
-
-    case "final":
-      return "Final Payment";
-
-    case "cash":
-      return "Cash Payment";
-
-    default:
-      return "Payment";
-
-  }
-
-}
-
-
-function formatDate(
-  value
-) {
-
-  const date =
-    new Date(
-      value
-    );
-
-
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
-
-    return "";
-
-  }
-
-
-  return new Intl.DateTimeFormat(
-    "en-PH",
-    {
-      dateStyle:
-        "medium",
-      timeStyle:
-        "short"
-    }
-  ).format(
-    date
-  );
-
-}
-
-
-$("addPaymentButton")
-  .addEventListener(
-    "click",
-    openPaymentEditor
-  );
-
-
-$("cancelPaymentButton")
-  .addEventListener(
-    "click",
-    closePaymentEditor
-  );
-
-
-$("savePaymentButton")
-  .addEventListener(
-    "click",
-    savePayment
-  );
-
-
-$("orderDetailAddItemButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      pendingQrToken =
-        null;
-
-      pendingProduct =
-        null;
-
-      navigate(
-        "scanner"
-      );
-
-    }
-  );
-
-
-$("orderCreateBackButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      pendingQrToken =
-        null;
-
-      pendingProduct =
-        null;
-
-      navigate(
-        "home"
-      );
-
-    }
-  );
-
-
-$("orderCancelButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      pendingQrToken =
-        null;
-
-      pendingProduct =
-        null;
-
-      navigate(
-        "home"
-      );
-
-    }
-  );
-
-
-$("orderDetailBackButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      currentOrderId =
-        null;
-
-      navigate(
-        "home"
-      );
-
-    }
-  );
-
-
 
 
 // ============================================================
