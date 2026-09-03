@@ -480,56 +480,66 @@ function showScreen(route) {
 
 async function getSession() {
 
-  const {
-    data,
-    error
-  } =
-    await supabase
-      .auth
-      .getSession();
+  try {
+    const {
+      data,
+      error
+    } = await supabase.auth.getSession();
 
+    if (!error && data?.session) {
+      return data.session;
+    }
 
-  if (error) {
+    const persisted = readPersistedSession();
+    if (persisted?.user?.id) {
+      return persisted;
+    }
 
+    if (error) {
+      throw error;
+    }
+
+    return null;
+  } catch (error) {
+    const persisted = readPersistedSession();
+    if (persisted?.user?.id) {
+      console.warn("Using persisted seller session while offline.");
+      return persisted;
+    }
     throw error;
-
   }
-
-
-  return data.session;
-
 }
 
 
 async function getCurrentUser() {
 
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .auth
-    .getUser();
+  try {
+    const {
+      data,
+      error
+    } = await supabase.auth.getUser();
 
+    if (!error && data?.user) {
+      return data.user;
+    }
 
-  if (error) {
+    const persisted = readPersistedSession();
+    if (persisted?.user?.id) {
+      return persisted.user;
+    }
 
+    if (error) {
+      throw error;
+    }
+
+    throw new Error("No authenticated user.");
+  } catch (error) {
+    const persisted = readPersistedSession();
+    if (persisted?.user?.id) {
+      return persisted.user;
+    }
     throw error;
-
   }
-
-
-  if (!data.user) {
-
-    throw new Error(
-      "No authenticated user."
-    );
-
-  }
-
-
-  return data.user;
-
 }
 
 
@@ -794,12 +804,18 @@ async function renderApplication() {
       error
     );
 
+    const persisted = readPersistedSession();
+    const route = getRoute();
 
-    showScreen(
-      "login"
-    );
+    if (!navigator.onLine && persisted?.user?.id) {
+      // A lost network connection is not a logout. Keep the seller
+      // in the app and let screen-level loaders use cached data.
+      showScreen(route);
+      await updateConnectivityIndicator();
+      return;
+    }
 
-
+    showScreen("login");
     $("loginMessage").textContent =
       error?.message ||
       "Unable to load the application.";
@@ -5850,22 +5866,20 @@ supabase.auth.onAuthStateChange(
     setTimeout(
       () => {
 
-        if (
-          currentSession
-        ) {
+        const persisted = readPersistedSession();
+        const effectiveSession = currentSession || persisted;
 
+        if (effectiveSession?.user?.id) {
           renderApplication();
-
-        } else {
-
-          showScreen(
-            getRoute() ===
-              "register"
-              ? "register"
-              : "login"
-          );
-
+          return;
         }
+
+        showScreen(
+          getRoute() ===
+            "register"
+            ? "register"
+            : "login"
+        );
 
       },
       0
