@@ -262,10 +262,6 @@ function initializeOfflineFoundation() {
   updateConnectivityIndicator();
   window.addEventListener("online", async () => {
     await updateConnectivityIndicator();
-    if (!isSupabaseReady) {
-      window.location.reload();
-      return;
-    }
     await refreshOfflineQrCache();
     await syncOfflineOrders();
   });
@@ -439,44 +435,61 @@ async function getSession() {
 
   if (error) {
 
+    const persisted = readPersistedSession();
+
+    if (persisted?.user) {
+      return persisted;
+    }
+
     throw error;
 
   }
 
 
-  return data.session;
+  return data.session || readPersistedSession();
 
 }
 
 
 async function getCurrentUser() {
 
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .auth
-    .getUser();
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-
-  if (!data.user) {
-
+  // Offline-first rule: never wait for a remote auth verification while offline.
+  if (!navigator.onLine) {
+    const offlineSession = readPersistedSession();
+    if (offlineSession?.user) {
+      return offlineSession.user;
+    }
     throw new Error(
-      "No authenticated user."
+      "No saved seller session is available on this device."
     );
-
   }
 
+  try {
+    const {
+      data,
+      error
+    } =
+    await supabase
+      .auth
+      .getUser();
 
-  return data.user;
+    if (error) throw error;
+    if (data.user) return data.user;
+  } catch (error) {
+    const persisted = readPersistedSession();
+    if (persisted?.user) {
+      console.warn("Using persisted seller session after auth network failure.");
+      return persisted.user;
+    }
+    throw error;
+  }
+
+  const persisted = readPersistedSession();
+  if (persisted?.user) return persisted.user;
+
+  throw new Error(
+    "No authenticated user."
+  );
 
 }
 
@@ -490,6 +503,12 @@ async function getSeller(
 ) {
 
   const cacheKey = `seller:${userId}`;
+  const cached = await getCachedSnapshot(cacheKey);
+
+  // Always prefer the local copy for the first paint. Network refresh can happen below.
+  if (cached && !navigator.onLine) {
+    return cached;
+  }
 
   try {
     const { data, error } = await supabase
@@ -503,11 +522,10 @@ async function getSeller(
 
     if (error) throw error;
     if (data) await cacheNamed(cacheKey, data);
-    return data;
+    return data || cached;
   } catch (error) {
-    const cached = await getCachedSnapshot(cacheKey);
     if (cached) {
-      console.warn("Using cached seller data while offline.");
+      console.warn("Using cached seller data after network failure.");
       return cached;
     }
     throw error;
@@ -817,53 +835,42 @@ async function loadHomeLogo(
     );
 
 
-  if (!logoPath) {
-
+  if (!logoPath || !navigator.onLine) {
     return;
-
   }
 
 
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .storage
-    .from(
-      "shop-logos"
-    )
-    .createSignedUrl(
-      logoPath,
-      3600
-    );
+  try {
+    const {
+      data,
+      error
+    } =
+    await supabase
+      .storage
+      .from(
+        "shop-logos"
+      )
+      .createSignedUrl(
+        logoPath,
+        3600
+      );
 
+    if (error) throw error;
 
-  if (error) {
+    if (data?.signedUrl) {
+      $("homeLogo")
+        .src =
+          data.signedUrl;
 
+      $("homeLogoContainer")
+        .hidden =
+          false;
+    }
+  } catch (error) {
     console.warn(
       "Unable to load shop logo:",
       error
     );
-
-    return;
-
-  }
-
-
-  if (
-    data?.signedUrl
-  ) {
-
-    $("homeLogo")
-      .src =
-        data.signedUrl;
-
-
-    $("homeLogoContainer")
-      .hidden =
-        false;
-
   }
 
 }
@@ -5770,7 +5777,7 @@ async function logout() {
 
 supabase.auth.onAuthStateChange(
   (
-    _event,
+    event,
     currentSession
   ) => {
 
@@ -5782,16 +5789,26 @@ supabase.auth.onAuthStateChange(
         ) {
 
           renderApplication();
+          return;
 
-        } else {
+        }
 
+        // A transient null auth event must not log the seller out while offline.
+        if (!navigator.onLine && event !== "SIGNED_OUT") {
+          const persisted = readPersistedSession();
+          if (persisted?.user) {
+            renderApplication();
+            return;
+          }
+        }
+
+        if (event === "SIGNED_OUT") {
           showScreen(
             getRoute() ===
               "register"
               ? "register"
               : "login"
           );
-
         }
 
       },

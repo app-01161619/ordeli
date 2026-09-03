@@ -1,14 +1,14 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-03-09";
+const CACHE_VERSION = "ordeli-v2026-09-03-04";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-03-09"
+  "/js/app.js?v=2026-09-03-01"
 ];
 
 self.addEventListener("install", (event) => {
