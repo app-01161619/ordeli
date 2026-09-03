@@ -1,4 +1,4 @@
-import { supabase, isSupabaseReady, readPersistedSession } from "./supabase.js";
+import { supabase, readPersistedSession, ensureSupabase } from "./supabase.js";
 
 
 // ============================================================
@@ -19,6 +19,7 @@ const OFFLINE_DEVICE_KEY = "ordeli-device-id";
 const OFFLINE_CACHE_STORE = "entity_cache";
 let offlineDbPromise = null;
 let offlineSyncInProgress = false;
+let runtimeOffline = !navigator.onLine;
 function getOfflineDeviceId() {
   let id = localStorage.getItem(OFFLINE_DEVICE_KEY);
   if (!id) {
@@ -259,17 +260,18 @@ async function updateConnectivityIndicator() {
 }
 function initializeOfflineFoundation() {
   ensureConnectivityIndicator();
+  runtimeOffline = !navigator.onLine;
   updateConnectivityIndicator();
   window.addEventListener("online", async () => {
+    runtimeOffline = false;
     await updateConnectivityIndicator();
-    if (!isSupabaseReady) {
-      window.location.reload();
-      return;
-    }
-    await refreshOfflineQrCache();
-    await syncOfflineOrders();
+    try { await ensureSupabase(); } catch (error) { console.warn("Supabase initialization after reconnect failed:", error); return; }
+    try { await refreshOfflineQrCache(); } catch (_) {}
+    try { await syncOfflineOrders(); } catch (error) { console.error("Offline order sync failed:", error); }
+    if (getRoute() === "order-create") restorePendingOrderDraft();
+    if (getRoute() !== "login" && getRoute() !== "register") renderApplication();
   });
-  window.addEventListener("offline", updateConnectivityIndicator);
+  window.addEventListener("offline", () => { runtimeOffline = true; updateConnectivityIndicator(); });
   window.setInterval(updateConnectivityIndicator, 5000);
   refreshOfflineQrCache();
   if (navigator.onLine) syncOfflineOrders();
@@ -428,57 +430,15 @@ function showScreen(route) {
 // ============================================================
 
 async function getSession() {
-
-  const {
-    data,
-    error
-  } =
-    await supabase
-      .auth
-      .getSession();
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-
-  return data.session;
-
+  const result = await supabase.auth.getSession();
+  if (result?.error) throw result.error;
+  return result?.data?.session || readPersistedSession();
 }
 
-
 async function getCurrentUser() {
-
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .auth
-    .getUser();
-
-
-  if (error) {
-
-    throw error;
-
-  }
-
-
-  if (!data.user) {
-
-    throw new Error(
-      "No authenticated user."
-    );
-
-  }
-
-
-  return data.user;
-
+  const session = await getSession();
+  if (!session?.user) throw new Error("No authenticated user.");
+  return session.user;
 }
 
 
@@ -486,31 +446,21 @@ async function getCurrentUser() {
 // SELLER
 // ============================================================
 
-async function getSeller(
-  userId
-) {
-
+async function getSeller(userId) {
   const cacheKey = `seller:${userId}`;
-
+  if (runtimeOffline || !navigator.onLine) {
+    const cached = await getCachedSnapshot(cacheKey);
+    if (cached) return cached;
+  }
   try {
-    const { data, error } = await supabase
-      .from("sellers")
-      .select(`
-        id, email, login_method, google_id,
-        shop_name, shop_address, shop_logo_path
-      `)
-      .eq("id", userId)
-      .maybeSingle();
-
+    await ensureSupabase();
+    const { data, error } = await supabase.from("sellers").select(`id, email, login_method, google_id, shop_name, shop_address, shop_logo_path`).eq("id", userId).maybeSingle();
     if (error) throw error;
     if (data) await cacheNamed(cacheKey, data);
     return data;
   } catch (error) {
     const cached = await getCachedSnapshot(cacheKey);
-    if (cached) {
-      console.warn("Using cached seller data while offline.");
-      return cached;
-    }
+    if (cached) return cached;
     throw error;
   }
 }
@@ -543,6 +493,10 @@ async function renderApplication() {
 
 
   try {
+
+    if (!runtimeOffline && navigator.onLine) {
+      try { await ensureSupabase(); } catch (_) {}
+    }
 
     const session =
       await getSession();
@@ -612,19 +566,11 @@ async function renderApplication() {
     }
 
 
-    if (
-      getRoute() ===
-      "order-create"
-    ) {
-
-      showScreen(
-        "orderCreate"
-      );
-
+    if (getRoute() === "order-create") {
+      restorePendingOrderDraft();
+      showScreen("orderCreate");
       updateOrderCreateTotals();
-
       return;
-
     }
 
 
@@ -737,22 +683,17 @@ async function renderApplication() {
 
 
   } catch (error) {
-
-    console.error(
-      "Application render error:",
-      error
-    );
-
-
-    showScreen(
-      "login"
-    );
-
-
-    $("loginMessage").textContent =
-      error?.message ||
-      "Unable to load the application.";
-
+    console.error("Application render error:", error);
+    const sessionStillPresent = await getSession().catch(() => readPersistedSession());
+    if (!sessionStillPresent) {
+      showScreen(getRoute() === "register" ? "register" : "login");
+      $("loginMessage").textContent = error?.message || "Unable to load the application.";
+    } else {
+      showScreen(getRoute());
+      const ids = { products: "productMessage", workflow: "workflowMessage", qr: "qrMessage", scanner: "scannerMessage", "order-create": "orderCreateMessage", "order-detail": "orderDetailMessage", "shop-setup": "shopSetupMessage" };
+      const target = $(ids[getRoute()]);
+      if (target) target.textContent = error?.message || "Unable to load this screen.";
+    }
   }
 
 
@@ -1598,7 +1539,7 @@ async function loadProducts() {
   const cacheKey = `products:${user.id}`;
   let data = null;
 
-  if (navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine) {
     try {
       const result = await supabase
         .from("products")
@@ -2215,7 +2156,7 @@ async function loadWorkflow() {
   let product = null;
   let stages = null;
 
-  if (navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine) {
     try {
       const productResult = await supabase.from("products").select("id,name").eq("id", workflowProductId).eq("seller_id", user.id).single();
       if (productResult.error) throw productResult.error;
@@ -2931,7 +2872,7 @@ async function loadQrProducts() {
   const user = await getCurrentUser();
   const cacheKey = `qr-products:${user.id}`;
   let data = null;
-  if (navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine) {
     try {
       const result = await supabase.from("products").select("id,name,is_active").eq("seller_id", user.id).eq("is_active", true).order("name", {ascending:true});
       if (result.error) throw result.error;
@@ -2958,7 +2899,7 @@ async function loadQrSeries() {
   const cacheKey = `qr-series:${user.id}`;
   let snapshot = null;
 
-  if (navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine) {
     try {
       let reservationRows = [];
       try {
@@ -4283,6 +4224,26 @@ async function getOrderIdFromItem(
 // ORDER CREATION
 // ============================================================
 
+function persistPendingOrderDraft() {
+  try {
+    sessionStorage.setItem("ordeli-pending-order-draft", JSON.stringify({ qrToken: pendingQrToken, product: pendingProduct }));
+  } catch (_) {}
+}
+
+function restorePendingOrderDraft() {
+  if (pendingQrToken && pendingProduct) return;
+  try {
+    const raw = sessionStorage.getItem("ordeli-pending-order-draft");
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    if (!draft?.qrToken || !draft?.product) return;
+    pendingQrToken = draft.qrToken;
+    pendingProduct = draft.product;
+    $("orderDetectedProduct").textContent = pendingProduct?.name || "Product";
+    $("orderDetectedPrice").textContent = formatPrice(pendingProduct?.default_price);
+  } catch (_) {}
+}
+
 function prepareOrderCreation(
   qr
 ) {
@@ -4293,6 +4254,7 @@ function prepareOrderCreation(
   pendingProduct =
     qr.products;
 
+  persistPendingOrderDraft();
 
   $("orderDetectedProduct")
     .textContent =
@@ -4348,7 +4310,7 @@ async function loadActiveCustomers() {
   const user = await getCurrentUser();
   const cacheKey = `customers:${user.id}`;
   let data = null;
-  if (navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine) {
     try {
       const result = await supabase.from("customers").select(`id,name,phone,orders!inner(id,cancelled_at)`).eq("seller_id", user.id).is("orders.cancelled_at", null).order("name", {ascending:true});
       if (result.error) throw result.error;
@@ -4503,6 +4465,33 @@ $("orderCreateForm")
   );
 
 
+async function createOrderOfflineFallback() {
+  const quantity = Number($("orderQuantity").value);
+  const downpayment = Number($("orderDownpayment").value) || 0;
+  if ($("existingCustomerChoice").checked) throw new Error("Existing customer linking is unavailable while offline. Choose New customer.");
+  const customerName = $("orderCustomerName").value.trim();
+  const customerPhone = $("orderCustomerPhone").value.trim() || null;
+  if (!pendingQrToken || !pendingProduct) throw new Error("No scanned product QR is selected.");
+  const cachedQr = await getOfflineQr(pendingQrToken);
+  if (!cachedQr || cachedQr.used) throw new Error("This QR is not reserved and available for offline use on this device.");
+  if (!customerName) throw new Error("Customer name is required.");
+  if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Quantity must be at least 1.");
+  const total = (Number(pendingProduct?.default_price) || 0) * quantity;
+  if (downpayment < 0 || downpayment > total) throw new Error("Downpayment must be between ₱0 and the order total.");
+  const row = await enqueueOfflineOrder({ qrToken: pendingQrToken, customerId: null, customerName, customerPhone, quantity, downpayment, productName: pendingProduct?.name || "Product", product: pendingProduct || null, unitPrice: Number(pendingProduct?.default_price) || 0, total });
+  const offlineOrderId = `offline:${row.clientOrderId}`;
+  const offlineOrderNumber = `OFFLINE-${row.clientOrderId.slice(0, 8).toUpperCase()}`;
+  await cacheNamed(`order:${offlineOrderId}`, { id: offlineOrderId, order_number: offlineOrderNumber, customer_id: null, created_at: row.createdAt, customers: { id: null, name: customerName, phone: customerPhone } });
+  await cacheNamed(`order-items:${offlineOrderId}`, [{ id: `offline-item:${row.clientOrderId}`, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [], cancelled_at: null, offline: true }]);
+  await cacheNamed(`order-payments:${offlineOrderId}`, downpayment > 0 ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment" }] : []);
+  await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
+  currentOrderId = offlineOrderId;
+  currentOrderShowProduction = false;
+  try { sessionStorage.setItem(`ordeli-order-detail-mode:${offlineOrderId}`, "fresh"); } catch (_) {}
+  await updateConnectivityIndicator();
+  navigate("order-detail");
+}
+
 async function createOrder() {
 
   clearOrderMessage();
@@ -4647,7 +4636,7 @@ async function createOrder() {
   }
 
 
-  if (!navigator.onLine) {
+  if (runtimeOffline || !navigator.onLine) {
     if (usingExisting) {
       $("orderCreateMessage").textContent = "Existing customer linking is unavailable while offline. Choose New customer.";
       return;
@@ -4720,6 +4709,8 @@ async function createOrder() {
 
   try {
 
+    await ensureSupabase();
+
     const {
       data,
       error
@@ -4786,20 +4777,21 @@ async function createOrder() {
     );
 
 
-  } catch (
-    error
-  ) {
-
-    console.error(
-      "Order creation failed:",
-      error
-    );
-
-
-    $("orderCreateMessage")
-      .textContent =
-        error?.message ||
-        "Unable to create the order.";
+  } catch (error) {
+    console.error("Order creation failed:", error);
+    const message = error?.message || "Unable to create the order.";
+    const looksLikeConnectivityFailure = !navigator.onLine || runtimeOffline || /network|fetch|offline|failed to fetch|load failed|timeout|supabase network/i.test(message);
+    if (looksLikeConnectivityFailure) {
+      runtimeOffline = true;
+      try {
+        await createOrderOfflineFallback();
+        return;
+      } catch (offlineError) {
+        $("orderCreateMessage").textContent = offlineError?.message || message;
+      }
+    } else {
+      $("orderCreateMessage").textContent = message;
+    }
 
   } finally {
 
@@ -4844,7 +4836,7 @@ async function loadOrderDetail(
   } catch (_) {}
   let order = null, items = null, payments = null;
 
-  if (navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine) {
     try {
       const orderResult = await supabase.from("orders").select(`id,order_number,customer_id,created_at,customers(id,name,phone)`).eq("id", orderId).eq("seller_id", user.id).single();
       if (orderResult.error) throw orderResult.error;
@@ -4970,7 +4962,7 @@ function normaliseWorkflowSnapshot(snapshot) {
 
 async function getProductionStageLogs(orderItemId) {
   const cacheKey = `stage-logs:${orderItemId}`;
-  if (navigator.onLine) {
+  if (!runtimeOffline && navigator.onLine) {
     try {
       const result = await supabase.from("stage_logs").select("id,stage_order,stage_name,action,note,proof_photo_path,occurred_at,performed_by_user_id").eq("order_item_id", orderItemId).order("occurred_at", { ascending:true });
       if (result.error) throw result.error;
@@ -5850,38 +5842,15 @@ async function logout() {
 // AUTH STATE + ROUTING
 // ============================================================
 
-supabase.auth.onAuthStateChange(
-  (
-    _event,
-    currentSession
-  ) => {
-
-    setTimeout(
-      () => {
-
-        if (
-          currentSession
-        ) {
-
-          renderApplication();
-
-        } else {
-
-          showScreen(
-            getRoute() ===
-              "register"
-              ? "register"
-              : "login"
-          );
-
-        }
-
-      },
-      0
-    );
-
-  }
-);
+supabase.auth.onAuthStateChange((event, currentSession) => {
+  setTimeout(() => {
+    if (event === "SIGNED_OUT") {
+      showScreen(getRoute() === "register" ? "register" : "login");
+      return;
+    }
+    if (currentSession) renderApplication();
+  }, 0);
+});
 
 
 initializeOfflineFoundation();
