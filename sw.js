@@ -47,28 +47,23 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".css") ||
     url.pathname.endsWith(".webmanifest");
 
-  if (!isAppAsset) {
+  if (isAppAsset) {
     event.respondWith(
-      caches.match(request, { ignoreSearch: true })
-        .then((cached) => cached || fetch(request))
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            caches.open(CACHE_VERSION)
+              .then((cache) => cache.put(request, response.clone()))
+              .catch(() => {});
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
     );
     return;
   }
 
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION)
-            .then((cache) => cache.put(request, copy))
-            .catch(() => {});
-        }
-        return response;
-      })
-      .catch(() =>
-        caches.match(request, { ignoreSearch: true })
-          .then((cached) => cached || caches.match("/index.html"))
-      )
+    caches.match(request).then((cached) => cached || fetch(request))
   );
 });

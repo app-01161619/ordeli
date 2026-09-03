@@ -156,14 +156,16 @@ async function enqueueOfflineOrder(payload) {
   const db = await openOfflineDb();
   if (!db) throw new Error("Offline storage is not available on this device.");
   const clientOrderId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const localOrderId = payload?.localOrderId || `local-${clientOrderId}`;
   const row = {
     type: "create_order",
     status: "waiting",
     clientOrderId,
+    localOrderId,
     deviceId: getOfflineDeviceId(),
     createdAt: new Date().toISOString(),
     attempts: 0,
-    payload
+    payload: { ...payload, localOrderId }
   };
   await new Promise((resolve, reject) => {
     const tx = db.transaction(OFFLINE_QUEUE_STORE, "readwrite");
@@ -195,6 +197,48 @@ async function updateQueuedOrder(row) {
   });
 }
 
+async function cacheOfflineOrderBundle(localOrderId, bundle) {
+  if (!localOrderId || !bundle) return;
+  const orderId = localOrderId;
+  const order = {
+    id: orderId,
+    order_number: bundle.order?.order_number || `OFFLINE-${String(orderId).slice(-8)}`,
+    customer_id: bundle.order?.customer_id || bundle.customer?.id || null,
+    created_at: bundle.order?.created_at || new Date().toISOString(),
+    customers: bundle.order?.customers || bundle.customer || null,
+    offline_pending: bundle.offline_pending ?? true
+  };
+  await cacheNamed(`order:${orderId}`, order);
+  await cacheNamed(`order-items:${orderId}`, bundle.items || []);
+  await cacheNamed(`order-payments:${orderId}`, bundle.payments || []);
+  for (const item of (bundle.items || [])) {
+    await cacheNamed(`stage-logs:${item.id}`, bundle.stageLogs?.[item.id] || []);
+  }
+}
+
+async function replaceOfflineOrderBundle(localOrderId, serverOrderId) {
+  if (!localOrderId || !serverOrderId) return;
+  const user = await getCurrentUser();
+  const orderResult = await supabase.from("orders").select(`id,order_number,customer_id,created_at,customers(id,name,phone)`).eq("id", serverOrderId).eq("seller_id", user.id).single();
+  if (orderResult.error) throw orderResult.error;
+  const itemsResult = await supabase.from("order_items").select(`id,product_name,quantity,unit_price,total_price,workflow_snapshot,cancelled_at`).eq("order_id", serverOrderId).eq("seller_id", user.id).order("created_at", {ascending:true});
+  if (itemsResult.error) throw itemsResult.error;
+  const paymentsResult = await supabase.from("payments").select("amount,proof_status").eq("order_id", serverOrderId).eq("seller_id", user.id);
+  if (paymentsResult.error) throw paymentsResult.error;
+  await cacheNamed(`order:${localOrderId}`, orderResult.data);
+  await cacheNamed(`order-items:${localOrderId}`, itemsResult.data || []);
+  await cacheNamed(`order-payments:${localOrderId}`, paymentsResult.data || []);
+  await cacheNamed(`order:${serverOrderId}`, orderResult.data);
+  await cacheNamed(`order-items:${serverOrderId}`, itemsResult.data || []);
+  await cacheNamed(`order-payments:${serverOrderId}`, paymentsResult.data || []);
+  for (const item of (itemsResult.data || [])) {
+    try {
+      const logsResult = await supabase.from("stage_logs").select("id,stage_order,stage_name,action,note,proof_photo_path,occurred_at,performed_by_user_id").eq("order_item_id", item.id).order("occurred_at", {ascending:true});
+      if (!logsResult.error) await cacheNamed(`stage-logs:${item.id}`, logsResult.data || []);
+    } catch (_) {}
+  }
+}
+
 async function syncOfflineOrders() {
   if (!navigator.onLine || offlineSyncInProgress) return;
   const session = await supabase.auth.getSession();
@@ -224,6 +268,14 @@ async function syncOfflineOrders() {
         row.syncedAt = new Date().toISOString();
         row.serverResult = data;
         await updateQueuedOrder(row);
+        try {
+          await replaceOfflineOrderBundle(row.localOrderId || p.localOrderId, data?.order_id);
+          if (currentOrderId === (row.localOrderId || p.localOrderId) && getRoute() === "order-detail") {
+            await loadOrderDetail(currentOrderId);
+          }
+        } catch (cacheError) {
+          console.warn("Synced order cache refresh failed:", cacheError);
+        }
       } catch (error) {
         row.status = "error";
         row.lastError = error?.message || "Synchronization failed.";
@@ -810,41 +862,60 @@ async function loadHomeLogo(
     .hidden =
       true;
 
+
   $("homeLogo")
     .removeAttribute(
       "src"
     );
 
-  if (!logoPath || !navigator.onLine) {
+
+  if (!logoPath) {
+
     return;
+
   }
 
-  try {
-    const {
-      data,
-      error
-    } =
-    await supabase
-      .storage
-      .from(
-        "shop-logos"
-      )
-      .createSignedUrl(
-        logoPath,
-        3600
-      );
 
-    if (error) throw error;
+  const {
+    data,
+    error
+  } =
+  await supabase
+    .storage
+    .from(
+      "shop-logos"
+    )
+    .createSignedUrl(
+      logoPath,
+      3600
+    );
 
-    if (data?.signedUrl) {
-      $("homeLogo").src = data.signedUrl;
-      $("homeLogoContainer").hidden = false;
-    }
-  } catch (error) {
+
+  if (error) {
+
     console.warn(
       "Unable to load shop logo:",
       error
     );
+
+    return;
+
+  }
+
+
+  if (
+    data?.signedUrl
+  ) {
+
+    $("homeLogo")
+      .src =
+        data.signedUrl;
+
+
+    $("homeLogoContainer")
+      .hidden =
+        false;
+
   }
 
 }
@@ -4624,32 +4695,53 @@ async function createOrder() {
 
 
   if (!navigator.onLine) {
-    if (usingExisting) {
-      $("orderCreateMessage").textContent = "Existing customer linking is unavailable while offline. Choose New customer.";
-      return;
-    }
     const cachedQr = await getOfflineQr(pendingQrToken);
     if (!cachedQr || cachedQr.used) {
       $("orderCreateMessage").textContent = "This QR is not reserved and available for offline use on this device.";
       return;
     }
     try {
+      const clientOrderIdPreview = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const localOrderId = `local-${clientOrderIdPreview}`;
+      let localCustomer;
+      if (usingExisting) {
+        const cachedCustomers = (await getCachedSnapshot(`customers:${(await getCurrentUser()).id}`)) || [];
+        const match = cachedCustomers.find((customer) => customer.id === customerId);
+        localCustomer = match || { id: customerId, name: $("existingCustomerSelect").selectedOptions[0]?.textContent?.split(" · ")[0] || "Customer", phone: null };
+      } else {
+        localCustomer = { id: null, name: customerName, phone: customerPhone };
+      }
+      const itemId = `local-item-${crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
       const row = await enqueueOfflineOrder({
         qrToken: pendingQrToken,
-        customerId: null,
+        customerId,
         customerName,
         customerPhone,
         quantity,
         downpayment,
         productName: pendingProduct?.name || "Product",
         unitPrice: Number(pendingProduct?.default_price) || 0,
-        total
+        total,
+        localOrderId,
+        localItemId: itemId,
+        workflowSnapshot: []
       });
+      const workflowSnapshot = (await getCachedSnapshot(`workflow-stages:${pendingProduct?.id}`)) || [];
+      const offlineBundle = {
+        order: { id: localOrderId, order_number: `OFFLINE-${row.clientOrderId.slice(0, 8).toUpperCase()}`, customer_id: customerId, created_at: row.createdAt, customers: localCustomer },
+        customer: localCustomer,
+        items: [{ id: itemId, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: workflowSnapshot, cancelled_at: null }],
+        payments: downpayment > 0 ? [{ amount: downpayment, payment_type: "downpayment", proof_status: null, created_at: row.createdAt }] : [],
+        stageLogs: { [itemId]: [] },
+        offline_pending: true
+      };
+      await cacheOfflineOrderBundle(localOrderId, offlineBundle);
       await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
+      currentOrderId = localOrderId;
       $("orderCreateMessage").textContent = `Saved offline. Order is waiting to sync when you reconnect.`;
       $("orderCreateMessage").classList.add("success-message");
       await updateConnectivityIndicator();
-      setTimeout(() => navigate("home"), 700);
+      setTimeout(() => navigate("order-detail"), 500);
     } catch (error) {
       console.error("Offline order save failed:", error);
       $("orderCreateMessage").textContent = error?.message || "Unable to save the order offline.";
