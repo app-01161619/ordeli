@@ -269,7 +269,12 @@ function initializeOfflineFoundation() {
     await refreshOfflineQrCache();
     await syncOfflineOrders();
   });
-  window.addEventListener("offline", updateConnectivityIndicator);
+  window.addEventListener("offline", async () => {
+    await updateConnectivityIndicator();
+    // Do not wait for a failed Supabase request. Immediately redraw the
+    // current route from local state/cache.
+    renderApplication();
+  });
   window.setInterval(updateConnectivityIndicator, 5000);
   refreshOfflineQrCache();
   if (navigator.onLine) syncOfflineOrders();
@@ -428,6 +433,13 @@ function showScreen(route) {
 
 async function getSession() {
 
+  // When the connection is unavailable, never wait on the live Supabase
+  // client. The seller session is already persisted locally by Supabase.
+  if (!navigator.onLine) {
+    const persisted = readPersistedSession();
+    return persisted || null;
+  }
+
   const {
     data,
     error
@@ -439,17 +451,27 @@ async function getSession() {
 
   if (error) {
 
+    const persisted = readPersistedSession();
+    if (persisted) return persisted;
     throw error;
 
   }
 
 
-  return data.session;
+  return data.session || readPersistedSession();
 
 }
 
 
 async function getCurrentUser() {
+
+  if (!navigator.onLine) {
+    const session = readPersistedSession();
+    if (session?.user) return session.user;
+    throw new Error(
+      "No authenticated user."
+    );
+  }
 
   const {
     data,
@@ -461,18 +483,18 @@ async function getCurrentUser() {
 
 
   if (error) {
-
+    const session = readPersistedSession();
+    if (session?.user) return session.user;
     throw error;
-
   }
 
 
   if (!data.user) {
-
+    const session = readPersistedSession();
+    if (session?.user) return session.user;
     throw new Error(
       "No authenticated user."
     );
-
   }
 
 
@@ -620,6 +642,7 @@ async function renderApplication() {
         "orderCreate"
       );
 
+      restorePendingOrderDraft();
       updateOrderCreateTotals();
 
       return;
@@ -742,6 +765,15 @@ async function renderApplication() {
       error
     );
 
+    // A network transition must never masquerade as a logout. If we are
+    // offline and have a persisted seller session, keep the current screen
+    // rather than navigating to Login.
+    if (!navigator.onLine && readPersistedSession()?.user) {
+      const route = getRoute();
+      if (route !== "login" && route !== "register") showScreen(route);
+      else showScreen("home");
+      return;
+    }
 
     showScreen(
       "login"
@@ -817,7 +849,7 @@ async function loadHomeLogo(
     );
 
 
-  if (!logoPath) {
+  if (!logoPath || !navigator.onLine) {
 
     return;
 
@@ -4278,6 +4310,21 @@ async function getOrderIdFromItem(
 // ORDER CREATION
 // ============================================================
 
+function restorePendingOrderDraft() {
+  if (pendingQrToken && pendingProduct) return true;
+  try {
+    const draft = JSON.parse(sessionStorage.getItem("ordeli-pending-order-draft") || "null");
+    if (!draft?.qrToken || !draft?.product) return false;
+    pendingQrToken = draft.qrToken;
+    pendingProduct = draft.product;
+    $("orderDetectedProduct").textContent = pendingProduct?.name || "Product";
+    $("orderDetectedPrice").textContent = formatPrice(pendingProduct?.default_price);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function prepareOrderCreation(
   qr
 ) {
@@ -4287,6 +4334,13 @@ function prepareOrderCreation(
 
   pendingProduct =
     qr.products;
+
+  try {
+    sessionStorage.setItem("ordeli-pending-order-draft", JSON.stringify({
+      qrToken: pendingQrToken,
+      product: pendingProduct
+    }));
+  } catch (_) {}
 
 
   $("orderDetectedProduct")
@@ -4502,6 +4556,9 @@ async function createOrder() {
 
   clearOrderMessage();
 
+  if (!pendingQrToken || !pendingProduct) {
+    restorePendingOrderDraft();
+  }
 
   if (
     !pendingQrToken ||
@@ -4664,11 +4721,43 @@ async function createOrder() {
         unitPrice: Number(pendingProduct?.default_price) || 0,
         total
       });
+
+      const offlineOrderId = `offline:${row.clientOrderId}`;
+      const offlineOrderNumber = `OFFLINE-${row.clientOrderId.slice(0, 8).toUpperCase()}`;
+      const localOrder = {
+        id: offlineOrderId,
+        order_number: offlineOrderNumber,
+        customer_id: null,
+        created_at: row.createdAt,
+        customers: { id: null, name: customerName, phone: customerPhone },
+        offline: true,
+        sync_status: "waiting"
+      };
+      const localItem = {
+        id: `offline-item:${row.clientOrderId}`,
+        product_name: pendingProduct?.name || "Product",
+        quantity,
+        unit_price: Number(pendingProduct?.default_price) || 0,
+        total_price: total,
+        workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [],
+        cancelled_at: null,
+        offline: true
+      };
+      const localPayment = downpayment > 0
+        ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment" }]
+        : [];
+
+      await cacheNamed(`order:${offlineOrderId}`, localOrder);
+      await cacheNamed(`order-items:${offlineOrderId}`, [localItem]);
+      await cacheNamed(`order-payments:${offlineOrderId}`, localPayment);
       await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
-      $("orderCreateMessage").textContent = `Saved offline. Order is waiting to sync when you reconnect.`;
+
+      currentOrderId = offlineOrderId;
+      $("orderCreateMessage").textContent = `Saved offline. Order ${offlineOrderNumber} is waiting to sync.`;
       $("orderCreateMessage").classList.add("success-message");
       await updateConnectivityIndicator();
-      setTimeout(() => navigate("home"), 700);
+      try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+      navigate("order-detail");
     } catch (error) {
       console.error("Offline order save failed:", error);
       $("orderCreateMessage").textContent = error?.message || "Unable to save the order offline.";
@@ -4742,6 +4831,7 @@ async function createOrder() {
     currentOrderId =
       data.order_id;
 
+    try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
 
     navigate(
       "order-detail"
