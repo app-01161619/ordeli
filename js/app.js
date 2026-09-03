@@ -810,60 +810,41 @@ async function loadHomeLogo(
     .hidden =
       true;
 
-
   $("homeLogo")
     .removeAttribute(
       "src"
     );
 
-
-  if (!logoPath) {
-
+  if (!logoPath || !navigator.onLine) {
     return;
-
   }
 
+  try {
+    const {
+      data,
+      error
+    } =
+    await supabase
+      .storage
+      .from(
+        "shop-logos"
+      )
+      .createSignedUrl(
+        logoPath,
+        3600
+      );
 
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .storage
-    .from(
-      "shop-logos"
-    )
-    .createSignedUrl(
-      logoPath,
-      3600
-    );
+    if (error) throw error;
 
-
-  if (error) {
-
+    if (data?.signedUrl) {
+      $("homeLogo").src = data.signedUrl;
+      $("homeLogoContainer").hidden = false;
+    }
+  } catch (error) {
     console.warn(
       "Unable to load shop logo:",
       error
     );
-
-    return;
-
-  }
-
-
-  if (
-    data?.signedUrl
-  ) {
-
-    $("homeLogo")
-      .src =
-        data.signedUrl;
-
-
-    $("homeLogoContainer")
-      .hidden =
-        false;
-
   }
 
 }

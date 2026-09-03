@@ -2,14 +2,24 @@ const SUPABASE_URL = "https://kbgdxhshxkhuelbxlggc.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_KJDx4oVgNF6z_5SYvyI-uw_h58jlimx";
 
 function readPersistedSession() {
+  const candidates = new Map();
   try {
-    const keys = Object.keys(localStorage).filter((key) => /^sb-.+-auth-token$/.test(key));
-    for (const key of keys) {
-      const raw = localStorage.getItem(key);
+    for (const key of Object.keys(localStorage)) {
+      if (!/^sb-.+-auth-token(?:\.\d+)?$/.test(key)) continue;
+      const base = key.replace(/\.\d+$/, "");
+      candidates.set(base, [...(candidates.get(base) || []), [key, localStorage.getItem(key)]]);
+    }
+
+    for (const entries of candidates.values()) {
+      entries.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+      let raw = entries.length === 1 ? entries[0][1] : entries.map(([, value]) => value || "").join("");
       if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      if (parsed?.user?.id) return parsed;
-      if (parsed?.currentSession?.user?.id) return parsed.currentSession;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.user?.id) return parsed;
+        if (parsed?.currentSession?.user?.id) return parsed.currentSession;
+        if (parsed?.session?.user?.id) return parsed.session;
+      } catch (_) {}
     }
   } catch (_) {}
   return null;

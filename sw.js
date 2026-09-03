@@ -1,14 +1,14 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-03-03";
+const CACHE_VERSION = "ordeli-v2026-09-03-05";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-02-03"
+  "/js/app.js?v=2026-09-03-05"
 ];
 
 self.addEventListener("install", (event) => {
@@ -47,23 +47,28 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".css") ||
     url.pathname.endsWith(".webmanifest");
 
-  if (isAppAsset) {
+  if (!isAppAsset) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.ok) {
-            caches.open(CACHE_VERSION)
-              .then((cache) => cache.put(request, response.clone()))
-              .catch(() => {});
-          }
-          return response;
-        })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
+      caches.match(request, { ignoreSearch: true })
+        .then((cached) => cached || fetch(request))
     );
     return;
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request))
+    fetch(request)
+      .then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_VERSION)
+            .then((cache) => cache.put(request, copy))
+            .catch(() => {});
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(request, { ignoreSearch: true })
+          .then((cached) => cached || caches.match("/index.html"))
+      )
   );
 });
