@@ -690,9 +690,11 @@ async function renderApplication() {
       showScreen(getRoute() === "register" ? "register" : "login");
       $("loginMessage").textContent = error?.message || "Unable to load the application.";
     } else {
-      showScreen(getRoute());
+      const route = getRoute();
+      const screen = route === "order-detail" ? "orderDetail" : route;
+      showScreen(screen);
       const ids = { products: "productMessage", workflow: "workflowMessage", qr: "qrMessage", scanner: "scannerMessage", "order-create": "orderCreateMessage", "order-detail": "orderDetailMessage", "shop-setup": "shopSetupMessage" };
-      const target = $(ids[getRoute()]);
+      const target = $(ids[route]);
       if (target) target.textContent = error?.message || "Unable to load this screen.";
     }
   }
@@ -5880,6 +5882,26 @@ function formatPrice(
     Number(value) || 0
   );
 
+}
+
+function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+}
+
+function paymentTypeLabel(value) {
+  const labels = {
+    downpayment: "Downpayment",
+    additional: "Additional Payment",
+    final: "Final Payment",
+    cash: "Cash",
+    other: "Other"
+  };
+  return labels[value] || "Payment";
 }
 
 // ============================================================
