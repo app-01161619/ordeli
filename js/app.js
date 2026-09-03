@@ -3741,6 +3741,10 @@ $("homeScanButton")
     "click",
     () => {
 
+      try {
+        sessionStorage.removeItem("ordeli-add-item-order-id");
+      } catch (_) {}
+
       pendingQrToken =
         null;
 
@@ -4611,6 +4615,31 @@ function clearOrderMessage() {
       "";
 
 }
+
+
+// ============================================================
+// ORDER DETAIL ACTIONS
+// ============================================================
+
+$("orderDetailAddItemButton").addEventListener("click", async () => {
+  // Scan another product QR from the order detail screen.
+  // Keep the current order in memory so the scanner can use it as context.
+  try {
+    sessionStorage.setItem("ordeli-add-item-order-id", currentOrderId || "");
+  } catch (_) {}
+  pendingQrToken = null;
+  pendingProduct = null;
+  navigate("scanner");
+});
+
+$("orderDetailNewTransactionButton").addEventListener("click", async () => {
+  try {
+    sessionStorage.removeItem("ordeli-add-item-order-id");
+  } catch (_) {}
+  pendingQrToken = null;
+  pendingProduct = null;
+  navigate("scanner");
+});
 
 
 // ============================================================
