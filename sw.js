@@ -8,7 +8,7 @@ const APP_SHELL = [
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-04-12"
+  "/js/app.js?v=2026-09-04-13"
 ];
 
 self.addEventListener("install", (event) => {
