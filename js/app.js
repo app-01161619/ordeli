@@ -4764,6 +4764,31 @@ $("orderCreateForm")
     }
   );
 
+const orderCancelButton = $("orderCancelButton");
+if (orderCancelButton) {
+  orderCancelButton.addEventListener("click", () => {
+    const addToOrderId = pendingAddToOrderId;
+    pendingAddToOrderId = null;
+    pendingQrToken = null;
+    pendingProduct = null;
+    clearOrderDraftStorage();
+    resetOrderCreateForm();
+
+    // Cancelling an add-item flow returns to the existing order.
+    if (addToOrderId) {
+      currentOrderId = addToOrderId;
+      currentOrderShowProduction = false;
+      navigate("order-detail");
+      return;
+    }
+
+    // Cancelling a brand-new transaction returns to the scanner.
+    currentOrderId = null;
+    currentOrderShowProduction = false;
+    navigate("scanner");
+  });
+}
+
 
 async function createOrderOfflineFallback() {
   const addingItem = Boolean(pendingAddToOrderId);
