@@ -253,6 +253,10 @@ async function syncOfflineOrders() {
       .filter(row => !row.nextAttemptAt || Date.now() >= Number(row.nextAttemptAt))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
+    // A reconnect/reload should be enough to drain the queue.  Never leave a
+    // previously errored row stranded just because it was marked `error`;
+    // due retries are eligible again immediately.
+
     for (const row of queue) {
       if (!navigator.onLine) break;
       row.status = "syncing";
@@ -314,10 +318,15 @@ async function syncOfflineOrders() {
         row.nextAttemptAt = null;
         await updateQueuedOrder(row);
       } catch (error) {
+        const message = error?.message || "Synchronization failed.";
         row.status = navigator.onLine ? "error" : "waiting";
-        row.lastError = error?.message || "Synchronization failed.";
+        row.lastError = message;
         row.lastErrorAt = new Date().toISOString();
-        row.nextAttemptAt = navigator.onLine ? Date.now() + Math.min(15000, 1500 * (2 ** Math.min(4, Number(row.attempts || 1) - 1))) : null;
+        // Keep retries bounded, but make the first online retry fast enough
+        // that reconnecting or reloading the app visibly drains the queue.
+        row.nextAttemptAt = navigator.onLine
+          ? Date.now() + Math.min(8000, 1000 * (2 ** Math.min(3, Number(row.attempts || 1) - 1)))
+          : null;
         await updateQueuedOrder(row);
         console.error("Offline queue sync failed:", error);
         if (!navigator.onLine) break;
@@ -374,6 +383,8 @@ function initializeOfflineFoundation() {
 
   window.addEventListener("online", async () => {
     runtimeOffline = false;
+    // Mark the runtime online immediately and drain the queue.  Do not wait
+    // for a later polling tick.
     await updateConnectivityIndicator();
     // Reinitialize Supabase and immediately reconcile anything that was saved
     // while offline. The seller UI is not reloaded unless it needs it.
@@ -414,7 +425,11 @@ function initializeOfflineFoundation() {
   }, 3000);
 
   refreshOfflineQrCache();
+  // Try once at boot and again shortly afterwards.  This covers a PWA that
+  // starts while connectivity is coming back before the browser emits the
+  // `online` event.
   scheduleOfflineSync(0);
+  scheduleOfflineSync._bootRetry = window.setTimeout(() => scheduleOfflineSync(0), 1500);
 }
 
 
