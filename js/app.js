@@ -334,7 +334,7 @@ async function syncOfflineOrders() {
           try { await reconcileOrderCacheFromServer(serverOrderId); } catch (refreshError) { console.warn("Order reconciliation after item sync failed; local state retained.", refreshError); }
           if (currentOrderId === p.orderId && String(p.orderId).startsWith("offline:")) currentOrderId = serverOrderId;
         } else {
-          const { data, error } = await supabase.rpc("sync_offline_order_v4", {
+          const { data, error } = await supabase.rpc("sync_offline_order_v5", {
             p_client_order_id: row.clientOrderId,
             p_device_id: row.deviceId,
             p_qr_public_token: p.qrToken,
