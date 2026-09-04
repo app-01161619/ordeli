@@ -1811,3 +1811,12 @@ a:hover {
 }
 .add-to-order-context strong { font-size: 16px; }
 .add-to-order-context span { color: #68727d; }
+
+
+/* Order creation modes */
+#orderCreateForm .customer-choice[hidden],
+#orderCreateForm [hidden] { display: none !important; }
+.add-to-order-context { margin: 0 0 16px; padding: 14px 16px; border: 1px solid rgba(0,0,0,.08); border-radius: 14px; display: grid; gap: 2px; background: rgba(0,0,0,.025); }
+.add-to-order-context .context-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; opacity: .6; }
+.add-to-order-context strong { font-size: 15px; }
+.add-to-order-context span { font-size: 13px; opacity: .8; }

@@ -270,10 +270,11 @@ async function syncOfflineOrders() {
             serverOrderId = parent?.serverResult?.order_id || null;
           }
           if (!serverOrderId) throw new Error("The parent order is still waiting to sync.");
-          const { data, error } = await supabase.rpc("add_order_item_from_qr", {
+          const { data, error } = await supabase.rpc("add_order_item_online", {
             p_order_id: serverOrderId,
             p_qr_public_token: p.qrToken,
-            p_quantity: p.quantity
+            p_quantity: p.quantity,
+            p_device_id: row.deviceId
           });
           if (error) throw error;
           if (!data?.order_item_id) throw new Error("The item was not added to the order.");
@@ -4603,21 +4604,44 @@ function restorePendingOrderDraft() {
 
 function updateOrderCreateMode() {
   const addingItem = Boolean(pendingAddToOrderId);
-  const customerChoice = document.querySelector(".customer-choice");
-  if (customerChoice) customerChoice.hidden = addingItem;
-  $("newCustomerFields").hidden = addingItem;
-  $("existingCustomerFields").hidden = addingItem;
-  $("orderCustomerName").required = !addingItem && !$("existingCustomerChoice").checked;
-  $("orderCreateScreen").querySelector("h1").textContent = addingItem ? "Add Item to Order" : "Create Order";
-  const subtitle = $("orderCreateScreen").querySelector(".page-subtitle");
-  if (subtitle) subtitle.textContent = addingItem ? "This item will be added to the customer's current order." : "The scanned QR has already identified the product.";
+  const customerChoice = document.querySelector('.customer-choice');
+  const newFields = $('newCustomerFields');
+  const existingFields = $('existingCustomerFields');
+  const customerName = $('orderCustomerName');
+  const customerPhone = $('orderCustomerPhone');
+  const customerSelect = $('existingCustomerSelect');
 
-  let context = $("addToOrderContext");
+  if (addingItem) {
+    // Adding an item is NOT a new transaction. Keep the customer context
+    // inherited from the currently-open order and remove all customer-choice UI.
+    if (customerChoice) customerChoice.hidden = true;
+    if (newFields) newFields.hidden = true;
+    if (existingFields) existingFields.hidden = true;
+    if (customerName) { customerName.required = false; customerName.disabled = true; }
+    if (customerPhone) { customerPhone.required = false; customerPhone.disabled = true; }
+    if (customerSelect) customerSelect.disabled = true;
+  } else {
+    if (customerChoice) customerChoice.hidden = false;
+    if (newFields) newFields.hidden = false;
+    if (existingFields) existingFields.hidden = true;
+    if (customerName) { customerName.disabled = false; }
+    if (customerPhone) { customerPhone.disabled = false; }
+    if (customerSelect) customerSelect.disabled = false;
+    customerName.required = !($('existingCustomerChoice')?.checked);
+  }
+
+  $('orderCreateScreen').querySelector('h1').textContent = addingItem ? 'Add Item to Order' : 'Create Order';
+  const subtitle = $('orderCreateScreen').querySelector('.page-subtitle');
+  if (subtitle) subtitle.textContent = addingItem
+    ? 'Adding this product to the same customer and order.'
+    : 'The scanned QR has already identified the product.';
+
+  let context = $('addToOrderContext');
   if (addingItem && !context) {
-    context = document.createElement("div");
-    context.id = "addToOrderContext";
-    context.className = "add-to-order-context";
-    const card = $("orderCreateForm");
+    context = document.createElement('div');
+    context.id = 'addToOrderContext';
+    context.className = 'add-to-order-context';
+    const card = $('orderCreateForm');
     card?.insertBefore(context, card.firstElementChild?.nextElementSibling || card.firstElementChild);
   }
   if (!addingItem && context) context.remove();
@@ -4661,11 +4685,11 @@ function prepareOrderCreation(qr, { addToOrderId = null } = {}) {
 }
 
 async function loadActiveCustomers() {
-  const select = $("existingCustomerSelect");
+  const select = $('existingCustomerSelect');
   if (!select) return;
   select.replaceChildren();
-  const placeholder = document.createElement("option");
-  placeholder.value = ""; placeholder.textContent = "Select active customer";
+  const placeholder = document.createElement('option');
+  placeholder.value = ''; placeholder.textContent = 'Select customer';
   select.appendChild(placeholder);
   const user = await getCurrentUser().catch(() => null);
   if (!user?.id) return;
@@ -4673,33 +4697,42 @@ async function loadActiveCustomers() {
   let data = null;
   if (!runtimeOffline && navigator.onLine) {
     try {
-      const result = await supabase.from("customers").select(`id,name,phone,orders!inner(id,cancelled_at)`).eq("seller_id", user.id).is("orders.cancelled_at", null).order("name", { ascending: true });
+      // This is intentionally the seller's customer list, not just customers
+      // with an in-progress order. "Existing customer" is for a NEW order.
+      const result = await supabase
+        .from('customers')
+        .select('id,name,phone')
+        .eq('seller_id', user.id)
+        .order('name', { ascending: true });
       if (result.error) throw result.error;
       data = result.data || [];
       await cacheNamed(cacheKey, data);
     } catch (error) {
       data = await getCachedSnapshot(cacheKey);
-      if (data == null) console.warn("Active customers unavailable:", error);
+      if (data == null) console.warn('Customer list unavailable:', error);
     }
   } else {
     data = await getCachedSnapshot(cacheKey);
   }
-  const unique = new Map();
-  (data || []).forEach(customer => { if (!unique.has(customer.id)) unique.set(customer.id, customer); });
-  unique.forEach(customer => {
-    const option = document.createElement("option");
+  (data || []).forEach(customer => {
+    const option = document.createElement('option');
     option.value = customer.id;
+    option.dataset.phone = customer.phone || '';
     option.textContent = customer.phone ? `${customer.name} · ${customer.phone}` : customer.name;
     select.appendChild(option);
   });
 }
 
 function toggleCustomerChoice() {
-  const existing = $("existingCustomerChoice")?.checked;
   const addingItem = Boolean(pendingAddToOrderId);
-  $("newCustomerFields").hidden = existing || addingItem;
-  $("existingCustomerFields").hidden = !existing || addingItem;
-  $("orderCustomerName").required = !existing && !addingItem;
+  if (addingItem) {
+    updateOrderCreateMode();
+    return;
+  }
+  const existing = $('existingCustomerChoice')?.checked;
+  $('newCustomerFields').hidden = existing;
+  $('existingCustomerFields').hidden = !existing;
+  $('orderCustomerName').required = !existing;
 }
 
 $("newCustomerChoice").addEventListener("change", () => { toggleCustomerChoice(); persistPendingOrderDraft(); });
@@ -4733,32 +4766,41 @@ $("orderCreateForm")
 
 
 async function createOrderOfflineFallback() {
-  const quantity = Number($("orderQuantity").value);
-  const downpayment = Number($("orderDownpayment").value) || 0;
-  const usingExisting = $("existingCustomerChoice").checked;
-  const customerId = usingExisting ? $("existingCustomerSelect").value : null;
-  const customerName = usingExisting
-    ? ($("existingCustomerSelect").selectedOptions[0]?.textContent || "").split(" · ")[0].trim()
-    : $("orderCustomerName").value.trim();
-  const customerPhone = usingExisting ? null : ($("orderCustomerPhone").value.trim() || null);
-  if (!pendingQrToken || !pendingProduct) throw new Error("No scanned product QR is selected.");
-  if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Quantity must be at least 1.");
-  const cachedQr = await getOfflineQr(pendingQrToken);
-  if (!cachedQr || cachedQr.used) throw new Error("This QR is not reserved and available for offline use on this device.");
-  if (!customerName) throw new Error("Customer name is required.");
-  if (usingExisting && !customerId) throw new Error("Select an active customer.");
-  const total = (Number(pendingProduct?.default_price) || 0) * quantity;
-  if (downpayment < 0 || downpayment > total) throw new Error("Downpayment must be between ₱0 and the order total.");
+  const addingItem = Boolean(pendingAddToOrderId);
+  const quantity = Number($('orderQuantity').value);
+  const downpayment = addingItem ? 0 : (Number($('orderDownpayment').value) || 0);
+  if (!pendingQrToken || !pendingProduct) throw new Error('No scanned product QR is selected.');
+  if (!Number.isInteger(quantity) || quantity < 1) throw new Error('Quantity must be at least 1.');
 
-  if (pendingAddToOrderId) {
+  const cachedQr = await getOfflineQr(pendingQrToken);
+  if (!cachedQr || cachedQr.used) throw new Error('This QR is not reserved and available for offline use on this device.');
+
+  let customerId = null;
+  let customerName = null;
+  let customerPhone = null;
+  if (!addingItem) {
+    const usingExisting = $('existingCustomerChoice').checked;
+    customerId = usingExisting ? $('existingCustomerSelect').value : null;
+    customerName = usingExisting
+      ? (($('existingCustomerSelect').selectedOptions[0]?.textContent || '').split(' · ')[0].trim())
+      : $('orderCustomerName').value.trim();
+    customerPhone = usingExisting ? null : ($('orderCustomerPhone').value.trim() || null);
+    if (!customerName) throw new Error('Customer name is required.');
+    if (usingExisting && !customerId) throw new Error('Select an existing customer.');
+  }
+
+  const total = (Number(pendingProduct?.default_price) || 0) * quantity;
+  if (!addingItem && (downpayment < 0 || downpayment > total)) throw new Error('Downpayment must be between ₱0 and the order total.');
+
+  if (addingItem) {
     const existingOrderId = pendingAddToOrderId;
     const parentOrder = await getCachedSnapshot(`order:${existingOrderId}`);
-    if (!parentOrder) throw new Error("This order is not available offline on this device.");
+    if (!parentOrder) throw new Error('This order is not available offline on this device.');
     const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
     const itemId = `offline-item:${crypto?.randomUUID ? crypto.randomUUID() : Date.now()}`;
     const newItem = {
       id: itemId,
-      product_name: pendingProduct?.name || "Product",
+      product_name: pendingProduct?.name || 'Product',
       quantity,
       unit_price: Number(pendingProduct?.default_price) || 0,
       total_price: total,
@@ -4766,29 +4808,70 @@ async function createOrderOfflineFallback() {
       cancelled_at: null,
       offline: true
     };
-    const row = await enqueueOfflineOrder({ action: "add_item", orderId: existingOrderId, parentClientOrderId: String(existingOrderId).startsWith("offline:") ? String(existingOrderId).slice("offline:".length) : null, qrToken: pendingQrToken, quantity, product: pendingProduct, productName: newItem.product_name, unitPrice: newItem.unit_price, total });
+    const row = await enqueueOfflineOrder({
+      action: 'add_item',
+      orderId: existingOrderId,
+      parentClientOrderId: String(existingOrderId).startsWith('offline:') ? String(existingOrderId).slice('offline:'.length) : null,
+      qrToken: pendingQrToken,
+      quantity,
+      product: pendingProduct,
+      productName: newItem.product_name,
+      unitPrice: newItem.unit_price,
+      total
+    });
     await cacheNamed(`order-items:${existingOrderId}`, [...existingItems, newItem]);
     await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
     currentOrderId = existingOrderId;
     currentOrderShowProduction = false;
     pendingAddToOrderId = null; pendingQrToken = null; pendingProduct = null;
     clearOrderDraftStorage();
-    navigate("order-detail");
+    navigate('order-detail');
     return;
   }
 
-  const row = await enqueueOfflineOrder({ qrToken: pendingQrToken, customerId, customerName, customerPhone, quantity, downpayment, productName: pendingProduct?.name || "Product", product: pendingProduct || null, unitPrice: Number(pendingProduct?.default_price) || 0, total });
+  const row = await enqueueOfflineOrder({
+    qrToken: pendingQrToken,
+    customerId,
+    customerName,
+    customerPhone,
+    quantity,
+    downpayment,
+    productName: pendingProduct?.name || 'Product',
+    product: pendingProduct || null,
+    unitPrice: Number(pendingProduct?.default_price) || 0,
+    total
+  });
   const offlineOrderId = `offline:${row.clientOrderId}`;
   const offlineOrderNumber = `OFFLINE-${row.clientOrderId.slice(0, 8).toUpperCase()}`;
-  await cacheNamed(`order:${offlineOrderId}`, { id: offlineOrderId, order_number: offlineOrderNumber, customer_id: customerId, created_at: row.createdAt, customers: { id: customerId, name: customerName, phone: customerPhone }, offline: true, sync_status: "waiting" });
-  await cacheNamed(`order-items:${offlineOrderId}`, [{ id: `offline-item:${row.clientOrderId}`, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [], cancelled_at: null, offline: true }]);
-  await cacheNamed(`order-payments:${offlineOrderId}`, downpayment > 0 ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment", created_at: row.createdAt }] : []);
+  await cacheNamed(`order:${offlineOrderId}`, {
+    id: offlineOrderId,
+    order_number: offlineOrderNumber,
+    customer_id: customerId,
+    created_at: row.createdAt,
+    customers: { id: customerId, name: customerName, phone: customerPhone },
+    offline: true,
+    sync_status: 'waiting'
+  });
+  await cacheNamed(`order-items:${offlineOrderId}`, [{
+    id: `offline-item:${row.clientOrderId}`,
+    product_name: pendingProduct?.name || 'Product',
+    quantity,
+    unit_price: Number(pendingProduct?.default_price) || 0,
+    total_price: total,
+    workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [],
+    cancelled_at: null,
+    offline: true
+  }]);
+  await cacheNamed(`order-payments:${offlineOrderId}`, downpayment > 0 ? [{ amount: downpayment, proof_status: null, payment_type: 'downpayment', created_at: row.createdAt }] : []);
   await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
   currentOrderId = offlineOrderId;
   currentOrderShowProduction = false;
+  pendingAddToOrderId = null;
+  pendingQrToken = null;
+  pendingProduct = null;
   clearOrderDraftStorage();
   await updateConnectivityIndicator();
-  navigate("order-detail");
+  navigate('order-detail');
 }
 
 async function createOrder() {
@@ -4844,7 +4927,7 @@ async function createOrder() {
           }
         }
       }
-      const { data, error } = await supabase.rpc("add_order_item_from_qr", { p_order_id: serverOrderId, p_qr_public_token: pendingQrToken, p_quantity: quantity });
+      const { data, error } = await supabase.rpc("add_order_item_online", { p_order_id: serverOrderId, p_qr_public_token: pendingQrToken, p_quantity: quantity, p_device_id: getOfflineDeviceId() });
       if (error) throw error;
       if (!data?.order_item_id) throw new Error("The item was not added to the order.");
       currentOrderId = serverOrderId;
