@@ -172,17 +172,7 @@ async function enqueueOfflineOrder(payload) {
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error || new Error("Unable to save the order offline."));
   });
-  await requestOfflineBackgroundSync();
   return row;
-}
-
-async function requestOfflineBackgroundSync() {
-  try {
-    const registration = await navigator.serviceWorker?.ready;
-    if (registration?.sync) await registration.sync.register("ordeli-offline-orders");
-  } catch (error) {
-    console.debug("Background offline sync is unavailable:", error);
-  }
 }
 
 async function getOfflineQueueRows({ includeFinished = false } = {}) {
@@ -255,9 +245,24 @@ async function syncOfflineOrders() {
   if (!navigator.onLine || offlineSyncInProgress) return;
   offlineSyncInProgress = true;
   try {
-    try { await ensureSupabase(); } catch (_) { return; }
-    const session = await supabase.auth.getSession();
-    if (!session?.data?.session?.user?.id) return;
+    try { await ensureSupabase(); } catch (error) {
+      console.warn("Supabase initialization for offline sync failed:", error);
+      return;
+    }
+
+    let sessionResult = await supabase.auth.getSession();
+    let session = sessionResult?.data?.session || null;
+    if (!session?.user?.id) {
+      try {
+        const refreshed = await supabase.auth.refreshSession();
+        session = refreshed?.data?.session || null;
+      } catch (refreshError) {
+        console.warn("Supabase session refresh for offline sync failed:", refreshError);
+      }
+    }
+    if (!session?.user?.id) {
+      throw new Error("Your seller session is not available. Reopen the app while online to restore the session, then syncing will resume automatically.");
+    }
 
     const queue = (await getQueuedOrders())
       .filter(row => !row.nextAttemptAt || Date.now() >= Number(row.nextAttemptAt))
@@ -306,7 +311,7 @@ async function syncOfflineOrders() {
             p_quantity: p.quantity,
             p_downpayment: p.downpayment
           });
-          if (error) throw error;
+          if (error) throw new Error(`Order sync failed: ${error.message || JSON.stringify(error)}`);
           row.serverResult = data;
           if (data?.order_id) {
             const oldId = `offline:${row.clientOrderId}`;
@@ -372,7 +377,19 @@ async function updateConnectivityIndicator() {
   indicator.classList.toggle("is-offline", !online);
   indicator.classList.toggle("is-online", online && pending === 0);
   indicator.classList.toggle("has-pending", pending > 0);
-  indicator.textContent = !online ? (pending ? `Offline · ${pending} waiting to sync` : "Offline") : (pending ? `Waiting to Sync · ${pending}` : "Online");
+  if (!online) {
+    indicator.textContent = pending ? `Offline · ${pending} waiting to sync` : "Offline";
+    return;
+  }
+  if (pending > 0) {
+    const rows = await getOfflineQueueRows({ includeFinished: false });
+    const firstError = rows.find(row => row.status === "error" && row.lastError)?.lastError;
+    indicator.textContent = firstError
+      ? `Sync blocked · ${pending} waiting · ${firstError}`
+      : `Waiting to Sync · ${pending}`;
+    return;
+  }
+  indicator.textContent = "Online";
 }
 function scheduleOfflineSync(delay = 0) {
   window.clearTimeout(scheduleOfflineSync._timer);
@@ -391,6 +408,12 @@ function initializeOfflineFoundation() {
   runtimeOffline = !navigator.onLine;
   updateConnectivityIndicator();
 
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (session?.user?.id && ["SIGNED_IN", "TOKEN_REFRESHED", "INITIAL_SESSION"].includes(event)) {
+      scheduleOfflineSync(0);
+    }
+  });
+
   window.addEventListener("online", async () => {
     runtimeOffline = false;
     // Mark the runtime online immediately and drain the queue.  Do not wait
@@ -400,7 +423,6 @@ function initializeOfflineFoundation() {
     // while offline. The seller UI is not reloaded unless it needs it.
     try { await ensureSupabase(); } catch (error) { console.warn("Supabase initialization after reconnect failed:", error); return; }
     try { await refreshOfflineQrCache(); } catch (_) {}
-    await requestOfflineBackgroundSync();
     scheduleOfflineSync(0);
     if (getRoute() === "order-create") restorePendingOrderDraft();
     if (getRoute() === "order-detail" && currentOrderId) {
@@ -426,10 +448,6 @@ function initializeOfflineFoundation() {
     if (!document.hidden) scheduleOfflineSync(0);
   });
 
-  navigator.serviceWorker?.addEventListener("message", event => {
-    if (event.data?.type === "ordeli-sync-request") scheduleOfflineSync(0);
-  });
-
   // navigator.onLine can be stale in PWAs. A frequent lightweight cycle makes
   // pending work self-healing even when the browser does not emit an `online`
   // event (for example, after Wi-Fi handoff or captive portal recovery).
@@ -444,7 +462,6 @@ function initializeOfflineFoundation() {
   // starts while connectivity is coming back before the browser emits the
   // `online` event.
   scheduleOfflineSync(0);
-  requestOfflineBackgroundSync();
   scheduleOfflineSync._bootRetry = window.setTimeout(() => scheduleOfflineSync(0), 1500);
 }
 
