@@ -49,40 +49,42 @@ async function ensureSupabase() {
 const auth = {
   async getSession() {
     const persisted = readPersistedSession();
-
-    // Offline startup must never require a network round-trip.
-    if (!navigator.onLine) {
-      return { data: { session: persisted?.user?.id ? persisted : null }, error: null };
+    // Local persisted session is authoritative for UI startup. When online,
+    // refresh the Supabase client in the background instead of blocking startup.
+    if (persisted?.user?.id) {
+      if (navigator.onLine && !client) {
+        queueMicrotask(async () => {
+          try {
+            const c = await ensureSupabase();
+            await c.auth.getSession();
+          } catch (_) {}
+        });
+      } else if (navigator.onLine && client) {
+        queueMicrotask(() => client.auth.getSession().catch(() => {}));
+      }
+      return { data: { session: persisted }, error: null };
     }
 
-    // Once the client exists, prefer Supabase's current in-memory session so
-    // a refreshed access token is actually used by background synchronization.
-    if (client) {
-      try {
-        const live = await client.auth.getSession();
-        if (live?.data?.session?.user?.id) return live;
-      } catch (_) {}
-    }
+    if (!navigator.onLine) return { data: { session: null }, error: null };
 
-    // On an online first boot, initialize the client and ask Supabase for the
-    // authoritative current session. Fall back to persisted auth only if the
-    // network/client cannot be initialized.
     try {
       const c = await ensureSupabase();
-      const live = await c.auth.getSession();
-      if (live?.data?.session?.user?.id) return live;
-    } catch (_) {}
-
-    return { data: { session: persisted?.user?.id ? persisted : null }, error: null };
+      return await c.auth.getSession();
+    } catch (error) {
+      return { data: { session: null }, error };
+    }
+  },
+  async getLiveSession() {
+    const c = await ensureSupabase();
+    return await c.auth.getSession();
+  },
+  async refreshSession() {
+    const c = await ensureSupabase();
+    return await c.auth.refreshSession();
   },
   async getUser() {
     const result = await this.getSession();
     return { data: { user: result?.data?.session?.user || null }, error: result?.error || null };
-  },
-  async refreshSession() {
-    if (!navigator.onLine) return { data: { session: readPersistedSession() }, error: null };
-    const c = await ensureSupabase();
-    return c.auth.refreshSession();
   },
   async signOut() {
     try {
