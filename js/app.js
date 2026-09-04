@@ -245,50 +245,57 @@ async function syncOfflineOrders() {
   if (!navigator.onLine || offlineSyncInProgress) return;
   offlineSyncInProgress = true;
   try {
-    try { await ensureSupabase(); } catch (error) {
-      console.warn("Supabase initialization for offline sync failed:", error);
-      return;
-    }
+    await ensureSupabase();
+    // The v2 RPC intentionally has a new name so stale PostgREST schema-cache
+    // entries from earlier iterations cannot collide with the current sync path.
 
-    let sessionResult = await supabase.auth.getSession();
+    const sessionResult = await supabase.auth.getSession();
     let session = sessionResult?.data?.session || null;
-    if (!session?.user?.id) {
+    if (!session?.user?.id && typeof supabase.auth.refreshSession === "function") {
       try {
         const refreshed = await supabase.auth.refreshSession();
         session = refreshed?.data?.session || null;
       } catch (refreshError) {
-        console.warn("Supabase session refresh for offline sync failed:", refreshError);
+        console.warn("Offline sync session refresh failed:", refreshError);
       }
     }
     if (!session?.user?.id) {
-      throw new Error("Your seller session is not available. Reopen the app while online to restore the session, then syncing will resume automatically.");
+      throw new Error("Seller session is unavailable.");
     }
 
-    const queue = (await getQueuedOrders())
+    const queue = (await getOfflineQueueRows({ includeFinished: false }))
+      .filter(row => row.status !== "syncing")
       .filter(row => !row.nextAttemptAt || Date.now() >= Number(row.nextAttemptAt))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    // A reconnect/reload should be enough to drain the queue.  Never leave a
-    // previously errored row stranded just because it was marked `error`;
-    // due retries are eligible again immediately.
-
     for (const row of queue) {
       if (!navigator.onLine) break;
+
       row.status = "syncing";
       row.attempts = Number(row.attempts || 0) + 1;
       row.nextAttemptAt = null;
       await updateQueuedOrder(row);
-      await updateConnectivityIndicator();
+
       try {
         const p = row.payload || {};
+
         if (row.type === "add_order_item") {
           let serverOrderId = p.orderId || null;
-          if (String(serverOrderId || "").startsWith("offline:")) serverOrderId = await resolveServerOrderId(serverOrderId);
+          if (String(serverOrderId || "").startsWith("offline:")) {
+            serverOrderId = await resolveServerOrderId(serverOrderId, { attemptSync: false });
+          }
           if (!serverOrderId && p.parentClientOrderId) {
             const parent = await findOfflineCreateRow(p.parentClientOrderId);
             serverOrderId = parent?.serverResult?.order_id || null;
           }
-          if (!serverOrderId) throw new Error("The parent order is still waiting to sync.");
+          if (!serverOrderId) {
+            row.status = "waiting";
+            row.lastError = null;
+            row.nextAttemptAt = Date.now() + 1500;
+            await updateQueuedOrder(row);
+            continue;
+          }
+
           const { data, error } = await supabase.rpc("add_order_item_online", {
             p_order_id: serverOrderId,
             p_qr_public_token: p.qrToken,
@@ -297,11 +304,13 @@ async function syncOfflineOrders() {
           });
           if (error) throw error;
           if (!data?.order_item_id) throw new Error("The item was not added to the order.");
+
           row.serverResult = { ...(data || {}), order_id: serverOrderId };
-          try { await reconcileOrderCacheFromServer(serverOrderId); } catch (refreshError) { console.warn("Order reconciliation after item sync failed; local state retained.", refreshError); }
-          if (currentOrderId === p.orderId && String(p.orderId).startsWith("offline:")) currentOrderId = serverOrderId;
+          await reconcileOrderCacheFromServer(serverOrderId).catch(error => {
+            console.warn("Order reconciliation after item sync failed:", error);
+          });
         } else {
-          const { data, error } = await supabase.rpc("sync_offline_order", {
+          const { data, error } = await supabase.rpc("sync_offline_order_v2", {
             p_client_order_id: row.clientOrderId,
             p_device_id: row.deviceId,
             p_qr_public_token: p.qrToken,
@@ -311,50 +320,71 @@ async function syncOfflineOrders() {
             p_quantity: p.quantity,
             p_downpayment: p.downpayment
           });
-          if (error) throw new Error(`Order sync failed: ${error.message || JSON.stringify(error)}`);
+          if (error) throw error;
+
           row.serverResult = data;
-          if (data?.order_id) {
-            const oldId = `offline:${row.clientOrderId}`;
-            const serverId = data.order_id;
-            const cachedOrder = await getCachedSnapshot(`order:${oldId}`);
-            const cachedItems = await getCachedSnapshot(`order-items:${oldId}`);
-            const cachedPayments = await getCachedSnapshot(`order-payments:${oldId}`);
-            await cacheNamed(`order:${serverId}`, { ...(cachedOrder || {}), id: serverId, order_number: data.order_number || cachedOrder?.order_number, offline: false, sync_status: "synchronized" });
-            if (cachedItems != null) await cacheNamed(`order-items:${serverId}`, cachedItems);
-            if (cachedPayments != null) await cacheNamed(`order-payments:${serverId}`, cachedPayments);
-            if (currentOrderId === oldId) currentOrderId = serverId;
-            try { sessionStorage.setItem(`ordeli-order-detail-mode:${serverId}`, "fresh"); } catch (_) {}
-            try { await reconcileOrderCacheFromServer(serverId); } catch (refreshError) { console.warn("Server reconciliation after order sync failed; local snapshot retained.", refreshError); }
-          }
+          if (!data?.order_id) throw new Error("Server returned no order id.");
+
+          const oldId = `offline:${row.clientOrderId}`;
+          const serverId = data.order_id;
+          const cachedOrder = await getCachedSnapshot(`order:${oldId}`);
+          const cachedItems = await getCachedSnapshot(`order-items:${oldId}`);
+          const cachedPayments = await getCachedSnapshot(`order-payments:${oldId}`);
+
+          await cacheNamed(`order:${serverId}`, {
+            ...(cachedOrder || {}),
+            id: serverId,
+            order_number: data.order_number || cachedOrder?.order_number,
+            offline: false,
+            sync_status: "synchronized"
+          });
+          if (cachedItems != null) await cacheNamed(`order-items:${serverId}`, cachedItems);
+          if (cachedPayments != null) await cacheNamed(`order-payments:${serverId}`, cachedPayments);
+          if (currentOrderId === oldId) currentOrderId = serverId;
+
+          await reconcileOrderCacheFromServer(serverId).catch(error => {
+            console.warn("Server reconciliation after order sync failed:", error);
+          });
         }
+
         row.status = "synced";
         row.syncedAt = new Date().toISOString();
         row.lastError = null;
         row.nextAttemptAt = null;
         await updateQueuedOrder(row);
+
       } catch (error) {
-        const message = error?.message || "Synchronization failed.";
+        const rawMessage = error?.message || "Synchronization failed.";
         row.status = navigator.onLine ? "error" : "waiting";
-        row.lastError = message;
+        row.lastError = rawMessage;
         row.lastErrorAt = new Date().toISOString();
-        // Keep retries bounded, but make the first online retry fast enough
-        // that reconnecting or reloading the app visibly drains the queue.
+
+        // Back off progressively, but cap retries at 15 seconds.
         row.nextAttemptAt = navigator.onLine
-          ? Date.now() + Math.min(8000, 1000 * (2 ** Math.min(3, Number(row.attempts || 1) - 1)))
+          ? Date.now() + Math.min(15000, 1000 * (2 ** Math.min(4, Number(row.attempts || 1) - 1)))
           : null;
+
         await updateQueuedOrder(row);
         console.error("Offline queue sync failed:", error);
+
+        // Authentication/schema/dependency errors should not prevent later
+        // rows from being inspected or retried independently.
         if (!navigator.onLine) break;
       }
     }
+  } catch (error) {
+    console.error("Offline synchronization cycle failed:", error);
   } finally {
     offlineSyncInProgress = false;
     await updateConnectivityIndicator();
+
     if (currentOrderId && String(currentOrderId).startsWith("offline:") && navigator.onLine) {
       const resolved = await resolveServerOrderId(currentOrderId, { attemptSync: false }).catch(() => null);
       if (resolved) {
         currentOrderId = resolved;
-        if (getRoute() === "order-detail") { try { await loadOrderDetail(resolved); } catch (_) {} }
+        if (getRoute() === "order-detail") {
+          try { await loadOrderDetail(resolved); } catch (_) {}
+        }
       }
     }
   }
@@ -370,6 +400,27 @@ function ensureConnectivityIndicator() {
   document.body.appendChild(indicator);
   return indicator;
 }
+function getShortSyncError(error) {
+  const raw = String(error?.message || error || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "Sync failed.";
+  if (/schema cache|could not find the function|function .* does not exist/i.test(raw)) {
+    return "Sync setup incomplete";
+  }
+  if (/JWT|auth|session|authenticated|permission/i.test(raw)) {
+    return "Session needs attention";
+  }
+  if (/reserved for this seller device|reserved for another seller device|not reserved/i.test(raw)) {
+    return "QR reservation needs attention";
+  }
+  if (/not available|already assigned|no longer available/i.test(raw)) {
+    return "QR is no longer available";
+  }
+  if (/network|fetch|load failed|timeout|offline/i.test(raw)) {
+    return "Connection interrupted";
+  }
+  return raw.length > 72 ? `${raw.slice(0, 69)}…` : raw;
+}
+
 async function updateConnectivityIndicator() {
   const indicator = ensureConnectivityIndicator();
   const online = navigator.onLine;
@@ -379,17 +430,23 @@ async function updateConnectivityIndicator() {
   indicator.classList.toggle("has-pending", pending > 0);
   if (!online) {
     indicator.textContent = pending ? `Offline · ${pending} waiting to sync` : "Offline";
+    indicator.title = "";
     return;
   }
   if (pending > 0) {
     const rows = await getOfflineQueueRows({ includeFinished: false });
-    const firstError = rows.find(row => row.status === "error" && row.lastError)?.lastError;
+    const firstError = rows.find(row => row.status === "error" && row.lastError);
+    const short = firstError ? getShortSyncError(firstError.lastError) : "Waiting for sync";
     indicator.textContent = firstError
-      ? `Sync blocked · ${pending} waiting · ${firstError}`
+      ? `Sync needs attention · ${pending}`
       : `Waiting to Sync · ${pending}`;
+    indicator.title = firstError
+      ? `${short}. Open the browser console for the full technical error.`
+      : "";
     return;
   }
   indicator.textContent = "Online";
+  indicator.title = "";
 }
 function scheduleOfflineSync(delay = 0) {
   window.clearTimeout(scheduleOfflineSync._timer);
