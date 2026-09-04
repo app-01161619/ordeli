@@ -1,3 +1,20 @@
+
+.boot-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--background, #f6f8fb);
+  color: var(--text, #132238);
+  font-size: 18px;
+}
+.boot-fallback strong { font-size: 28px; }
+.boot-fallback span { opacity: 0.7; font-size: 14px; }
+.boot-fallback.is-hidden { display: none; }
 * {
   box-sizing: border-box;
 }

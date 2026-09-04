@@ -10,6 +10,7 @@
   <title>Ordeli</title>
 </head>
 <body>
+<div id="bootFallback" class="boot-fallback" aria-live="polite"><strong>Ordeli</strong><span>Restoring your shop…</span></div>
 <main id="app">
 
   <section id="loginScreen" class="screen" hidden>
@@ -639,14 +640,12 @@
 
 </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script type="module" src="./js/app.js?v=2026-09-04-11"></script>
+<script type="module" src="./js/app.js?v=2026-09-04-12"></script>
 
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(console.error);
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(console.error);
   });
 }
 </script>

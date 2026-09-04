@@ -48,39 +48,19 @@ async function ensureSupabase() {
 
 const auth = {
   async getSession() {
-    const persisted = readPersistedSession();
-    // Local persisted session is authoritative for UI startup. When online,
-    // refresh the Supabase client in the background instead of blocking startup.
-    if (persisted?.user?.id) {
-      if (navigator.onLine && !client) {
-        queueMicrotask(async () => {
-          try {
-            const c = await ensureSupabase();
-            await c.auth.getSession();
-          } catch (_) {}
-        });
-      } else if (navigator.onLine && client) {
-        queueMicrotask(() => client.auth.getSession().catch(() => {}));
-      }
-      return { data: { session: persisted }, error: null };
-    }
-
-    if (!navigator.onLine) return { data: { session: null }, error: null };
-
+    if (!navigator.onLine) return { data: { session: readPersistedSession() }, error: null };
     try {
       const c = await ensureSupabase();
       return await c.auth.getSession();
     } catch (error) {
-      return { data: { session: null }, error };
+      const persisted = readPersistedSession();
+      return persisted ? { data: { session: persisted }, error: null } : { data: { session: null }, error };
     }
   },
-  async getLiveSession() {
-    const c = await ensureSupabase();
-    return await c.auth.getSession();
-  },
   async refreshSession() {
+    if (!navigator.onLine) return { data: { session: readPersistedSession() }, error: null };
     const c = await ensureSupabase();
-    return await c.auth.refreshSession();
+    return c.auth.refreshSession();
   },
   async getUser() {
     const result = await this.getSession();
@@ -89,15 +69,14 @@ const auth = {
   async signOut() {
     try {
       if (client) return await client.auth.signOut();
-      // Explicit logout must also clear the persisted Supabase session locally.
-      try {
-        const keys = Object.keys(localStorage).filter((key) => /^sb-.+-auth-token$/.test(key));
-        keys.forEach((key) => localStorage.removeItem(key));
-      } catch (_) {}
-      return { error: null };
     } catch (error) {
       return { error };
     }
+    try {
+      const keys = Object.keys(localStorage).filter((key) => /^sb-.+-auth-token$/.test(key));
+      keys.forEach((key) => localStorage.removeItem(key));
+    } catch (_) {}
+    return { error: null };
   },
   async signInWithPassword(...args) { return (await ensureSupabase()).auth.signInWithPassword(...args); },
   async signUp(...args) { return (await ensureSupabase()).auth.signUp(...args); },

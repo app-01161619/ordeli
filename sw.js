@@ -77,7 +77,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 
-const CDN_CACHE = "ordeli-cdn-v2026-09-04-09";
+const CDN_CACHE = "ordeli-cdn-v2026-09-04-12";
 const CDN_HOSTS = new Set(["cdnjs.cloudflare.com", "unpkg.com"]);
 
 self.addEventListener("fetch", (event) => {

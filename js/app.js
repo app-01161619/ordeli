@@ -8,6 +8,39 @@ import { supabase, readPersistedSession, ensureSupabase } from "./supabase.js";
 const $ = (id) =>
   document.getElementById(id);
 
+const bootFallback = document.getElementById("bootFallback");
+function hideBootFallback() { bootFallback?.classList.add("is-hidden"); }
+
+const EXTERNAL_ASSET_URLS = {
+  qrcode: "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js",
+  scanner: "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
+};
+const externalAssetPromises = new Map();
+async function ensureExternalScript(key) {
+  if (key === "qrcode" && typeof QRCode !== "undefined") return true;
+  if (key === "scanner" && typeof Html5Qrcode !== "undefined") return true;
+  if (externalAssetPromises.has(key)) return externalAssetPromises.get(key);
+  const url = EXTERNAL_ASSET_URLS[key];
+  if (!url) throw new Error(`Unknown asset: ${key}`);
+  const promise = new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-ordeli-asset="${key}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`Unable to load ${key} library.`)), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = url;
+    script.async = false;
+    script.dataset.ordeliAsset = key;
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error(`Unable to load ${key} library. Connect to the internet once to cache this feature for offline use.`));
+    document.head.appendChild(script);
+  });
+  externalAssetPromises.set(key, promise);
+  try { return await promise; } catch (error) { externalAssetPromises.delete(key); throw error; }
+}
+
 // ============================================================
 // OFFLINE / SYNC FOUNDATION
 // ============================================================
@@ -172,10 +205,6 @@ async function enqueueOfflineOrder(payload) {
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error || new Error("Unable to save the order offline."));
   });
-  try {
-    const registration = await navigator.serviceWorker?.ready;
-    await registration?.sync?.register("ordeli-offline-orders");
-  } catch (_) {}
   return row;
 }
 
@@ -254,15 +283,8 @@ async function syncOfflineOrders() {
       return;
     }
 
-    let session = null;
-    try {
-      // For synchronization, use the live Supabase session rather than the
-      // persisted local copy. The latter may contain an expired access token.
-      const live = await supabase.auth.getLiveSession();
-      session = live?.data?.session || null;
-    } catch (sessionError) {
-      console.warn("Live Supabase session lookup failed:", sessionError);
-    }
+    let sessionResult = await supabase.auth.getSession();
+    let session = sessionResult?.data?.session || null;
     if (!session?.user?.id) {
       try {
         const refreshed = await supabase.auth.refreshSession();
@@ -394,10 +416,13 @@ async function updateConnectivityIndicator() {
   }
   if (pending > 0) {
     const rows = await getOfflineQueueRows({ includeFinished: false });
-    const hasError = rows.some(row => row.status === "error" && row.lastError);
-    indicator.textContent = hasError
-      ? `Sync needs attention · ${pending}`
-      : `Waiting to Sync · ${pending}`;
+    const firstError = rows.find(row => row.status === "error" && row.lastError)?.lastError || "";
+    const friendly = firstError.toLowerCase().includes("reservation")
+      ? "Sync needs attention · QR reservation"
+      : firstError.toLowerCase().includes("auth") || firstError.toLowerCase().includes("session") || firstError.includes("JWT")
+        ? "Sync needs attention · Session"
+        : "Sync needs attention";
+    indicator.textContent = firstError ? `${friendly} · ${pending}` : `Waiting to Sync · ${pending}`;
     return;
   }
   indicator.textContent = "Online";
@@ -417,16 +442,12 @@ async function hasPendingOfflineWork() {
 function initializeOfflineFoundation() {
   ensureConnectivityIndicator();
   runtimeOffline = !navigator.onLine;
-  updateConnectivityIndicator();
+  updateConnectivityIndicator().catch(error => console.warn("Connectivity indicator startup failed:", error));
 
   supabase.auth.onAuthStateChange((event, session) => {
     if (session?.user?.id && ["SIGNED_IN", "TOKEN_REFRESHED", "INITIAL_SESSION"].includes(event)) {
       scheduleOfflineSync(0);
     }
-  });
-
-  navigator.serviceWorker?.addEventListener("message", (event) => {
-    if (event.data?.type === "ordeli-sync-request") scheduleOfflineSync(0);
   });
 
   window.addEventListener("online", async () => {
@@ -461,6 +482,10 @@ function initializeOfflineFoundation() {
   window.addEventListener("pageshow", () => { scheduleOfflineSync(0); });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) scheduleOfflineSync(0);
+  });
+
+  navigator.serviceWorker?.addEventListener("message", (event) => {
+    if (event.data?.type === "ordeli-sync-request") scheduleOfflineSync(0);
   });
 
   // navigator.onLine can be stale in PWAs. A frequent lightweight cycle makes
@@ -714,6 +739,7 @@ function shopComplete(
 
 async function renderApplication() {
 
+  hideBootFallback();
   if (renderInFlight) {
     return renderInFlight;
   }
@@ -3692,6 +3718,7 @@ async function prepareQrPrintPreview() {
 
 
   try {
+    await ensureExternalScript("qrcode");
 
     const user =
       await getCurrentUser();
@@ -4220,33 +4247,21 @@ $("scannerManualButton")
 
 async function startQrScanner() {
 
-  if (
-    scannerInstance ||
-    typeof Html5Qrcode ===
-      "undefined"
-  ) {
+  if (scannerInstance) return;
 
-    if (
-      typeof Html5Qrcode ===
-      "undefined"
-    ) {
-
-      $("scannerMessage")
-        .textContent =
-          "QR scanner library could not be loaded.";
-
-    }
-
+  try {
+    await ensureExternalScript("scanner");
+  } catch (error) {
+    $("scannerMessage").textContent = error?.message || "QR scanner library could not be loaded.";
     return;
-
   }
 
+  if (typeof Html5Qrcode === "undefined") {
+    $("scannerMessage").textContent = "QR scanner library could not be loaded.";
+    return;
+  }
 
-  scannerInstance =
-    new Html5Qrcode(
-      "qrReader"
-    );
-
+  scannerInstance = new Html5Qrcode("qrReader");
 
   try {
 
@@ -6234,6 +6249,12 @@ supabase.auth.onAuthStateChange((event, currentSession) => {
 
 
 initializeOfflineFoundation();
+
+// If the PWA was opened directly from an existing service-worker cache, do not
+// depend on the browser firing an online/auth event to start rendering.
+queueMicrotask(() => {
+  renderApplication().catch(error => console.error("Ordeli startup failed:", error));
+});
 
 window.addEventListener(
   "hashchange",
