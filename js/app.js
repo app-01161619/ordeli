@@ -347,6 +347,12 @@ const screens = {
   orderDetail:
     $("orderDetailScreen"),
 
+  orders:
+    $("ordersScreen"),
+
+  events:
+    $("eventsScreen"),
+
 };
 
 
@@ -399,7 +405,9 @@ const validRoutes = [
   "qr",
   "scanner",
   "order-create",
-  "order-detail"
+  "order-detail",
+  "orders",
+  "events"
 ];
 
 
@@ -608,6 +616,18 @@ async function renderApplication() {
     }
 
 
+    if (getRoute() === "orders") {
+      showScreen("orders");
+      await loadOrders();
+      return;
+    }
+
+    if (getRoute() === "events") {
+      showScreen("events");
+      await loadEvents();
+      return;
+    }
+
     if (
       getRoute() ===
       "order-detail"
@@ -753,30 +773,199 @@ async function renderApplication() {
 // HOME
 // ============================================================
 
-async function renderHome(
-  seller
-) {
+async function renderHome(seller) {
+  $("homeShopName").textContent = seller.shop_name;
+  $("homeShopAddress").textContent = seller.shop_address || "";
+  $("homeDashboardSubtitle").textContent = "Loading your shop activity…";
+  await loadHomeLogo(seller.shop_logo_path);
+  showScreen("home");
+  await loadHomeDashboard(seller.id);
+}
 
-  $("homeShopName")
-    .textContent =
-      seller.shop_name;
+async function loadHomeDashboard(sellerId) {
+  const cacheKey = `dashboard:${sellerId}`;
+  let snapshot = null;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const [ordersResult, paymentsResult, eventsResult] = await Promise.all([
+        supabase.from("orders").select(`id,order_number,created_at,cancelled_at,event_id,fulfillment_type,pickup_status,customers(id,name,phone),order_items(id,product_name,quantity,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at),qr_code_id)` ).eq("seller_id", sellerId).order("created_at", { ascending: false }).limit(40),
+        supabase.from("payments").select("id,order_id,amount,payment_type,proof_status,created_at").eq("seller_id", sellerId).order("created_at", { ascending: false }).limit(200),
+        supabase.from("events").select("id,name,location,event_date,start_time,end_time,status").eq("seller_id", sellerId).gte("event_date", new Date().toISOString().slice(0,10)).order("event_date", { ascending: true }).order("start_time", { ascending: true }).limit(20)
+      ]);
+      if (ordersResult.error) throw ordersResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
+      if (eventsResult.error) throw eventsResult.error;
+      snapshot = { orders: ordersResult.data || [], payments: paymentsResult.data || [], events: eventsResult.data || [], cachedAt: Date.now() };
+      await cacheNamed(cacheKey, snapshot);
+    } catch (error) {
+      snapshot = await getCachedSnapshot(cacheKey);
+      if (!snapshot) throw error;
+    }
+  } else {
+    snapshot = await getCachedSnapshot(cacheKey);
+  }
+  snapshot = snapshot || { orders: [], payments: [], events: [] };
+  const computed = computeOrderMetrics(snapshot.orders, snapshot.payments);
+  $("attentionProduction").textContent = String(computed.production);
+  $("attentionPayments").textContent = String(computed.paymentReviews);
+  $("attentionReady").textContent = String(computed.ready);
+  const upcomingEventIds = new Set(snapshot.events.filter(e => e.event_date).map(e => e.id));
+  const eventOrders = snapshot.orders.filter(o => o.event_id && upcomingEventIds.has(o.event_id) && !o.cancelled_at).length;
+  $("attentionEvents").textContent = String(eventOrders);
+  $("homeDashboardSubtitle").textContent = `${computed.active} active order${computed.active === 1 ? "" : "s"} · ${computed.ready} ready for handover`;
+  renderRecentOrders(snapshot.orders.slice(0, 8), snapshot.payments);
+}
 
+function computeOrderMetrics(orders, payments) {
+  const paymentsByOrder = new Map();
+  (payments || []).forEach(p => {
+    const arr = paymentsByOrder.get(p.order_id) || [];
+    arr.push(p);
+    paymentsByOrder.set(p.order_id, arr);
+  });
+  let production = 0, paymentReviews = 0, ready = 0, active = 0;
+  (orders || []).forEach(order => {
+    if (order.cancelled_at) return;
+    const items = order.order_items || [];
+    const nonCancelled = items.filter(i => !i.cancelled_at);
+    const productionComplete = nonCancelled.length > 0 && nonCancelled.every(isItemProductionComplete);
+    if (!productionComplete) production += 1;
+    const total = nonCancelled.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+    const paid = (paymentsByOrder.get(order.id) || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const pendingProof = (paymentsByOrder.get(order.id) || []).some(p => p.proof_status === "pending_verification");
+    if (pendingProof) paymentReviews += 1;
+    const fullyPaid = paid >= total - 0.005;
+    if (productionComplete && fullyPaid && !order.handed_over_at && !order.cancelled_at) ready += 1;
+    active += 1;
+  });
+  return { production, paymentReviews, ready, active };
+}
 
-  $("homeShopAddress")
-    .textContent =
-      seller.shop_address ||
-      "";
+function isItemProductionComplete(item) {
+  if (item.cancelled_at) return true;
+  const workflow = normaliseWorkflowSnapshot(item.workflow_snapshot);
+  if (!workflow.length) return false;
+  const logs = item.stage_logs || [];
+  const states = getProductionStageStates(workflow, logs);
+  return states.every(stage => stage.status === "finished");
+}
 
+function orderProductionLabel(order) {
+  const items = (order.order_items || []).filter(i => !i.cancelled_at);
+  if (!items.length) return "Cancelled";
+  if (items.every(isItemProductionComplete)) return "Completed";
+  const active = items.find(i => !isItemProductionComplete(i));
+  const workflow = normaliseWorkflowSnapshot(active?.workflow_snapshot);
+  const states = active ? getProductionStageStates(workflow, active.stage_logs || []) : [];
+  const next = states.find(stage => stage.status !== "finished");
+  return next ? next.name : "In progress";
+}
 
-  await loadHomeLogo(
-    seller.shop_logo_path
-  );
+function renderRecentOrders(orders, payments) {
+  const list = $("homeRecentOrders");
+  list.replaceChildren();
+  if (!orders.length) {
+    const empty = document.createElement("p"); empty.className = "dashboard-empty"; empty.textContent = "No orders yet. Scan a customer QR to create your first order."; list.appendChild(empty); return;
+  }
+  const paymentMap = new Map();
+  payments.forEach(p => paymentMap.set(p.order_id, [...(paymentMap.get(p.order_id) || []), p]));
+  orders.forEach(order => {
+    const button = document.createElement("button"); button.type = "button"; button.className = "dashboard-order-row";
+    const name = document.createElement("div");
+    const title = document.createElement("strong"); title.textContent = `#${order.order_number} · ${order.customers?.name || "Customer"}`;
+    const meta = document.createElement("span"); meta.textContent = `${order.order_items?.length || 0} item${(order.order_items?.length || 0) === 1 ? "" : "s"} · ${orderProductionLabel(order)}`;
+    name.append(title, meta);
+    const total = (order.order_items || []).filter(i => !i.cancelled_at).reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+    const paid = (paymentMap.get(order.id) || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const value = document.createElement("div"); value.className = "dashboard-order-value"; value.innerHTML = `<strong>${formatPrice(total)}</strong><span>${paid >= total - 0.005 ? "Paid" : `${formatPrice(Math.max(0, total-paid))} due`}</span>`;
+    button.append(name, value); button.addEventListener("click", () => { currentOrderId = order.id; currentOrderShowProduction = false; navigate("order-detail"); });
+    list.appendChild(button);
+  });
+}
 
+async function loadOrders(prefilter = null) {
+  const user = await getCurrentUser();
+  const cacheKey = `orders-list:${user.id}`;
+  let snapshot = null;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const [ordersResult, paymentsResult] = await Promise.all([
+        supabase.from("orders").select(`id,order_number,created_at,cancelled_at,event_id,fulfillment_type,pickup_status,handed_over_at,customers(id,name,phone),order_items(id,product_name,quantity,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at))`).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(200),
+        supabase.from("payments").select("id,order_id,amount,payment_type,proof_status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(1000)
+      ]);
+      if (ordersResult.error) throw ordersResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
+      snapshot = { orders: ordersResult.data || [], payments: paymentsResult.data || [], cachedAt: Date.now() };
+      await cacheNamed(cacheKey, snapshot);
+    } catch (error) {
+      snapshot = await getCachedSnapshot(cacheKey);
+      if (!snapshot) throw error;
+    }
+  } else { snapshot = await getCachedSnapshot(cacheKey); }
+  snapshot = snapshot || { orders: [], payments: [] };
+  window.__ordeliOrdersSnapshot = snapshot;
+  renderOrdersList(prefilter || window.__ordeliOrdersFilter || "all");
+}
 
-  showScreen(
-    "home"
-  );
+function renderOrdersList(filter) {
+  window.__ordeliOrdersFilter = filter;
+  const snapshot = window.__ordeliOrdersSnapshot || { orders: [], payments: [] };
+  const search = ($( "ordersSearch")?.value || "").trim().toLowerCase();
+  document.querySelectorAll("[data-orders-filter]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.ordersFilter === filter));
+  const paymentsByOrder = new Map();
+  snapshot.payments.forEach(p => paymentsByOrder.set(p.order_id, [...(paymentsByOrder.get(p.order_id)||[]), p]));
+  const filtered = snapshot.orders.filter(order => {
+    const items = (order.order_items || []).filter(i => !i.cancelled_at);
+    const cancelled = Boolean(order.cancelled_at) || (order.order_items || []).every(i => i.cancelled_at);
+    const productionComplete = items.length > 0 && items.every(isItemProductionComplete);
+    const total = items.reduce((sum,i)=>sum+(Number(i.total_price)||0),0);
+    const paid = (paymentsByOrder.get(order.id)||[]).reduce((sum,p)=>sum+(Number(p.amount)||0),0);
+    const pendingProof = (paymentsByOrder.get(order.id)||[]).some(p => p.proof_status === "pending_verification");
+    const fullyPaid = paid >= total - 0.005;
+    const ready = productionComplete && fullyPaid && !order.handed_over_at && !cancelled;
+    const matchesSearch = !search || String(order.order_number).includes(search) || String(order.customers?.name || "").toLowerCase().includes(search);
+    if (!matchesSearch) return false;
+    if (filter === "production") return !productionComplete && !cancelled;
+    if (filter === "payments") return pendingProof;
+    if (filter === "ready") return ready;
+    if (filter === "completed") return (productionComplete && (order.handed_over_at || order.fulfillment_type === "courier") && !cancelled);
+    if (filter === "cancelled") return cancelled;
+    return true;
+  });
+  $("ordersSummary").textContent = `${filtered.length} order${filtered.length === 1 ? "" : "s"}`;
+  const list = $("ordersList"); list.replaceChildren(); $("ordersEmptyState").hidden = filtered.length > 0;
+  filtered.forEach(order => list.appendChild(createOrderListCard(order, paymentsByOrder.get(order.id)||[])));
+}
 
+function createOrderListCard(order, payments) {
+  const card = document.createElement("article"); card.className = "seller-order-card";
+  const header = document.createElement("div"); header.className = "seller-order-card-header";
+  const title = document.createElement("div");
+  const h = document.createElement("h2"); h.textContent = `#${order.order_number}`;
+  const customer = document.createElement("p"); customer.textContent = order.customers?.name || "Customer"; title.append(h, customer);
+  const badge = document.createElement("span"); badge.className = "order-status-badge"; badge.textContent = order.cancelled_at ? "Cancelled" : orderProductionLabel(order);
+  header.append(title,badge); card.appendChild(header);
+  const itemText = (order.order_items || []).map(i => `${i.product_name} × ${i.quantity}`).join(" · ");
+  const items = document.createElement("p"); items.className = "seller-order-items"; items.textContent = itemText || "No active items"; card.appendChild(items);
+  const total = (order.order_items || []).filter(i=>!i.cancelled_at).reduce((s,i)=>s+(Number(i.total_price)||0),0);
+  const paid = payments.reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const footer = document.createElement("div"); footer.className = "seller-order-card-footer"; footer.innerHTML = `<span>${formatPrice(total)} · ${paid >= total - 0.005 ? "Fully paid" : `${formatPrice(Math.max(0,total-paid))} remaining`}</span>`;
+  const open = document.createElement("button"); open.type="button"; open.textContent="Open Order"; open.addEventListener("click",()=>{currentOrderId=order.id;currentOrderShowProduction=false;navigate("order-detail")});
+  footer.appendChild(open); card.appendChild(footer); return card;
+}
+
+async function loadEvents() {
+  const user = await getCurrentUser();
+  const cacheKey = `events:${user.id}`;
+  let events = null;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const result = await supabase.from("events").select("id,name,location,event_date,start_time,end_time,notes,status").eq("seller_id", user.id).gte("event_date", new Date().toISOString().slice(0,10)).order("event_date", {ascending:true}).order("start_time", {ascending:true});
+      if (result.error) throw result.error; events = result.data || []; await cacheNamed(cacheKey,events);
+    } catch (error) { events = await getCachedSnapshot(cacheKey); if (!events) throw error; }
+  } else events = await getCachedSnapshot(cacheKey);
+  events = events || []; const list=$("eventsList"); list.replaceChildren(); $("eventsEmptyState").hidden = events.length>0;
+  events.forEach(event => { const card=document.createElement("article"); card.className="event-card"; const date=document.createElement("div"); date.className="event-date-box"; date.innerHTML=`<strong>${new Intl.DateTimeFormat("en-PH",{month:"short",day:"numeric"}).format(new Date(`${event.event_date}T00:00:00`))}</strong><span>${event.status || "Upcoming"}</span>`; const body=document.createElement("div"); const title=document.createElement("h2"); title.textContent=event.name; const meta=document.createElement("p"); meta.textContent=`${event.location} · ${event.start_time ? event.start_time.slice(0,5) : ""}${event.end_time ? `–${event.end_time.slice(0,5)}` : ""}`; body.append(title,meta); card.append(date,body); list.appendChild(card); });
 }
 
 
@@ -1559,6 +1748,28 @@ $("editShopButton")
     }
   );
 
+
+// ============================================================
+// DASHBOARD / ORDERS / EVENTS
+// ============================================================
+
+$("homeOrdersButton")?.addEventListener("click", () => navigate("orders"));
+$("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
+$("homeProductsButton")?.addEventListener("click", () => navigate("products"));
+$("homeQrButton")?.addEventListener("click", () => navigate("qr"));
+$("homeEventsButton")?.addEventListener("click", () => navigate("events"));
+$("ordersBackButton")?.addEventListener("click", () => navigate("home"));
+$("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
+$("eventsBackButton")?.addEventListener("click", () => navigate("home"));
+document.querySelectorAll("[data-dashboard-route]").forEach(button => {
+  button.addEventListener("click", () => {
+    const route = button.dataset.dashboardRoute;
+    if (route === "orders") { window.__ordeliOrdersFilter = button.dataset.dashboardFilter || "all"; navigate("orders"); }
+    else navigate(route);
+  });
+});
+document.querySelectorAll("[data-orders-filter]").forEach(button => button.addEventListener("click", () => renderOrdersList(button.dataset.ordersFilter)));
+$("ordersSearch")?.addEventListener("input", () => renderOrdersList(window.__ordeliOrdersFilter || "all"));
 
 // ============================================================
 // PRODUCTS
@@ -5995,6 +6206,8 @@ async function logout() {
     workflowStages =
       [];
 
+    window.__ordeliOrdersSnapshot = null;
+    window.__ordeliOrdersFilter = "all";
 
     editingProductId =
       null;
