@@ -317,7 +317,7 @@ async function syncOfflineOrders() {
         row.status = navigator.onLine ? "error" : "waiting";
         row.lastError = error?.message || "Synchronization failed.";
         row.lastErrorAt = new Date().toISOString();
-        row.nextAttemptAt = navigator.onLine ? Date.now() + Math.min(60000, 2000 * (2 ** Math.min(5, Number(row.attempts || 1) - 1))) : null;
+        row.nextAttemptAt = navigator.onLine ? Date.now() + Math.min(15000, 1500 * (2 ** Math.min(4, Number(row.attempts || 1) - 1))) : null;
         await updateQueuedOrder(row);
         console.error("Offline queue sync failed:", error);
         if (!navigator.onLine) break;
@@ -355,23 +355,66 @@ async function updateConnectivityIndicator() {
   indicator.classList.toggle("has-pending", pending > 0);
   indicator.textContent = !online ? (pending ? `Offline · ${pending} waiting to sync` : "Offline") : (pending ? `Waiting to Sync · ${pending}` : "Online");
 }
+function scheduleOfflineSync(delay = 0) {
+  window.clearTimeout(scheduleOfflineSync._timer);
+  scheduleOfflineSync._timer = window.setTimeout(async () => {
+    try { await syncOfflineOrders(); } catch (error) { console.error("Offline queue sync failed:", error); }
+  }, Math.max(0, delay));
+}
+
+async function hasPendingOfflineWork() {
+  const count = await getPendingSyncCount();
+  return count > 0;
+}
+
 function initializeOfflineFoundation() {
   ensureConnectivityIndicator();
   runtimeOffline = !navigator.onLine;
   updateConnectivityIndicator();
+
   window.addEventListener("online", async () => {
     runtimeOffline = false;
     await updateConnectivityIndicator();
+    // Reinitialize Supabase and immediately reconcile anything that was saved
+    // while offline. The seller UI is not reloaded unless it needs it.
     try { await ensureSupabase(); } catch (error) { console.warn("Supabase initialization after reconnect failed:", error); return; }
     try { await refreshOfflineQrCache(); } catch (_) {}
-    try { await syncOfflineOrders(); } catch (error) { console.error("Offline order sync failed:", error); }
+    scheduleOfflineSync(0);
     if (getRoute() === "order-create") restorePendingOrderDraft();
-    if (getRoute() !== "login" && getRoute() !== "register") renderApplication();
+    if (getRoute() === "order-detail" && currentOrderId) {
+      if (String(currentOrderId).startsWith("offline:")) {
+        const resolved = await resolveServerOrderId(currentOrderId, { attemptSync: true }).catch(() => null);
+        if (resolved) currentOrderId = resolved;
+      }
+      try { await loadOrderDetail(currentOrderId); } catch (_) {}
+    }
+    if (getRoute() !== "login" && getRoute() !== "register" && getRoute() !== "order-create" && getRoute() !== "order-detail") {
+      renderApplication();
+    }
   });
-  window.addEventListener("offline", () => { runtimeOffline = true; updateConnectivityIndicator(); });
-  window.setInterval(updateConnectivityIndicator, 5000);
+
+  window.addEventListener("offline", async () => {
+    runtimeOffline = true;
+    await updateConnectivityIndicator();
+  });
+
+  window.addEventListener("focus", () => { scheduleOfflineSync(0); });
+  window.addEventListener("pageshow", () => { scheduleOfflineSync(0); });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleOfflineSync(0);
+  });
+
+  // navigator.onLine can be stale in PWAs. A frequent lightweight cycle makes
+  // pending work self-healing even when the browser does not emit an `online`
+  // event (for example, after Wi-Fi handoff or captive portal recovery).
+  window.setInterval(async () => {
+    await updateConnectivityIndicator();
+    if (!navigator.onLine || offlineSyncInProgress) return;
+    if (await hasPendingOfflineWork()) scheduleOfflineSync(0);
+  }, 3000);
+
   refreshOfflineQrCache();
-  if (navigator.onLine) syncOfflineOrders();
+  scheduleOfflineSync(0);
 }
 
 
@@ -554,10 +597,30 @@ async function getCurrentUser() {
 
 async function getSeller(userId) {
   const cacheKey = `seller:${userId}`;
-  if (runtimeOffline || !navigator.onLine) {
-    const cached = await getCachedSnapshot(cacheKey);
-    if (cached) return cached;
+  const cached = await getCachedSnapshot(cacheKey);
+
+  // The cached seller profile is sufficient to boot the seller app offline.
+  // When online, refresh it in the background instead of making startup
+  // depend on a network round-trip.
+  if (cached) {
+    if (navigator.onLine && !runtimeOffline) {
+      queueMicrotask(async () => {
+        try {
+          await ensureSupabase();
+          const { data, error } = await supabase
+            .from("sellers")
+            .select(`id, email, login_method, google_id, shop_name, shop_address, shop_logo_path`)
+            .eq("id", userId)
+            .maybeSingle();
+          if (!error && data) await cacheNamed(cacheKey, data);
+        } catch (_) {}
+      });
+    }
+    return cached;
   }
+
+  if (!navigator.onLine || runtimeOffline) return null;
+
   try {
     await ensureSupabase();
     const { data, error } = await supabase.from("sellers").select(`id, email, login_method, google_id, shop_name, shop_address, shop_logo_path`).eq("id", userId).maybeSingle();
@@ -565,8 +628,6 @@ async function getSeller(userId) {
     if (data) await cacheNamed(cacheKey, data);
     return data;
   } catch (error) {
-    const cached = await getCachedSnapshot(cacheKey);
-    if (cached) return cached;
     throw error;
   }
 }
@@ -629,11 +690,14 @@ async function renderApplication() {
 
 
     if (!seller) {
-
+      if (!navigator.onLine || runtimeOffline) {
+        throw new Error(
+          "This seller profile has not been saved on this device yet. Open the app once while online before using it offline."
+        );
+      }
       throw new Error(
         "Seller profile was not found. Run the Seller/Shop database setup first."
       );
-
     }
 
 
@@ -841,12 +905,22 @@ async function renderApplication() {
 // ============================================================
 
 async function renderHome(seller) {
-  $("homeShopName").textContent = seller.shop_name;
+  $("homeShopName").textContent = seller.shop_name || "My Shop";
   $("homeShopAddress").textContent = seller.shop_address || "";
   $("homeDashboardSubtitle").textContent = "Loading your shop activity…";
-  await loadHomeLogo(seller.shop_logo_path);
+  // Never let a logo/network failure prevent the dashboard from appearing.
   showScreen("home");
-  await loadHomeDashboard(seller.id);
+  try { await loadHomeLogo(seller.shop_logo_path); } catch (error) { console.warn("Home logo unavailable:", error); }
+  try {
+    await loadHomeDashboard(seller.id);
+  } catch (error) {
+    console.warn("Dashboard refresh unavailable; using cached/local state.", error);
+    const cached = await getCachedSnapshot(`dashboard:${seller.id}`);
+    if (cached) {
+      try { renderRecentOrders(cached.orders || [], cached.payments || []); } catch (_) {}
+    }
+    $("homeDashboardSubtitle").textContent = navigator.onLine ? "Unable to refresh right now" : "Offline · Showing saved shop activity";
+  }
 }
 
 async function loadHomeDashboard(sellerId) {
@@ -1051,10 +1125,8 @@ async function loadHomeLogo(
     );
 
 
-  if (!logoPath) {
-
+  if (!logoPath || !navigator.onLine || runtimeOffline) {
     return;
-
   }
 
 

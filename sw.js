@@ -1,36 +1,20 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-04-orderflow-02";
+const CACHE_VERSION = "ordeli-v2026-09-04-09";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-04-orderflow-02"
-];
-
-const SCANNER_LIBRARIES = [
-  "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js",
-  "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
+  "/js/app.js?v=2026-09-04-09"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
       .then((cache) => cache.addAll(APP_SHELL))
-      .then(async (cache) => {
-        await Promise.all(SCANNER_LIBRARIES.map(async (url) => {
-          try {
-            const request = new Request(url, { mode: "no-cors" });
-            const response = await fetch(request);
-            if (response && response.type === "opaque") await cache.put(request, response);
-          } catch (_) {
-            // The app can still install when a third-party CDN is temporarily unavailable.
-          }
-        }));
-      })
       .then(() => self.skipWaiting())
   );
 });
@@ -52,24 +36,6 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  const isScannerLibrary =
-    request.destination === "script" &&
-    (url.hostname === "cdnjs.cloudflare.com" || url.hostname === "unpkg.com");
-
-  if (isScannerLibrary) {
-    event.respondWith(
-      caches.match(request).then((cached) =>
-        cached || fetch(request).then((response) => {
-          if (response && (response.ok || response.type === "opaque")) {
-            caches.open(CACHE_VERSION).then((cache) => cache.put(request, response.clone())).catch(() => {});
-          }
-          return response;
-        })
-      ).catch(() => caches.match(request))
-    );
-    return;
-  }
-
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/t/")) return;
 
@@ -99,5 +65,31 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request))
+  );
+});
+
+
+const CDN_CACHE = "ordeli-cdn-v2026-09-04-09";
+const CDN_HOSTS = new Set(["cdnjs.cloudflare.com", "unpkg.com"]);
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (!CDN_HOSTS.has(url.hostname)) return;
+  event.respondWith(
+    caches.open(CDN_CACHE).then(async (cache) => {
+      try {
+        const response = await fetch(request);
+        if (response && (response.ok || response.type === "opaque")) {
+          await cache.put(request, response.clone());
+        }
+        return response;
+      } catch (_) {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        throw _;
+      }
+    })
   );
 });
