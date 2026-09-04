@@ -1,14 +1,14 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-04-09";
+const CACHE_VERSION = "ordeli-v2026-09-04-10";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-04-09"
+  "/js/app.js?v=2026-09-04-10"
 ];
 
 self.addEventListener("install", (event) => {
@@ -28,6 +28,14 @@ self.addEventListener("activate", (event) => {
           .map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("sync", (event) => {
+  if (event.tag !== "ordeli-offline-orders") return;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => clients.forEach((client) => client.postMessage({ type: "ordeli-sync-request" })))
   );
 });
 

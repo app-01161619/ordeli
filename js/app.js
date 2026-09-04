@@ -172,7 +172,17 @@ async function enqueueOfflineOrder(payload) {
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error || new Error("Unable to save the order offline."));
   });
+  await requestOfflineBackgroundSync();
   return row;
+}
+
+async function requestOfflineBackgroundSync() {
+  try {
+    const registration = await navigator.serviceWorker?.ready;
+    if (registration?.sync) await registration.sync.register("ordeli-offline-orders");
+  } catch (error) {
+    console.debug("Background offline sync is unavailable:", error);
+  }
 }
 
 async function getOfflineQueueRows({ includeFinished = false } = {}) {
@@ -390,6 +400,7 @@ function initializeOfflineFoundation() {
     // while offline. The seller UI is not reloaded unless it needs it.
     try { await ensureSupabase(); } catch (error) { console.warn("Supabase initialization after reconnect failed:", error); return; }
     try { await refreshOfflineQrCache(); } catch (_) {}
+    await requestOfflineBackgroundSync();
     scheduleOfflineSync(0);
     if (getRoute() === "order-create") restorePendingOrderDraft();
     if (getRoute() === "order-detail" && currentOrderId) {
@@ -415,6 +426,10 @@ function initializeOfflineFoundation() {
     if (!document.hidden) scheduleOfflineSync(0);
   });
 
+  navigator.serviceWorker?.addEventListener("message", event => {
+    if (event.data?.type === "ordeli-sync-request") scheduleOfflineSync(0);
+  });
+
   // navigator.onLine can be stale in PWAs. A frequent lightweight cycle makes
   // pending work self-healing even when the browser does not emit an `online`
   // event (for example, after Wi-Fi handoff or captive portal recovery).
@@ -429,6 +444,7 @@ function initializeOfflineFoundation() {
   // starts while connectivity is coming back before the browser emits the
   // `online` event.
   scheduleOfflineSync(0);
+  requestOfflineBackgroundSync();
   scheduleOfflineSync._bootRetry = window.setTimeout(() => scheduleOfflineSync(0), 1500);
 }
 
