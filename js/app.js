@@ -410,6 +410,12 @@ const screens = {
   orderDetail:
     $("orderDetailScreen"),
 
+  orders:
+    $("ordersScreen"),
+
+  events:
+    $("eventsScreen"),
+
 };
 
 
@@ -462,7 +468,9 @@ const validRoutes = [
   "qr",
   "scanner",
   "order-create",
-  "order-detail"
+  "order-detail",
+  "orders",
+  "events"
 ];
 
 
@@ -664,12 +672,27 @@ async function renderApplication() {
 
 
     if (getRoute() === "order-create") {
-      restorePendingOrderDraft();
+      if (!(pendingQrToken && pendingProduct)) restorePendingOrderDraft();
       showScreen("orderCreate");
+      updateOrderCreateMode();
+      toggleCustomerChoice();
       updateOrderCreateTotals();
+      if (pendingAddToOrderId) renderAddToOrderContext();
       return;
     }
 
+
+    if (getRoute() === "orders") {
+      showScreen("orders");
+      await loadOrders();
+      return;
+    }
+
+    if (getRoute() === "events") {
+      showScreen("events");
+      await loadEvents();
+      return;
+    }
 
     if (
       getRoute() ===
@@ -816,30 +839,199 @@ async function renderApplication() {
 // HOME
 // ============================================================
 
-async function renderHome(
-  seller
-) {
+async function renderHome(seller) {
+  $("homeShopName").textContent = seller.shop_name;
+  $("homeShopAddress").textContent = seller.shop_address || "";
+  $("homeDashboardSubtitle").textContent = "Loading your shop activity…";
+  await loadHomeLogo(seller.shop_logo_path);
+  showScreen("home");
+  await loadHomeDashboard(seller.id);
+}
 
-  $("homeShopName")
-    .textContent =
-      seller.shop_name;
+async function loadHomeDashboard(sellerId) {
+  const cacheKey = `dashboard:${sellerId}`;
+  let snapshot = null;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const [ordersResult, paymentsResult, eventsResult] = await Promise.all([
+        supabase.from("orders").select(`id,order_number,created_at,cancelled_at,event_id,fulfillment_type,pickup_status,customers(id,name,phone),order_items(id,product_name,quantity,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at),qr_code_id)` ).eq("seller_id", sellerId).order("created_at", { ascending: false }).limit(40),
+        supabase.from("payments").select("id,order_id,amount,payment_type,proof_status,created_at").eq("seller_id", sellerId).order("created_at", { ascending: false }).limit(200),
+        supabase.from("events").select("id,name,location,event_date,start_time,end_time,status").eq("seller_id", sellerId).gte("event_date", new Date().toISOString().slice(0,10)).order("event_date", { ascending: true }).order("start_time", { ascending: true }).limit(20)
+      ]);
+      if (ordersResult.error) throw ordersResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
+      if (eventsResult.error) throw eventsResult.error;
+      snapshot = { orders: ordersResult.data || [], payments: paymentsResult.data || [], events: eventsResult.data || [], cachedAt: Date.now() };
+      await cacheNamed(cacheKey, snapshot);
+    } catch (error) {
+      snapshot = await getCachedSnapshot(cacheKey);
+      if (!snapshot) throw error;
+    }
+  } else {
+    snapshot = await getCachedSnapshot(cacheKey);
+  }
+  snapshot = snapshot || { orders: [], payments: [], events: [] };
+  const computed = computeOrderMetrics(snapshot.orders, snapshot.payments);
+  $("attentionProduction").textContent = String(computed.production);
+  $("attentionPayments").textContent = String(computed.paymentReviews);
+  $("attentionReady").textContent = String(computed.ready);
+  const upcomingEventIds = new Set(snapshot.events.filter(e => e.event_date).map(e => e.id));
+  const eventOrders = snapshot.orders.filter(o => o.event_id && upcomingEventIds.has(o.event_id) && !o.cancelled_at).length;
+  $("attentionEvents").textContent = String(eventOrders);
+  $("homeDashboardSubtitle").textContent = `${computed.active} active order${computed.active === 1 ? "" : "s"} · ${computed.ready} ready for handover`;
+  renderRecentOrders(snapshot.orders.slice(0, 8), snapshot.payments);
+}
 
+function computeOrderMetrics(orders, payments) {
+  const paymentsByOrder = new Map();
+  (payments || []).forEach(p => {
+    const arr = paymentsByOrder.get(p.order_id) || [];
+    arr.push(p);
+    paymentsByOrder.set(p.order_id, arr);
+  });
+  let production = 0, paymentReviews = 0, ready = 0, active = 0;
+  (orders || []).forEach(order => {
+    if (order.cancelled_at) return;
+    const items = order.order_items || [];
+    const nonCancelled = items.filter(i => !i.cancelled_at);
+    const productionComplete = nonCancelled.length > 0 && nonCancelled.every(isItemProductionComplete);
+    if (!productionComplete) production += 1;
+    const total = nonCancelled.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+    const paid = (paymentsByOrder.get(order.id) || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const pendingProof = (paymentsByOrder.get(order.id) || []).some(p => p.proof_status === "pending_verification");
+    if (pendingProof) paymentReviews += 1;
+    const fullyPaid = paid >= total - 0.005;
+    if (productionComplete && fullyPaid && !order.handed_over_at && !order.cancelled_at) ready += 1;
+    active += 1;
+  });
+  return { production, paymentReviews, ready, active };
+}
 
-  $("homeShopAddress")
-    .textContent =
-      seller.shop_address ||
-      "";
+function isItemProductionComplete(item) {
+  if (item.cancelled_at) return true;
+  const workflow = normaliseWorkflowSnapshot(item.workflow_snapshot);
+  if (!workflow.length) return false;
+  const logs = item.stage_logs || [];
+  const states = getProductionStageStates(workflow, logs);
+  return states.every(stage => stage.status === "finished");
+}
 
+function orderProductionLabel(order) {
+  const items = (order.order_items || []).filter(i => !i.cancelled_at);
+  if (!items.length) return "Cancelled";
+  if (items.every(isItemProductionComplete)) return "Completed";
+  const active = items.find(i => !isItemProductionComplete(i));
+  const workflow = normaliseWorkflowSnapshot(active?.workflow_snapshot);
+  const states = active ? getProductionStageStates(workflow, active.stage_logs || []) : [];
+  const next = states.find(stage => stage.status !== "finished");
+  return next ? next.name : "In progress";
+}
 
-  await loadHomeLogo(
-    seller.shop_logo_path
-  );
+function renderRecentOrders(orders, payments) {
+  const list = $("homeRecentOrders");
+  list.replaceChildren();
+  if (!orders.length) {
+    const empty = document.createElement("p"); empty.className = "dashboard-empty"; empty.textContent = "No orders yet. Scan a customer QR to create your first order."; list.appendChild(empty); return;
+  }
+  const paymentMap = new Map();
+  payments.forEach(p => paymentMap.set(p.order_id, [...(paymentMap.get(p.order_id) || []), p]));
+  orders.forEach(order => {
+    const button = document.createElement("button"); button.type = "button"; button.className = "dashboard-order-row";
+    const name = document.createElement("div");
+    const title = document.createElement("strong"); title.textContent = `#${order.order_number} · ${order.customers?.name || "Customer"}`;
+    const meta = document.createElement("span"); meta.textContent = `${order.order_items?.length || 0} item${(order.order_items?.length || 0) === 1 ? "" : "s"} · ${orderProductionLabel(order)}`;
+    name.append(title, meta);
+    const total = (order.order_items || []).filter(i => !i.cancelled_at).reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+    const paid = (paymentMap.get(order.id) || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const value = document.createElement("div"); value.className = "dashboard-order-value"; value.innerHTML = `<strong>${formatPrice(total)}</strong><span>${paid >= total - 0.005 ? "Paid" : `${formatPrice(Math.max(0, total-paid))} due`}</span>`;
+    button.append(name, value); button.addEventListener("click", () => { currentOrderId = order.id; currentOrderShowProduction = false; navigate("order-detail"); });
+    list.appendChild(button);
+  });
+}
 
+async function loadOrders(prefilter = null) {
+  const user = await getCurrentUser();
+  const cacheKey = `orders-list:${user.id}`;
+  let snapshot = null;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const [ordersResult, paymentsResult] = await Promise.all([
+        supabase.from("orders").select(`id,order_number,created_at,cancelled_at,event_id,fulfillment_type,pickup_status,handed_over_at,customers(id,name,phone),order_items(id,product_name,quantity,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at))`).eq("seller_id", user.id).order("created_at", { ascending: false }).limit(200),
+        supabase.from("payments").select("id,order_id,amount,payment_type,proof_status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false }).limit(1000)
+      ]);
+      if (ordersResult.error) throw ordersResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
+      snapshot = { orders: ordersResult.data || [], payments: paymentsResult.data || [], cachedAt: Date.now() };
+      await cacheNamed(cacheKey, snapshot);
+    } catch (error) {
+      snapshot = await getCachedSnapshot(cacheKey);
+      if (!snapshot) throw error;
+    }
+  } else { snapshot = await getCachedSnapshot(cacheKey); }
+  snapshot = snapshot || { orders: [], payments: [] };
+  window.__ordeliOrdersSnapshot = snapshot;
+  renderOrdersList(prefilter || window.__ordeliOrdersFilter || "all");
+}
 
-  showScreen(
-    "home"
-  );
+function renderOrdersList(filter) {
+  window.__ordeliOrdersFilter = filter;
+  const snapshot = window.__ordeliOrdersSnapshot || { orders: [], payments: [] };
+  const search = ($( "ordersSearch")?.value || "").trim().toLowerCase();
+  document.querySelectorAll("[data-orders-filter]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.ordersFilter === filter));
+  const paymentsByOrder = new Map();
+  snapshot.payments.forEach(p => paymentsByOrder.set(p.order_id, [...(paymentsByOrder.get(p.order_id)||[]), p]));
+  const filtered = snapshot.orders.filter(order => {
+    const items = (order.order_items || []).filter(i => !i.cancelled_at);
+    const cancelled = Boolean(order.cancelled_at) || (order.order_items || []).every(i => i.cancelled_at);
+    const productionComplete = items.length > 0 && items.every(isItemProductionComplete);
+    const total = items.reduce((sum,i)=>sum+(Number(i.total_price)||0),0);
+    const paid = (paymentsByOrder.get(order.id)||[]).reduce((sum,p)=>sum+(Number(p.amount)||0),0);
+    const pendingProof = (paymentsByOrder.get(order.id)||[]).some(p => p.proof_status === "pending_verification");
+    const fullyPaid = paid >= total - 0.005;
+    const ready = productionComplete && fullyPaid && !order.handed_over_at && !cancelled;
+    const matchesSearch = !search || String(order.order_number).includes(search) || String(order.customers?.name || "").toLowerCase().includes(search);
+    if (!matchesSearch) return false;
+    if (filter === "production") return !productionComplete && !cancelled;
+    if (filter === "payments") return pendingProof;
+    if (filter === "ready") return ready;
+    if (filter === "completed") return (productionComplete && (order.handed_over_at || order.fulfillment_type === "courier") && !cancelled);
+    if (filter === "cancelled") return cancelled;
+    return true;
+  });
+  $("ordersSummary").textContent = `${filtered.length} order${filtered.length === 1 ? "" : "s"}`;
+  const list = $("ordersList"); list.replaceChildren(); $("ordersEmptyState").hidden = filtered.length > 0;
+  filtered.forEach(order => list.appendChild(createOrderListCard(order, paymentsByOrder.get(order.id)||[])));
+}
 
+function createOrderListCard(order, payments) {
+  const card = document.createElement("article"); card.className = "seller-order-card";
+  const header = document.createElement("div"); header.className = "seller-order-card-header";
+  const title = document.createElement("div");
+  const h = document.createElement("h2"); h.textContent = `#${order.order_number}`;
+  const customer = document.createElement("p"); customer.textContent = order.customers?.name || "Customer"; title.append(h, customer);
+  const badge = document.createElement("span"); badge.className = "order-status-badge"; badge.textContent = order.cancelled_at ? "Cancelled" : orderProductionLabel(order);
+  header.append(title,badge); card.appendChild(header);
+  const itemText = (order.order_items || []).map(i => `${i.product_name} × ${i.quantity}`).join(" · ");
+  const items = document.createElement("p"); items.className = "seller-order-items"; items.textContent = itemText || "No active items"; card.appendChild(items);
+  const total = (order.order_items || []).filter(i=>!i.cancelled_at).reduce((s,i)=>s+(Number(i.total_price)||0),0);
+  const paid = payments.reduce((s,p)=>s+(Number(p.amount)||0),0);
+  const footer = document.createElement("div"); footer.className = "seller-order-card-footer"; footer.innerHTML = `<span>${formatPrice(total)} · ${paid >= total - 0.005 ? "Fully paid" : `${formatPrice(Math.max(0,total-paid))} remaining`}</span>`;
+  const open = document.createElement("button"); open.type="button"; open.textContent="Open Order"; open.addEventListener("click",()=>{currentOrderId=order.id;currentOrderShowProduction=false;navigate("order-detail")});
+  footer.appendChild(open); card.appendChild(footer); return card;
+}
+
+async function loadEvents() {
+  const user = await getCurrentUser();
+  const cacheKey = `events:${user.id}`;
+  let events = null;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const result = await supabase.from("events").select("id,name,location,event_date,start_time,end_time,notes,status").eq("seller_id", user.id).gte("event_date", new Date().toISOString().slice(0,10)).order("event_date", {ascending:true}).order("start_time", {ascending:true});
+      if (result.error) throw result.error; events = result.data || []; await cacheNamed(cacheKey,events);
+    } catch (error) { events = await getCachedSnapshot(cacheKey); if (!events) throw error; }
+  } else events = await getCachedSnapshot(cacheKey);
+  events = events || []; const list=$("eventsList"); list.replaceChildren(); $("eventsEmptyState").hidden = events.length>0;
+  events.forEach(event => { const card=document.createElement("article"); card.className="event-card"; const date=document.createElement("div"); date.className="event-date-box"; date.innerHTML=`<strong>${new Intl.DateTimeFormat("en-PH",{month:"short",day:"numeric"}).format(new Date(`${event.event_date}T00:00:00`))}</strong><span>${event.status || "Upcoming"}</span>`; const body=document.createElement("div"); const title=document.createElement("h2"); title.textContent=event.name; const meta=document.createElement("p"); meta.textContent=`${event.location} · ${event.start_time ? event.start_time.slice(0,5) : ""}${event.end_time ? `–${event.end_time.slice(0,5)}` : ""}`; body.append(title,meta); card.append(date,body); list.appendChild(card); });
 }
 
 
@@ -1622,6 +1814,28 @@ $("editShopButton")
     }
   );
 
+
+// ============================================================
+// DASHBOARD / ORDERS / EVENTS
+// ============================================================
+
+$("homeOrdersButton")?.addEventListener("click", () => navigate("orders"));
+$("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
+$("homeProductsButton")?.addEventListener("click", () => navigate("products"));
+$("homeQrButton")?.addEventListener("click", () => navigate("qr"));
+$("homeEventsButton")?.addEventListener("click", () => navigate("events"));
+$("ordersBackButton")?.addEventListener("click", () => navigate("home"));
+$("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
+$("eventsBackButton")?.addEventListener("click", () => navigate("home"));
+document.querySelectorAll("[data-dashboard-route]").forEach(button => {
+  button.addEventListener("click", () => {
+    const route = button.dataset.dashboardRoute;
+    if (route === "orders") { window.__ordeliOrdersFilter = button.dataset.dashboardFilter || "all"; navigate("orders"); }
+    else navigate(route);
+  });
+});
+document.querySelectorAll("[data-orders-filter]").forEach(button => button.addEventListener("click", () => renderOrdersList(button.dataset.ordersFilter)));
+$("ordersSearch")?.addEventListener("input", () => renderOrdersList(window.__ordeliOrdersFilter || "all"));
 
 // ============================================================
 // PRODUCTS
@@ -4093,12 +4307,11 @@ async function handleScannedQr(
         throw new Error("This QR is not reserved and available for offline use on this device.");
       }
       await stopQrScanner();
-      pendingQrToken = cached.public_token;
-      pendingProduct = cached.product;
-      prepareOrderCreation({
-        public_token: cached.public_token,
-        products: cached.product
-      });
+      if (pendingAddToOrderId) {
+        prepareOrderCreation({ public_token: cached.public_token, products: cached.product }, { addToOrderId: pendingAddToOrderId });
+      } else {
+        prepareOrderCreation({ public_token: cached.public_token, products: cached.product }, { addToOrderId: null });
+      }
       navigate("order-create");
       return;
     }
@@ -4144,17 +4357,14 @@ async function handleScannedQr(
       .single();
 
 
-    if (error) {
-      const cached = await getOfflineQr(token);
-      if (cached && !cached.used) {
-        runtimeOffline = true;
-        pendingQrToken = cached.public_token;
-        pendingProduct = cached.product;
-        prepareOrderCreation({ public_token: cached.public_token, products: cached.product });
-        navigate("order-create");
-        return;
-      }
-      throw new Error("This QR code could not be checked. It may be unreserved for offline use, revoked, or the connection may have been lost.");
+    if (
+      error
+    ) {
+
+      throw new Error(
+        "This QR code was not found in your shop."
+      );
+
     }
 
 
@@ -4195,7 +4405,8 @@ async function handleScannedQr(
     ) {
 
       prepareOrderCreation(
-        qr
+        qr,
+        { addToOrderId: pendingAddToOrderId }
       );
 
       navigate(
@@ -4212,6 +4423,9 @@ async function handleScannedQr(
         "assigned" &&
       qr.order_item_id
     ) {
+      if (pendingAddToOrderId) {
+        throw new Error("That QR is already assigned. Scan an available QR to add another item to this order.");
+      }
 
       currentOrderId =
         await getOrderIdFromItem(
@@ -4329,6 +4543,21 @@ async function getOrderIdFromItem(
 // ORDER CREATION
 // ============================================================
 
+function clearOrderDraftStorage() {
+  try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+}
+
+function resetOrderCreateForm() {
+  const form = $("orderCreateForm");
+  if (form) form.reset();
+  if ($("newCustomerChoice")) $("newCustomerChoice").checked = true;
+  if ($("existingCustomerChoice")) $("existingCustomerChoice").checked = false;
+  if ($("orderQuantity")) $("orderQuantity").value = "1";
+  if ($("orderDownpayment")) $("orderDownpayment").value = "0";
+  if ($("existingCustomerSelect")) $("existingCustomerSelect").value = "";
+  clearOrderMessage();
+}
+
 function persistPendingOrderDraft() {
   try {
     sessionStorage.setItem("ordeli-pending-order-draft", JSON.stringify({
@@ -4346,12 +4575,11 @@ function persistPendingOrderDraft() {
 }
 
 function restorePendingOrderDraft() {
-  if (pendingQrToken && pendingProduct) return;
   try {
     const raw = sessionStorage.getItem("ordeli-pending-order-draft");
-    if (!raw) return;
+    if (!raw) return false;
     const draft = JSON.parse(raw);
-    if (!draft?.qrToken || !draft?.product) return;
+    if (!draft?.qrToken || !draft?.product) return false;
     pendingQrToken = draft.qrToken;
     pendingProduct = draft.product;
     pendingAddToOrderId = draft.addToOrderId || null;
@@ -4362,11 +4590,15 @@ function restorePendingOrderDraft() {
     if ($("existingCustomerSelect")) $("existingCustomerSelect").value = draft.existingCustomerId || "";
     if ($("orderQuantity")) $("orderQuantity").value = draft.quantity || "1";
     if ($("orderDownpayment")) $("orderDownpayment").value = draft.downpayment || "0";
-    if (draft.customerChoice === "existing" && !pendingAddToOrderId) $("existingCustomerChoice").checked = true;
+    if (!pendingAddToOrderId && draft.customerChoice === "existing") $("existingCustomerChoice").checked = true;
     updateOrderCreateMode();
     toggleCustomerChoice();
     updateOrderCreateTotals();
-  } catch (_) {}
+    if (!pendingAddToOrderId) loadActiveCustomers();
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 function updateOrderCreateMode() {
@@ -4375,95 +4607,85 @@ function updateOrderCreateMode() {
   if (customerChoice) customerChoice.hidden = addingItem;
   $("newCustomerFields").hidden = addingItem;
   $("existingCustomerFields").hidden = addingItem;
-  $("orderCustomerName").required = !addingItem;
-  $("orderCreateScreen").querySelector("h1").textContent = addingItem ? "Add Item" : "Create Order";
+  $("orderCustomerName").required = !addingItem && !$("existingCustomerChoice").checked;
+  $("orderCreateScreen").querySelector("h1").textContent = addingItem ? "Add Item to Order" : "Create Order";
+  const subtitle = $("orderCreateScreen").querySelector(".page-subtitle");
+  if (subtitle) subtitle.textContent = addingItem ? "This item will be added to the customer's current order." : "The scanned QR has already identified the product.";
+
+  let context = $("addToOrderContext");
+  if (addingItem && !context) {
+    context = document.createElement("div");
+    context.id = "addToOrderContext";
+    context.className = "add-to-order-context";
+    const card = $("orderCreateForm");
+    card?.insertBefore(context, card.firstElementChild?.nextElementSibling || card.firstElementChild);
+  }
+  if (!addingItem && context) context.remove();
 }
 
-function prepareOrderCreation(
-  qr
-) {
+async function renderAddToOrderContext() {
+  const container = $("addToOrderContext");
+  if (!container || !pendingAddToOrderId) return;
+  container.textContent = "Loading current customer…";
+  let order = await getCachedSnapshot(`order:${pendingAddToOrderId}`);
+  if (!order && navigator.onLine && !runtimeOffline) {
+    try {
+      const user = await getCurrentUser();
+      const result = await supabase.from("orders").select("id,order_number,customer_id,customers(id,name,phone)").eq("id", pendingAddToOrderId).eq("seller_id", user.id).single();
+      if (result.error) throw result.error;
+      order = result.data;
+      await cacheNamed(`order:${pendingAddToOrderId}`, order);
+    } catch (_) {}
+  }
+  const customer = order?.customers;
+  container.innerHTML = "";
+  const eyebrow = document.createElement("div"); eyebrow.className = "context-eyebrow"; eyebrow.textContent = "CURRENT ORDER";
+  const title = document.createElement("strong"); title.textContent = order?.order_number ? `Order #${order.order_number}` : "Current order";
+  const name = document.createElement("span"); name.textContent = customer?.name || "Customer";
+  const phone = document.createElement("span"); phone.textContent = customer?.phone || "No phone number";
+  container.append(eyebrow, title, name, phone);
+}
 
-  pendingQrToken =
-    qr.public_token;
-
-  pendingProduct =
-    qr.products;
-
+function prepareOrderCreation(qr, { addToOrderId = null } = {}) {
+  pendingQrToken = qr.public_token;
+  pendingProduct = qr.products;
+  pendingAddToOrderId = addToOrderId || pendingAddToOrderId || null;
+  resetOrderCreateForm();
+  $("orderDetectedProduct").textContent = qr.products?.name || "Product";
+  $("orderDetectedPrice").textContent = formatPrice(qr.products?.default_price);
   updateOrderCreateMode();
-
-  persistPendingOrderDraft();
-
-  $("orderDetectedProduct")
-    .textContent =
-      qr.products?.name ||
-      "Product";
-
-
-  $("orderDetectedPrice")
-    .textContent =
-      formatPrice(
-        qr.products?.default_price
-      );
-
-
-  $("orderQuantity")
-    .value =
-      "1";
-
-
-  $("orderDownpayment")
-    .value =
-      "0";
-
-
-  $("newCustomerChoice")
-    .checked =
-      true;
-
-
-  $("existingCustomerChoice")
-    .checked =
-      false;
-
-
   toggleCustomerChoice();
-
-
-  clearOrderMessage();
-
   updateOrderCreateTotals();
-
-  loadActiveCustomers();
-
+  if (pendingAddToOrderId) renderAddToOrderContext(); else loadActiveCustomers();
+  persistPendingOrderDraft();
 }
-
 
 async function loadActiveCustomers() {
   const select = $("existingCustomerSelect");
+  if (!select) return;
   select.replaceChildren();
   const placeholder = document.createElement("option");
   placeholder.value = ""; placeholder.textContent = "Select active customer";
   select.appendChild(placeholder);
-  const user = await getCurrentUser();
+  const user = await getCurrentUser().catch(() => null);
+  if (!user?.id) return;
   const cacheKey = `customers:${user.id}`;
   let data = null;
   if (!runtimeOffline && navigator.onLine) {
     try {
-      const result = await supabase.from("customers").select(`id,name,phone,orders!inner(id,cancelled_at)`).eq("seller_id", user.id).is("orders.cancelled_at", null).order("name", {ascending:true});
+      const result = await supabase.from("customers").select(`id,name,phone,orders!inner(id,cancelled_at)`).eq("seller_id", user.id).is("orders.cancelled_at", null).order("name", { ascending: true });
       if (result.error) throw result.error;
       data = result.data || [];
       await cacheNamed(cacheKey, data);
     } catch (error) {
       data = await getCachedSnapshot(cacheKey);
-      if (data == null) { console.warn("Active customers unavailable offline:", error); return; }
+      if (data == null) console.warn("Active customers unavailable:", error);
     }
   } else {
     data = await getCachedSnapshot(cacheKey);
   }
   const unique = new Map();
-  (data || []).forEach(customer => {
-    if (!unique.has(customer.id)) unique.set(customer.id, customer);
-  });
+  (data || []).forEach(customer => { if (!unique.has(customer.id)) unique.set(customer.id, customer); });
   unique.forEach(customer => {
     const option = document.createElement("option");
     option.value = customer.id;
@@ -4472,131 +4694,30 @@ async function loadActiveCustomers() {
   });
 }
 
-
 function toggleCustomerChoice() {
-
-  const existing =
-    $("existingCustomerChoice")
-      .checked;
-
-  const addingItem =
-    Boolean(pendingAddToOrderId);
-
-
-  $("newCustomerFields")
-    .hidden =
-      existing || addingItem;
-
-
-  $("existingCustomerFields")
-    .hidden =
-      !existing || addingItem;
-
-
-  $("orderCustomerName")
-    .required =
-      !existing && !addingItem;
-
+  const existing = $("existingCustomerChoice")?.checked;
+  const addingItem = Boolean(pendingAddToOrderId);
+  $("newCustomerFields").hidden = existing || addingItem;
+  $("existingCustomerFields").hidden = !existing || addingItem;
+  $("orderCustomerName").required = !existing && !addingItem;
 }
 
-
-$("newCustomerChoice")
-  .addEventListener(
-    "change",
-    () => { toggleCustomerChoice(); persistPendingOrderDraft(); }
-  );
-
-
-$("existingCustomerChoice")
-  .addEventListener(
-    "change",
-    () => { toggleCustomerChoice(); persistPendingOrderDraft(); }
-  );
-
+$("newCustomerChoice").addEventListener("change", () => { toggleCustomerChoice(); persistPendingOrderDraft(); });
+$("existingCustomerChoice").addEventListener("change", () => { toggleCustomerChoice(); persistPendingOrderDraft(); });
 
 function updateOrderCreateTotals() {
-
-  const price =
-    Number(
-      pendingProduct?.default_price
-    ) || 0;
-
-
-  const quantity =
-    Number(
-      $("orderQuantity")
-        .value
-    ) || 0;
-
-
-  const total =
-    price *
-    quantity;
-
-
-  let downpayment =
-    Number(
-      $("orderDownpayment")
-        .value
-    );
-
-
-  if (
-    !Number.isFinite(
-      downpayment
-    ) ||
-    downpayment <
-      0
-  ) {
-
-    downpayment =
-      0;
-
-  }
-
-
-  $("orderCreateTotal")
-    .textContent =
-      formatPrice(
-        total
-      );
-
-
-  $("orderCreateBalance")
-    .textContent =
-      formatPrice(
-        Math.max(
-          0,
-          total -
-          Math.min(
-            downpayment,
-            total
-          )
-        )
-      );
-
+  const price = Number(pendingProduct?.default_price) || 0;
+  const quantity = Number($("orderQuantity").value) || 0;
+  const total = price * quantity;
+  let downpayment = Number($("orderDownpayment").value);
+  if (!Number.isFinite(downpayment) || downpayment < 0) downpayment = 0;
+  $("orderCreateTotal").textContent = formatPrice(total);
+  $("orderCreateBalance").textContent = formatPrice(Math.max(0, total - Math.min(downpayment, total)));
 }
 
-
-$("orderQuantity")
-  .addEventListener(
-    "input",
-    () => { updateOrderCreateTotals(); persistPendingOrderDraft(); }
-  );
-
-
-$("orderDownpayment")
-  .addEventListener(
-    "input",
-    () => { updateOrderCreateTotals(); persistPendingOrderDraft(); }
-  );
-
-[
-  $("orderCustomerName"),
-  $("orderCustomerPhone"),
-  $("existingCustomerSelect")
-].filter(Boolean).forEach((field) => field.addEventListener("input", persistPendingOrderDraft));
-
+$("orderQuantity").addEventListener("input", () => { updateOrderCreateTotals(); persistPendingOrderDraft(); });
+$("orderDownpayment").addEventListener("input", () => { updateOrderCreateTotals(); persistPendingOrderDraft(); });
+[$("orderCustomerName"), $("orderCustomerPhone"), $("existingCustomerSelect")].filter(Boolean).forEach(field => field.addEventListener("input", persistPendingOrderDraft));
 
 $("orderCreateForm")
   .addEventListener(
@@ -4611,474 +4732,143 @@ $("orderCreateForm")
   );
 
 
-async function getCachedCustomer(customerId) {
-  if (!customerId) return null;
-  const user = await getCurrentUser().catch(() => null);
-  if (!user?.id) return null;
-  const customers = await getCachedSnapshot(`customers:${user.id}`);
-  return (customers || []).find(customer => customer.id === customerId) || null;
-}
-
-async function upsertLocalCustomerSnapshot({ id, name, phone }) {
-  const user = await getCurrentUser().catch(() => null);
-  if (!user?.id || !name) return;
-  const key = `customers:${user.id}`;
-  const customers = (await getCachedSnapshot(key)) || [];
-  const index = customers.findIndex(customer => customer.id === id);
-  const row = { id: id || `offline-customer:${crypto.randomUUID()}`, name, phone: phone || null };
-  if (index >= 0) customers[index] = { ...customers[index], ...row };
-  else customers.push(row);
-  await cacheNamed(key, customers);
-  return row.id;
-}
-
 async function createOrderOfflineFallback() {
   const quantity = Number($("orderQuantity").value);
   const downpayment = Number($("orderDownpayment").value) || 0;
   const usingExisting = $("existingCustomerChoice").checked;
-  const selectedCustomerId = usingExisting ? $("existingCustomerSelect").value : null;
-  let customerName = $("orderCustomerName").value.trim();
-  let customerPhone = $("orderCustomerPhone").value.trim() || null;
-  if (usingExisting) {
-    const cachedCustomer = await getCachedCustomer(selectedCustomerId);
-    if (!cachedCustomer) throw new Error("That customer is not available in offline data. Choose New customer or reconnect first.");
-    customerName = cachedCustomer.name;
-    customerPhone = cachedCustomer.phone || null;
-  }
-
+  const customerId = usingExisting ? $("existingCustomerSelect").value : null;
+  const customerName = usingExisting
+    ? ($("existingCustomerSelect").selectedOptions[0]?.textContent || "").split(" · ")[0].trim()
+    : $("orderCustomerName").value.trim();
+  const customerPhone = usingExisting ? null : ($("orderCustomerPhone").value.trim() || null);
   if (!pendingQrToken || !pendingProduct) throw new Error("No scanned product QR is selected.");
+  if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Quantity must be at least 1.");
   const cachedQr = await getOfflineQr(pendingQrToken);
   if (!cachedQr || cachedQr.used) throw new Error("This QR is not reserved and available for offline use on this device.");
   if (!customerName) throw new Error("Customer name is required.");
-  if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Quantity must be at least 1.");
+  if (usingExisting && !customerId) throw new Error("Select an active customer.");
   const total = (Number(pendingProduct?.default_price) || 0) * quantity;
   if (downpayment < 0 || downpayment > total) throw new Error("Downpayment must be between ₱0 and the order total.");
-  const row = await enqueueOfflineOrder({ qrToken: pendingQrToken, customerId: selectedCustomerId, customerName, customerPhone, quantity, downpayment, productName: pendingProduct?.name || "Product", product: pendingProduct || null, unitPrice: Number(pendingProduct?.default_price) || 0, total });
-  const offlineOrderId = `offline:${row.clientOrderId}`;
-  const offlineOrderNumber = `OFFLINE-${row.clientOrderId.slice(0, 8).toUpperCase()}`;
-  await cacheNamed(`order:${offlineOrderId}`, { id: offlineOrderId, order_number: offlineOrderNumber, customer_id: selectedCustomerId, created_at: row.createdAt, customers: { id: selectedCustomerId, name: customerName, phone: customerPhone } });
-  await cacheNamed(`order-items:${offlineOrderId}`, [{ id: `offline-item:${row.clientOrderId}`, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [], cancelled_at: null, offline: true }]);
-  await cacheNamed(`order-payments:${offlineOrderId}`, downpayment > 0 ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment" }] : []);
-  await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
-  currentOrderId = offlineOrderId;
-  currentOrderShowProduction = false;
-  try { sessionStorage.setItem(`ordeli-order-detail-mode:${offlineOrderId}`, "fresh"); } catch (_) {}
-  await updateConnectivityIndicator();
-  navigate("order-detail");
-}
 
-async function createOrder() {
-
-  clearOrderMessage();
-
-
-  if (
-    !pendingQrToken ||
-    !pendingProduct
-  ) {
-
-    $("orderCreateMessage")
-      .textContent =
-        "No scanned product QR is selected.";
-
-    return;
-
-  }
-
-
-  const quantity =
-    Number(
-      $("orderQuantity")
-        .value
-    );
-
-
-  const downpayment =
-    Number(
-      $("orderDownpayment")
-        .value
-    ) || 0;
-
-
-  const total =
-    (
-      Number(
-        pendingProduct
-          .default_price
-      ) || 0
-    ) *
-    quantity;
-
-
-  if (
-    !Number.isInteger(
-      quantity
-    ) ||
-    quantity <
-      1
-  ) {
-
-    $("orderCreateMessage")
-      .textContent =
-        "Quantity must be at least 1.";
-
-    return;
-
-  }
-
-
-  if (
-    downpayment <
-      0 ||
-    downpayment >
-      total
-  ) {
-
-    $("orderCreateMessage")
-      .textContent =
-        "Downpayment must be between ₱0 and the order total.";
-
-    return;
-
-  }
-
-
-  const usingExisting =
-    $("existingCustomerChoice")
-      .checked;
-
-
-  let customerId =
-    null;
-
-
-  let customerName =
-    null;
-
-
-  let customerPhone =
-    null;
-
-
-  if (
-    usingExisting
-  ) {
-
-    customerId =
-      $("existingCustomerSelect")
-        .value;
-
-
-    if (
-      !customerId
-    ) {
-
-      $("orderCreateMessage")
-        .textContent =
-          "Select an active customer.";
-
-      return;
-
-    }
-
-  } else if (!pendingAddToOrderId) {
-
-    customerName =
-      $("orderCustomerName")
-        .value
-        .trim();
-
-
-    customerPhone =
-      $("orderCustomerPhone")
-        .value
-        .trim() ||
-      null;
-
-
-    if (
-      !customerName
-    ) {
-
-      $("orderCreateMessage")
-        .textContent =
-          "Customer name is required.";
-
-      return;
-
-    }
-
-  }
-
-
-  if (runtimeOffline || !navigator.onLine) {
-    if (usingExisting) {
-      const cachedCustomer = await getCachedCustomer(customerId);
-      if (!cachedCustomer) {
-        $("orderCreateMessage").textContent = "That customer is not available offline. Choose New customer or reconnect first.";
-        return;
-      }
-      customerName = cachedCustomer.name;
-      customerPhone = cachedCustomer.phone || null;
-    }
-    if (pendingAddToOrderId) {
-      try {
-        if (!pendingQrToken || !pendingProduct) throw new Error("No scanned product QR is selected.");
-        if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Quantity must be at least 1.");
-        const existingOrderId = pendingAddToOrderId;
-        const parentOrder = await getCachedSnapshot(`order:${existingOrderId}`);
-        if (!parentOrder) throw new Error("This order is not available offline on this device.");
-        const cachedQr = await getOfflineQr(pendingQrToken);
-        if (!cachedQr || cachedQr.used) throw new Error("This QR is not reserved and available for offline use on this device.");
-        const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
-        const newItemId = `offline-item:${crypto?.randomUUID ? crypto.randomUUID() : Date.now()}`;
-        const newItem = { id: newItemId, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [], cancelled_at: null, offline: true };
-        await cacheNamed(`order-items:${existingOrderId}`, [...existingItems, newItem]);
-        const addRow = await enqueueOfflineOrder({ action: "add_item", orderId: existingOrderId, parentClientOrderId: existingOrderId.startsWith("offline:") ? existingOrderId.slice("offline:".length) : null, qrToken: pendingQrToken, quantity, product: pendingProduct, productName: pendingProduct?.name || "Product", unitPrice: Number(pendingProduct?.default_price) || 0, total });
-        addRow.type = "add_order_item";
-        addRow.payload = { ...addRow.payload, action: "add_item" };
-        await updateQueuedOrder(addRow);
-        await markOfflineQrUsed(pendingQrToken, addRow.clientOrderId);
-        currentOrderId = existingOrderId;
-        currentOrderShowProduction = false;
-        pendingAddToOrderId = null;
-        pendingQrToken = null;
-        pendingProduct = null;
-        try { sessionStorage.removeItem("ordeli-pending-order-draft"); sessionStorage.setItem(`ordeli-order-detail-mode:${existingOrderId}`, "fresh"); } catch (_) {}
-        await updateConnectivityIndicator();
-        navigate("order-detail");
-      } catch (error) {
-        $("orderCreateMessage").textContent = error?.message || "Unable to add the item offline.";
-      }
-      return;
-    }
-    // Existing customers are allowed offline when their customer record was cached beforehand.
-
-    const cachedQr = await getOfflineQr(pendingQrToken);
-    if (!cachedQr || cachedQr.used) {
-      $("orderCreateMessage").textContent = "This QR is not reserved and available for offline use on this device.";
-      return;
-    }
-    try {
-      const row = await enqueueOfflineOrder({
-        qrToken: pendingQrToken,
-        customerId,
-        customerName,
-        customerPhone,
-        quantity,
-        downpayment,
-        productName: pendingProduct?.name || "Product",
-        unitPrice: Number(pendingProduct?.default_price) || 0,
-        total
-      });
-
-      const offlineOrderId = `offline:${row.clientOrderId}`;
-      const offlineOrderNumber = `OFFLINE-${row.clientOrderId.slice(0, 8).toUpperCase()}`;
-      await cacheNamed(`order:${offlineOrderId}`, {
-        id: offlineOrderId,
-        order_number: offlineOrderNumber,
-        customer_id: customerId,
-        created_at: row.createdAt,
-        customers: { id: customerId, name: customerName, phone: customerPhone },
-        offline: true,
-        sync_status: "waiting"
-      });
-      await cacheNamed(`order-items:${offlineOrderId}`, [{
-        id: `offline-item:${row.clientOrderId}`,
-        product_name: pendingProduct?.name || "Product",
-        quantity,
-        unit_price: Number(pendingProduct?.default_price) || 0,
-        total_price: total,
-        workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [],
-        cancelled_at: null,
-        offline: true
-      }]);
-      await cacheNamed(`order-payments:${offlineOrderId}`, downpayment > 0 ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment" }] : []);
-      await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
-
-      currentOrderId = offlineOrderId;
-      currentOrderShowProduction = false;
-      try {
-        sessionStorage.setItem(`ordeli-order-detail-mode:${offlineOrderId}`, "fresh");
-        sessionStorage.removeItem("ordeli-pending-order-draft");
-      } catch (_) {}
-      $("orderCreateMessage").textContent = `Saved offline. Order ${offlineOrderNumber} is waiting to sync.`;
-      $("orderCreateMessage").classList.add("success-message");
-      await updateConnectivityIndicator();
-      navigate("order-detail");
-    } catch (error) {
-      console.error("Offline order save failed:", error);
-      $("orderCreateMessage").textContent = error?.message || "Unable to save the order offline.";
-    }
-    return;
-  }
-
-
-  setLoading(
-    $("orderSaveButton"),
-    "Saving Order..."
-  );
-
-
-  try {
-
-    await ensureSupabase();
-
-    if (pendingAddToOrderId) {
-      let serverOrderId = pendingAddToOrderId;
-      if (String(serverOrderId).startsWith("offline:")) {
-        serverOrderId = await resolveServerOrderId(serverOrderId);
-        if (!serverOrderId) throw new Error("This order is still syncing. It will become available as soon as synchronization finishes.");
-      }
-      const { data, error } = await supabase.rpc("add_order_item_from_qr", {
-        p_order_id: serverOrderId,
-        p_qr_public_token: pendingQrToken,
-        p_quantity: quantity
-      });
-      if (error) throw error;
-      if (!data?.order_item_id) throw new Error("The item was not added to the order.");
-      currentOrderId = serverOrderId;
-      currentOrderShowProduction = false;
-      pendingAddToOrderId = null;
-      try {
-        sessionStorage.setItem(`ordeli-order-detail-mode:${currentOrderId}`, "fresh");
-        sessionStorage.removeItem("ordeli-pending-order-draft");
-      } catch (_) {}
-      navigate("order-detail");
-      return;
-    }
-
-    const {
-      data,
-      error
-    } =
-    await supabase
-      .rpc(
-        "create_order_from_qr",
-        {
-
-          p_qr_public_token:
-            pendingQrToken,
-
-          p_customer_id:
-            customerId,
-
-          p_customer_name:
-            customerName,
-
-          p_customer_phone:
-            customerPhone,
-
-          p_quantity:
-            quantity,
-
-          p_downpayment:
-            downpayment,
-
-          p_device_id:
-            getOfflineDeviceId()
-
-        }
-      );
-
-
-    if (
-      error
-    ) {
-
-      throw error;
-
-    }
-
-
-    if (
-      !data?.order_id
-    ) {
-
-      throw new Error(
-        "The order was not created."
-      );
-
-    }
-
-
-    currentOrderId =
-      data.order_id;
-    currentOrderShowProduction = false;
-    try {
-      sessionStorage.setItem(`ordeli-order-detail-mode:${currentOrderId}`, "fresh");
-    } catch (_) {}
-
-    // Cache a complete local snapshot immediately so a second render, a
-    // transient auth event, or a momentary network drop cannot blank the
-    // freshly-created order detail screen.
-    const createdAt = new Date().toISOString();
-    const orderNumber =
-      data.order_number ||
-      `LOCAL-${String(data.order_id).slice(0, 8).toUpperCase()}`;
-    const cachedOrder = {
-      id: data.order_id,
-      order_number: orderNumber,
-      customer_id: customerId,
-      created_at: createdAt,
-      customers: {
-        id: customerId,
-        name: usingExisting
-          ? ($("existingCustomerSelect").selectedOptions[0]?.textContent || "Customer")
-          : customerName,
-        phone: customerPhone
-      }
-    };
-    await cacheNamed(`order:${currentOrderId}`, cachedOrder);
-    await cacheNamed(`order-items:${currentOrderId}`, [{
-      id: `local-item:${data.order_id}`,
+  if (pendingAddToOrderId) {
+    const existingOrderId = pendingAddToOrderId;
+    const parentOrder = await getCachedSnapshot(`order:${existingOrderId}`);
+    if (!parentOrder) throw new Error("This order is not available offline on this device.");
+    const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
+    const itemId = `offline-item:${crypto?.randomUUID ? crypto.randomUUID() : Date.now()}`;
+    const newItem = {
+      id: itemId,
       product_name: pendingProduct?.name || "Product",
       quantity,
       unit_price: Number(pendingProduct?.default_price) || 0,
       total_price: total,
       workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [],
-      cancelled_at: null
-    }]);
-    await cacheNamed(`order-payments:${currentOrderId}`, downpayment > 0
-      ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment", created_at: createdAt }]
-      : []);
-    pendingAddToOrderId = null;
-    pendingQrToken = null;
-    pendingProduct = null;
-    try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+      cancelled_at: null,
+      offline: true
+    };
+    const row = await enqueueOfflineOrder({ action: "add_item", orderId: existingOrderId, parentClientOrderId: String(existingOrderId).startsWith("offline:") ? String(existingOrderId).slice("offline:".length) : null, qrToken: pendingQrToken, quantity, product: pendingProduct, productName: newItem.product_name, unitPrice: newItem.unit_price, total });
+    await cacheNamed(`order-items:${existingOrderId}`, [...existingItems, newItem]);
+    await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
+    currentOrderId = existingOrderId;
+    currentOrderShowProduction = false;
+    pendingAddToOrderId = null; pendingQrToken = null; pendingProduct = null;
+    clearOrderDraftStorage();
+    navigate("order-detail");
+    return;
+  }
 
-    navigate(
-      "order-detail"
-    );
+  const row = await enqueueOfflineOrder({ qrToken: pendingQrToken, customerId, customerName, customerPhone, quantity, downpayment, productName: pendingProduct?.name || "Product", product: pendingProduct || null, unitPrice: Number(pendingProduct?.default_price) || 0, total });
+  const offlineOrderId = `offline:${row.clientOrderId}`;
+  const offlineOrderNumber = `OFFLINE-${row.clientOrderId.slice(0, 8).toUpperCase()}`;
+  await cacheNamed(`order:${offlineOrderId}`, { id: offlineOrderId, order_number: offlineOrderNumber, customer_id: customerId, created_at: row.createdAt, customers: { id: customerId, name: customerName, phone: customerPhone }, offline: true, sync_status: "waiting" });
+  await cacheNamed(`order-items:${offlineOrderId}`, [{ id: `offline-item:${row.clientOrderId}`, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [], cancelled_at: null, offline: true }]);
+  await cacheNamed(`order-payments:${offlineOrderId}`, downpayment > 0 ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment", created_at: row.createdAt }] : []);
+  await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
+  currentOrderId = offlineOrderId;
+  currentOrderShowProduction = false;
+  clearOrderDraftStorage();
+  await updateConnectivityIndicator();
+  navigate("order-detail");
+}
 
+async function createOrder() {
+  clearOrderMessage();
+  if (!pendingQrToken || !pendingProduct) { $("orderCreateMessage").textContent = "No scanned product QR is selected."; return; }
 
+  const quantity = Number($("orderQuantity").value);
+  const downpayment = Number($("orderDownpayment").value) || 0;
+  const total = (Number(pendingProduct.default_price) || 0) * quantity;
+  if (!Number.isInteger(quantity) || quantity < 1) { $("orderCreateMessage").textContent = "Quantity must be at least 1."; return; }
+  if (downpayment < 0 || downpayment > total) { $("orderCreateMessage").textContent = "Downpayment must be between ₱0 and the order total."; return; }
+
+  const addingItem = Boolean(pendingAddToOrderId);
+  const usingExisting = $("existingCustomerChoice").checked;
+  let customerId = null, customerName = null, customerPhone = null;
+
+  if (!addingItem) {
+    if (usingExisting) {
+      customerId = $("existingCustomerSelect").value;
+      if (!customerId) { $("orderCreateMessage").textContent = "Select an active customer."; return; }
+      customerName = ($("existingCustomerSelect").selectedOptions[0]?.textContent || "").split(" · ")[0].trim();
+    } else {
+      customerName = $("orderCustomerName").value.trim();
+      customerPhone = $("orderCustomerPhone").value.trim() || null;
+      if (!customerName) { $("orderCreateMessage").textContent = "Customer name is required."; return; }
+    }
+  }
+
+  if (runtimeOffline || !navigator.onLine) {
+    try {
+      await createOrderOfflineFallback();
+    } catch (error) {
+      $("orderCreateMessage").textContent = error?.message || "Unable to save offline.";
+    }
+    return;
+  }
+
+  setLoading($("orderSaveButton"), addingItem ? "Adding Item…" : "Saving Order…");
+  try {
+    await ensureSupabase();
+    if (addingItem) {
+      let serverOrderId = pendingAddToOrderId;
+      if (String(serverOrderId).startsWith("offline:")) {
+        serverOrderId = await resolveServerOrderId(serverOrderId);
+        if (!serverOrderId) {
+          // The parent may still be syncing in the background. Queue this item
+          // behind the parent instead of blocking the seller's workflow.
+          try {
+            await createOrderOfflineFallback();
+            return;
+          } catch (queuedError) {
+            throw new Error(queuedError?.message || "This order is still syncing. The new item could not be queued.");
+          }
+        }
+      }
+      const { data, error } = await supabase.rpc("add_order_item_from_qr", { p_order_id: serverOrderId, p_qr_public_token: pendingQrToken, p_quantity: quantity });
+      if (error) throw error;
+      if (!data?.order_item_id) throw new Error("The item was not added to the order.");
+      currentOrderId = serverOrderId;
+    } else {
+      const { data, error } = await supabase.rpc("create_order_from_qr", { p_qr_public_token: pendingQrToken, p_customer_id: customerId, p_customer_name: customerName, p_customer_phone: customerPhone, p_quantity: quantity, p_downpayment: downpayment, p_device_id: getOfflineDeviceId() });
+      if (error) throw error;
+      if (!data?.order_id) throw new Error("The order was not created.");
+      currentOrderId = data.order_id;
+      const createdAt = new Date().toISOString();
+      await cacheNamed(`order:${currentOrderId}`, { id: data.order_id, order_number: data.order_number || `LOCAL-${String(data.order_id).slice(0, 8).toUpperCase()}`, customer_id: customerId, created_at: createdAt, customers: { id: customerId, name: customerName, phone: customerPhone }, offline: false, sync_status: "synchronized" });
+      await cacheNamed(`order-items:${currentOrderId}`, [{ id: `local-item:${data.order_id}`, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || pendingProduct?.production_workflow_snapshot || [], cancelled_at: null }]);
+      await cacheNamed(`order-payments:${currentOrderId}`, downpayment > 0 ? [{ amount: downpayment, proof_status: null, payment_type: "downpayment", created_at: createdAt }] : []);
+    }
+    currentOrderShowProduction = false;
+    pendingAddToOrderId = null; pendingQrToken = null; pendingProduct = null;
+    clearOrderDraftStorage();
+    try { sessionStorage.setItem(`ordeli-order-detail-mode:${currentOrderId}`, "fresh"); } catch (_) {}
+    navigate("order-detail");
   } catch (error) {
-    console.error("Order creation failed:", error);
-    const message = error?.message || "Unable to create the order.";
-    const looksLikeConnectivityFailure = !navigator.onLine || runtimeOffline || /network|fetch|offline|failed to fetch|load failed|timeout|supabase network/i.test(message);
-    if (looksLikeConnectivityFailure) {
+    const message = error?.message || (addingItem ? "Unable to add the item." : "Unable to create the order.");
+    const connectivityFailure = !navigator.onLine || runtimeOffline || /network|fetch|offline|failed to fetch|load failed|timeout|supabase network/i.test(message);
+    if (connectivityFailure) {
       runtimeOffline = true;
       try {
-        if (pendingAddToOrderId) {
-          const cachedQr = await getOfflineQr(pendingQrToken);
-          if (!cachedQr || cachedQr.used) throw new Error("This QR is not reserved for offline use on this device.");
-          const existingOrderId = pendingAddToOrderId;
-          const parentOrder = await getCachedSnapshot(`order:${existingOrderId}`);
-          if (!parentOrder) throw new Error("This order is not available offline on this device.");
-          const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
-          const newItemId = `offline-item:${crypto.randomUUID()}`;
-          const newItem = { id: newItemId, product_name: pendingProduct?.name || "Product", quantity, unit_price: Number(pendingProduct?.default_price) || 0, total_price: total, workflow_snapshot: pendingProduct?.workflow_snapshot || [], cancelled_at: null, offline: true };
-          await cacheNamed(`order-items:${existingOrderId}`, [...existingItems, newItem]);
-          const addRow = await enqueueOfflineOrder({ action: "add_item", orderId: existingOrderId, parentClientOrderId: String(existingOrderId).startsWith("offline:") ? String(existingOrderId).slice("offline:".length) : null, qrToken: pendingQrToken, quantity, product: pendingProduct, productName: pendingProduct?.name || "Product", unitPrice: Number(pendingProduct?.default_price) || 0, total });
-          await markOfflineQrUsed(pendingQrToken, addRow.clientOrderId);
-          currentOrderId = existingOrderId;
-          currentOrderShowProduction = false;
-          pendingAddToOrderId = null; pendingQrToken = null; pendingProduct = null;
-          try { sessionStorage.removeItem("ordeli-pending-order-draft"); sessionStorage.setItem(`ordeli-order-detail-mode:${existingOrderId}`, "fresh"); } catch (_) {}
-          await updateConnectivityIndicator();
-          navigate("order-detail");
-          return;
-        }
         await createOrderOfflineFallback();
         return;
       } catch (offlineError) {
@@ -5087,32 +4877,25 @@ async function createOrder() {
     } else {
       $("orderCreateMessage").textContent = message;
     }
-
   } finally {
-
-    resetButton(
-      $("orderSaveButton"),
-      "Save Order"
-    );
-
+    resetButton($("orderSaveButton"), "Save Order");
   }
-
 }
 
-  $("orderCreateBackButton").addEventListener("click", () => {
-    const orderId = pendingAddToOrderId;
-    pendingAddToOrderId = null;
-    pendingQrToken = null;
-    pendingProduct = null;
-    try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
-    if (orderId) {
-      currentOrderId = orderId;
-      currentOrderShowProduction = false;
-      navigate("order-detail");
-    } else {
-      navigate("scanner");
-    }
-  });
+$("orderCreateBackButton").addEventListener("click", () => {
+  const orderId = pendingAddToOrderId;
+  pendingAddToOrderId = null;
+  pendingQrToken = null;
+  pendingProduct = null;
+  clearOrderDraftStorage();
+  if (orderId) {
+    currentOrderId = orderId;
+    currentOrderShowProduction = false;
+    navigate("order-detail");
+  } else {
+    navigate("scanner");
+  }
+});
 
 function clearOrderMessage() {
 
@@ -5215,13 +4998,23 @@ async function loadOrderDetail(
 }
 
 
+function clearOrderDetailScreen() {
+  currentOrderTotal = 0;
+  currentOrderPaid = 0;
+  ["orderDetailTitle","orderDetailNumber","orderDetailCustomerName","orderDetailCustomer","orderDetailTotal","orderDetailPaid","orderDetailBalance"].forEach(id => { if ($(id)) $(id).textContent = ""; });
+  if ($("orderDetailItems")) $("orderDetailItems").replaceChildren();
+  if ($("orderDetailMessage")) $("orderDetailMessage").textContent = "";
+}
+
 function startNewTransaction() {
+  clearOrderDetailScreen();
   currentOrderId = null;
   currentOrderShowProduction = false;
   pendingAddToOrderId = null;
   pendingQrToken = null;
   pendingProduct = null;
-  try { sessionStorage.removeItem("ordeli-pending-order-draft"); } catch (_) {}
+  resetOrderCreateForm();
+  clearOrderDraftStorage();
   navigate("scanner");
 }
 
@@ -5243,9 +5036,11 @@ if (orderDetailBackButton) {
 const orderDetailAddItemButton = $("orderDetailAddItemButton");
 if (orderDetailAddItemButton) {
   orderDetailAddItemButton.addEventListener("click", () => {
+    if (!currentOrderId) return;
     pendingAddToOrderId = currentOrderId;
     pendingQrToken = null;
     pendingProduct = null;
+    clearOrderDraftStorage();
     navigate("scanner");
   });
 }
@@ -6150,6 +5945,8 @@ async function logout() {
     workflowStages =
       [];
 
+    window.__ordeliOrdersSnapshot = null;
+    window.__ordeliOrdersFilter = "all";
 
     editingProductId =
       null;

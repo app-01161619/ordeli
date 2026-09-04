@@ -109,21 +109,50 @@
         </div>
       </header>
 
-      <section class="home-empty">
-        <div class="home-icon">✓</div>
-        <h2>Your shop is ready</h2>
-        <p>Seller account and shop setup are complete.</p>
-        <p class="step-note">Manage your products and production workflows.</p>
+      <section class="dashboard-hero">
+        <div>
+          <span class="eyebrow">SELLER DASHBOARD</span>
+          <h2>What needs your attention?</h2>
+          <p id="homeDashboardSubtitle">Your shop is ready. Your operational work will appear here.</p>
+        </div>
+        <button id="homeScanButton" class="scan-button" type="button">
+          <span class="scan-button-icon">▣</span>
+          <span>Scan QR</span>
+        </button>
       </section>
 
-      <div class="home-scan-bar">
-  <button id="homeScanButton" class="scan-button" type="button">
-    <span class="scan-button-icon">▣</span>
-    <span>Scan QR</span>
-  </button>
-</div>
+      <section class="attention-grid" aria-label="Needs attention">
+        <button class="attention-card" data-dashboard-route="orders" data-dashboard-filter="production" type="button">
+          <span class="attention-icon">◷</span><span><strong id="attentionProduction">0</strong><small>Production tasks</small></span>
+        </button>
+        <button class="attention-card" data-dashboard-route="orders" data-dashboard-filter="payments" type="button">
+          <span class="attention-icon">₱</span><span><strong id="attentionPayments">0</strong><small>Payment reviews</small></span>
+        </button>
+        <button class="attention-card" data-dashboard-route="orders" data-dashboard-filter="ready" type="button">
+          <span class="attention-icon">✓</span><span><strong id="attentionReady">0</strong><small>Ready for pickup</small></span>
+        </button>
+        <button class="attention-card" data-dashboard-route="events" type="button">
+          <span class="attention-icon">⌁</span><span><strong id="attentionEvents">0</strong><small>Upcoming event orders</small></span>
+        </button>
+      </section>
 
-<button id="homeLogoutButton" class="secondary-button" type="button">Log Out</button>
+      <section class="dashboard-panels">
+        <div class="dashboard-panel">
+          <div class="section-heading"><div><h2>Recent Orders</h2><p>Jump back into the latest customer work.</p></div><button id="homeViewOrdersButton" class="secondary-button" type="button">View all</button></div>
+          <div id="homeRecentOrders" class="dashboard-order-list"></div>
+        </div>
+        <div class="dashboard-panel">
+          <div class="section-heading"><div><h2>Quick Actions</h2><p>Common seller operations.</p></div></div>
+          <div class="quick-actions">
+            <button id="homeOrdersButton" type="button">Orders</button>
+            <button id="homeEventsButton" type="button">Events</button>
+            <button id="homeProductsButton" class="secondary-button" type="button">Products</button>
+            <button id="homeQrButton" class="secondary-button" type="button">QR Management</button>
+          </div>
+        </div>
+      </section>
+
+      <button id="homeLogoutButton" class="secondary-button" type="button">Log Out</button>
     </div>
   </section>
 
@@ -368,6 +397,57 @@
       </section>
     </div>
   </section>
+  <section id="ordersScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <button id="ordersBackButton" class="back-button" type="button">← Back</button>
+          <h1>Orders</h1>
+          <p class="page-subtitle">Your customer orders, organized around the work that needs action.</p>
+        </div>
+        <button id="ordersScanButton" type="button">Scan QR</button>
+      </header>
+
+      <section class="orders-toolbar">
+        <div class="orders-filter-tabs" role="tablist" aria-label="Order filters">
+          <button class="orders-filter is-active" data-orders-filter="all" type="button">All</button>
+          <button class="orders-filter" data-orders-filter="production" type="button">Production</button>
+          <button class="orders-filter" data-orders-filter="payments" type="button">Payments</button>
+          <button class="orders-filter" data-orders-filter="ready" type="button">Ready</button>
+          <button class="orders-filter" data-orders-filter="completed" type="button">Completed</button>
+          <button class="orders-filter" data-orders-filter="cancelled" type="button">Cancelled</button>
+        </div>
+        <input id="ordersSearch" class="orders-search" type="search" placeholder="Search customer or order #" autocomplete="off">
+      </section>
+
+      <section id="ordersSummary" class="orders-summary"></section>
+      <section id="ordersList" class="orders-list"></section>
+      <section id="ordersEmptyState" class="empty-state" hidden>
+        <h2>No matching orders</h2>
+        <p>Try another filter or search term.</p>
+      </section>
+      <p id="ordersMessage" class="form-message" role="alert"></p>
+    </div>
+  </section>
+
+  <section id="eventsScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <button id="eventsBackButton" class="back-button" type="button">← Back</button>
+          <h1>Events</h1>
+          <p class="page-subtitle">Pickup locations and the orders customers are bringing together.</p>
+        </div>
+      </header>
+      <section id="eventsList" class="event-list"></section>
+      <section id="eventsEmptyState" class="empty-state" hidden>
+        <h2>No Upcoming Events</h2>
+        <p>Create pickup events here once event management is enabled.</p>
+      </section>
+      <p id="eventsMessage" class="form-message" role="alert"></p>
+    </div>
+  </section>
+
   <section id="productsScreen" class="screen" hidden>
     <div class="app-container">
       <header class="page-header">
@@ -561,7 +641,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script type="module" src="./js/app.js?v=2026-09-04-orderflow-02"></script>
+<script type="module" src="./js/app.js?v=2026-09-03-07"></script>
 
 <script>
 if ("serviceWorker" in navigator) {
