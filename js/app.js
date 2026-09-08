@@ -524,6 +524,9 @@ const screens = {
   register:
     $("registerScreen"),
 
+  memberSignup:
+    $("memberSignupScreen"),
+
   shopSetup:
     $("shopSetupScreen"),
 
@@ -605,6 +608,7 @@ let qrScanBusy = false;
 const validRoutes = [
   "login",
   "register",
+  "member-signup",
   "shop-setup",
   "home",
   "production",
@@ -623,16 +627,24 @@ const validRoutes = [
 
 function getRoute() {
 
-  const route =
+  const raw =
     window.location.hash
       .replace(/^#/, "")
       .toLowerCase();
 
+  if (raw.startsWith("member-signup/")) return "member-signup";
 
-  return validRoutes.includes(route)
-    ? route
+  return validRoutes.includes(raw)
+    ? raw
     : "login";
 
+}
+
+function getMemberInviteToken() {
+  const raw = window.location.hash.replace(/^#/, "");
+  if (!raw.toLowerCase().startsWith("member-signup/")) return "";
+  try { return decodeURIComponent(raw.slice("member-signup/".length)).trim(); }
+  catch (_) { return raw.slice("member-signup/".length).trim(); }
 }
 
 
@@ -796,6 +808,14 @@ async function renderApplication() {
       try { await ensureSupabase(); } catch (_) {}
     }
 
+    const route = getRoute();
+
+    if (route === "member-signup") {
+      showScreen("memberSignup");
+      await prepareMemberSignupScreen();
+      return;
+    }
+
     const session =
       await getSession();
 
@@ -803,7 +823,7 @@ async function renderApplication() {
     if (!session) {
 
       showScreen(
-        getRoute() ===
+        route ===
           "register"
           ? "register"
           : "login"
@@ -1516,9 +1536,112 @@ async function loadHomeLogo(
 }
 
 
+
+// ============================================================
+// PRODUCTION MEMBER ONBOARDING
+// ============================================================
+
+let productionInviteState = null;
+
+async function loadProductionInvite(token) {
+  if (!token) throw new Error("This invitation link is missing its invitation token.");
+  const { data, error } = await supabase.rpc("get_production_invite", {
+    p_invite_token: token
+  });
+  if (error) throw error;
+  if (!data?.email) throw new Error("This invitation is invalid, expired, or already used.");
+  return data;
+}
+
+async function prepareMemberSignupScreen() {
+  const form = $("memberSignupForm");
+  const message = $("memberSignupMessage");
+  if (!form) return;
+
+  form.hidden = false;
+  message.textContent = "";
+  productionInviteState = null;
+
+  try {
+    const invite = await loadProductionInvite(getMemberInviteToken());
+    productionInviteState = { ...invite, token: getMemberInviteToken() };
+
+    $("memberSignupName").value = invite.name || "";
+    $("memberSignupEmail").value = invite.email || "";
+    $("memberSignupSection").textContent = invite.section_label || "Production team";
+    $("memberSignupSubtitle").textContent =
+      `This invitation is for ${invite.email}. Create a password for your production account.`;
+  } catch (error) {
+    form.hidden = true;
+    $("memberSignupSubtitle").textContent = "This invitation cannot be used.";
+    message.textContent = error?.message || "Unable to load this invitation.";
+  }
+}
+
+$("memberSignupForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const message = $("memberSignupMessage");
+  message.textContent = "";
+
+  try {
+    if (!productionInviteState?.email || !productionInviteState?.token) {
+      throw new Error("This invitation is invalid. Open the invitation link again.");
+    }
+
+    const password = $("memberSignupPassword").value;
+    const confirm = $("memberSignupConfirmPassword").value;
+
+    if (password.length < 8) throw new Error("Password must be at least 8 characters.");
+    if (password !== confirm) throw new Error("Passwords do not match.");
+
+    setLoading($("memberSignupButton"), "Creating account...");
+
+    const signup = await supabase.auth.signUp({
+      email: productionInviteState.email,
+      password
+    });
+
+    if (signup.error) throw signup.error;
+
+    if (signup.data?.session) {
+      const accepted = await supabase.rpc("accept_production_member_invite", {
+        p_invite_token: productionInviteState.token
+      });
+      if (accepted.error) throw accepted.error;
+
+      actorContextCache = null;
+      try { localStorage.removeItem("ordeli-member-login-email"); } catch (_) {}
+      await renderApplication();
+      navigate("production");
+      showToast("Production account created.", "success");
+    } else {
+      try { localStorage.setItem("ordeli-member-login-email", productionInviteState.email); } catch (_) {}
+      message.textContent = "Account created. Confirm the email if required, then sign in using the same email and password.";
+    }
+  } catch (error) {
+    console.error("Production member signup failed:", error);
+    message.textContent = getAuthError(error);
+  } finally {
+    resetButton($("memberSignupButton"), "Create Production Account");
+  }
+});
+
+$("memberSignupLoginLink")?.addEventListener("click", () => {
+  const email = productionInviteState?.email || "";
+  try { if (email) localStorage.setItem("ordeli-member-login-email", email); } catch (_) {}
+  navigate("login");
+});
+
 // ============================================================
 // AUTH FORMS
 // ============================================================
+
+try {
+  const invitedEmail = localStorage.getItem("ordeli-member-login-email");
+  if (invitedEmail && $("loginEmail") && !$("loginEmail").value) {
+    $("loginEmail").value = invitedEmail;
+  }
+} catch (_) {}
 
 $("loginForm")
   .addEventListener(
@@ -2336,7 +2459,40 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
     const { data, error } = await supabase.rpc("create_production_member_invite", payload);
     if (error) throw error;
     const invite = data || {};
-    message.textContent = `Invitation created for ${payload.p_email}. They can sign up with that email and will be linked automatically.${invite.invite_token ? ` Invite token: ${invite.invite_token}` : ""}`;
+    message.replaceChildren();
+
+    if (invite.invite_token) {
+      const inviteUrl = `${window.location.origin}${window.location.pathname}#member-signup/${encodeURIComponent(invite.invite_token)}`;
+      const result = document.createElement("div");
+      result.className = "team-invite-result";
+
+      const title = document.createElement("strong");
+      title.textContent = "Invitation ready";
+      const text = document.createElement("span");
+      text.textContent = `Send this link to ${payload.p_email}. They will create their own password.`;
+      const link = document.createElement("code");
+      link.textContent = inviteUrl;
+
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "secondary-button";
+      copy.textContent = "Copy Invite Link";
+      copy.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(inviteUrl);
+          copy.textContent = "Copied";
+          setTimeout(() => { copy.textContent = "Copy Invite Link"; }, 1500);
+        } catch (_) {
+          result.appendChild(document.createTextNode(" Copy manually."));
+        }
+      });
+
+      result.append(title, text, link, copy);
+      message.appendChild(result);
+    } else {
+      message.textContent = `Invitation created for ${payload.p_email}.`;
+    }
+
     event.target.reset();
     $("teamCanView").checked = $("teamCanScan").checked = $("teamCanFinish").checked = $("teamCanProof").checked = true;
     await renderTeam();

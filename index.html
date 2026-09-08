@@ -63,6 +63,39 @@
     </div></div>
   </section>
 
+  <section id="memberSignupScreen" class="screen" hidden>
+    <div class="auth-container"><div class="auth-card">
+      <div class="brand-block"><h1>Ordeli</h1><p>Production team</p></div>
+      <h2>Join Your Production Team</h2>
+      <p id="memberSignupSubtitle" class="auth-subtitle">Loading your invitation…</p>
+      <form id="memberSignupForm">
+        <div class="form-group">
+          <label for="memberSignupName">Name</label>
+          <input id="memberSignupName" type="text" readonly>
+        </div>
+        <div class="form-group">
+          <label for="memberSignupEmail">Email</label>
+          <input id="memberSignupEmail" type="email" readonly autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label>Section</label>
+          <p id="memberSignupSection" class="readonly-field">Production team</p>
+        </div>
+        <div class="form-group">
+          <label for="memberSignupPassword">Create Password</label>
+          <input id="memberSignupPassword" type="password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="form-group">
+          <label for="memberSignupConfirmPassword">Confirm Password</label>
+          <input id="memberSignupConfirmPassword" type="password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <button id="memberSignupButton" type="submit">Create Production Account</button>
+        <p id="memberSignupMessage" class="form-message" role="alert"></p>
+      </form>
+      <p class="auth-link"><button id="memberSignupLoginLink" class="text-button" type="button">Already have an account? Log in</button></p>
+    </div></div>
+  </section>
+
   <section id="shopSetupScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Shop setup</p></div>
