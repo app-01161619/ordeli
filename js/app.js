@@ -1299,9 +1299,12 @@ async function saveEventForm(event) {
     event_date: $("eventDate").value,
     start_time: $("eventStartTime").value || null,
     end_time: $("eventEndTime").value || null,
-    notes: $("eventNotes").value.trim() || null,
-    status: "Upcoming"
+    notes: $("eventNotes").value.trim() || null
   };
+  // The existing Supabase schema uses lowercase event status values.
+  // Only new events receive the initial status; editing an event must not
+  // accidentally reset an existing Ready/Active/Completed/Cancelled state.
+  if (!editingEventId) payload.status = "upcoming";
   if (!payload.name || !payload.location || !payload.event_date) {
     $("eventEditorMessage").textContent = "Event name, location, and date are required.";
     return;
