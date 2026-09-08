@@ -18,6 +18,8 @@ const supabase = createClient(
 const $ = (id) => document.getElementById(id);
 let trackingPayload = null;
 let trackingOrderVisible = false;
+let fulfillmentState = null;
+let fulfillmentBusy = false;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
@@ -121,6 +123,109 @@ function renderTrackingOrderItems(items) {
   list.appendChild(fragment);
 }
 
+
+
+function formatEventDate(value) {
+  if (!value) return "";
+  const d = new Date(`${value}T00:00:00`);
+  return new Intl.DateTimeFormat("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(d);
+}
+
+function formatEventTime(start, end) {
+  const fmt = (v) => v ? new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit" }).format(new Date(`1970-01-01T${v}`)) : "";
+  return `${fmt(start)}${end ? `–${fmt(end)}` : ""}`;
+}
+
+function fulfillmentLabel(value) {
+  return value === "shop" ? "Pickup at Shop" : value === "location" ? "Pickup at Location" : value === "courier" ? "Courier Delivery" : "Not Selected";
+}
+
+function renderFulfillment() {
+  const card = $("trackingFulfillmentCard");
+  if (!card) return;
+  const state = fulfillmentState || {};
+  const ready = Boolean(state.production_completed && state.fully_paid && !state.handed_over_at);
+  card.hidden = false;
+  $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
+  $("fulfillmentRequirement").textContent = ready
+    ? "Your order is ready for fulfillment selection."
+    : state.handed_over_at
+      ? "This order has already been handed over."
+      : !state.production_completed
+        ? "Fulfillment options will appear after production is completed."
+        : "Fulfillment options will appear after payment is fully confirmed.";
+
+  const options = $("fulfillmentOptions");
+  const notice = $("fulfillmentNotice");
+  const eventPicker = $("fulfillmentEventPicker");
+  if (!ready) {
+    options.hidden = true; eventPicker.hidden = true; notice.textContent = ""; return;
+  }
+  options.hidden = false;
+  const selected = state.fulfillment_type || "";
+  document.querySelectorAll("input[name='fulfillmentType']").forEach(r => r.checked = r.value === selected);
+  eventPicker.hidden = selected !== "location";
+  const select = $("fulfillmentEventSelect");
+  select.replaceChildren();
+  const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = "Choose an event"; select.appendChild(placeholder);
+  (state.events || []).forEach((event) => {
+    const option = document.createElement("option");
+    option.value = event.id;
+    option.textContent = `${event.name} · ${formatEventDate(event.event_date)}${event.start_time ? ` · ${formatEventTime(event.start_time, event.end_time)}` : ""}`;
+    option.dataset.location = event.location || "";
+    select.appendChild(option);
+  });
+  if (state.event?.id) select.value = state.event.id;
+  if (selected === "location" && !state.event?.id && state.events?.length === 0) {
+    notice.textContent = "There are no upcoming pickup events available right now.";
+  } else if (selected === "courier") {
+    notice.textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange your delivery.";
+  } else {
+    notice.textContent = "";
+  }
+}
+
+async function loadCustomerFulfillment(publicToken) {
+  try {
+    const { data, error } = await supabase.rpc("get_customer_fulfillment", { p_public_token: publicToken });
+    if (error) throw error;
+    fulfillmentState = data || null;
+    renderFulfillment();
+  } catch (error) {
+    console.error("Customer fulfillment load failed:", error);
+    fulfillmentState = null;
+    renderFulfillment();
+  }
+}
+
+async function saveCustomerFulfillment() {
+  if (fulfillmentBusy) return;
+  const token = getTrackingToken();
+  if (!token) return;
+  const choice = document.querySelector("input[name='fulfillmentType']:checked")?.value || "";
+  const eventId = choice === "location" ? $("fulfillmentEventSelect").value : null;
+  if (!choice) { $("fulfillmentNotice").textContent = "Choose a fulfillment option."; return; }
+  if (choice === "location" && !eventId) { $("fulfillmentNotice").textContent = "Choose a pickup event."; return; }
+  fulfillmentBusy = true;
+  const button = $("saveFulfillmentButton");
+  if (button) { button.disabled = true; button.textContent = "Saving…"; }
+  try {
+    const { error } = await supabase.rpc("set_customer_fulfillment", { p_public_token: token, p_fulfillment_type: choice, p_event_id: eventId });
+    if (error) throw error;
+    await loadCustomerTracking(token);
+    await loadCustomerFulfillment(token);
+    $("fulfillmentNotice").textContent = choice === "courier"
+      ? "Thank you for your purchase! Our customer service team will contact you to arrange delivery."
+      : `Fulfillment selected: ${fulfillmentLabel(choice)}.`;
+  } catch (error) {
+    console.error("Customer fulfillment save failed:", error);
+    $("fulfillmentNotice").textContent = error?.message || "Unable to save your fulfillment choice.";
+  } finally {
+    fulfillmentBusy = false;
+    if (button) { button.disabled = false; button.textContent = "Save Fulfillment"; }
+  }
+}
+
 function renderCustomerTracking(payload) {
   showTrackingContent();
   const shop = payload?.shop || {};
@@ -173,6 +278,7 @@ async function loadCustomerTracking(publicToken) {
     if (!data) throw new Error("Tracking information is not available.");
     trackingPayload = { ...data, _token: publicToken };
     renderCustomerTracking(trackingPayload);
+    await loadCustomerFulfillment(publicToken);
   } catch (error) {
     console.error("Customer tracking load failed:", error);
     showTrackingError(error?.message || "This tracking link could not be loaded.");
@@ -203,3 +309,19 @@ if (document.readyState === "loading") {
 } else {
   bootCustomerTracking();
 }
+
+
+document.querySelectorAll("input[name='fulfillmentType']").forEach((radio) => {
+  radio.addEventListener("change", () => {
+    const selected = document.querySelector("input[name='fulfillmentType']:checked")?.value;
+    $("fulfillmentEventPicker").hidden = selected !== "location";
+    if (selected === "courier") $("fulfillmentNotice").textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange your delivery.";
+    else if (selected !== "location") $("fulfillmentNotice").textContent = "";
+  });
+});
+$("saveFulfillmentButton")?.addEventListener("click", saveCustomerFulfillment);
+$("fulfillmentEventSelect")?.addEventListener("change", () => {
+  const option = $("fulfillmentEventSelect").selectedOptions[0];
+  const location = option?.dataset.location || "";
+  if (location) $("fulfillmentNotice").textContent = location;
+});
