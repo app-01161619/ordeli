@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-02-01">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-08-05">
 </head>
 <body>
   <main id="customerApp">
@@ -64,30 +64,6 @@
           <div id="trackingStageList" class="tracking-stage-list"></div>
         </section>
 
-        <section id="trackingFulfillmentCard" class="tracking-card tracking-fulfillment-card">
-          <div class="tracking-section-heading">
-            <div>
-              <h3>Fulfillment</h3>
-              <p id="fulfillmentRequirement">Fulfillment options will appear when your order is ready.</p>
-            </div>
-            <strong id="fulfillmentCurrent">Not selected yet</strong>
-          </div>
-
-          <div id="fulfillmentOptions" class="fulfillment-options" hidden>
-            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="shop"><span><strong>Pickup at Shop</strong><small>Pick up from the seller's shop.</small></span></label>
-            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="location"><span><strong>Pickup at Location</strong><small>Choose one of the seller's upcoming pickup events.</small></span></label>
-            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="courier"><span><strong>Courier Delivery</strong><small>The seller will contact you privately to arrange delivery.</small></span></label>
-          </div>
-
-          <div id="fulfillmentEventPicker" class="form-group fulfillment-event-picker" hidden>
-            <label for="fulfillmentEventSelect">Pickup Event</label>
-            <select id="fulfillmentEventSelect" class="tracking-select"></select>
-          </div>
-
-          <button id="saveFulfillmentButton" class="tracking-primary-button" type="button">Save Fulfillment</button>
-          <p id="fulfillmentNotice" class="tracking-inline-notice" role="status"></p>
-        </section>
-
         <section class="tracking-card tracking-payment-card">
           <div class="tracking-section-heading">
             <div>
@@ -100,6 +76,17 @@
             <div><span>Paid</span><strong id="trackingPaymentPaid">₱0.00</strong></div>
             <div><span>Remaining</span><strong id="trackingPaymentRemaining">₱0.00</strong></div>
           </div>
+        </section>
+
+        <section id="paymentProofBox" class="tracking-card payment-proof-box" hidden>
+          <div>
+            <strong>Remaining Balance Payment</strong>
+            <p id="paymentProofHint">Upload a clear photo of your payment proof. The seller will verify it.</p>
+          </div>
+          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <button id="choosePaymentProofButton" class="secondary-button" type="button">Choose Payment Proof Photo</button>
+          <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
+          <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment Proof</button>
         </section>
 
         <button id="trackingViewOrderButton" class="tracking-order-toggle" type="button">View My Order</button>
@@ -116,6 +103,6 @@
       </section>
     </div>
   </main>
-  <script type="module" src="/customer/customer.js?v=2026-09-02-04"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-08-05"></script>
 </body>
 </html>
