@@ -6761,7 +6761,8 @@ async function finishProductionStage(
 
 async function sendBackProductionStage(
   item,
-  stage
+  stage,
+  panel
 ) {
 
   if (productionBusyItemId) {
@@ -6795,7 +6796,15 @@ async function sendBackProductionStage(
       throw error;
     }
 
-    await loadOrderDetail(currentOrderId);
+    showToast(`“${stage.name}” sent back for rework.`, "success");
+
+    // The database mutation has succeeded. Refresh only the production panel
+    // so the worker immediately sees the reverted stage.
+    if (panel) {
+      await renderProductionPanel(item, panel);
+    } else if (currentOrderId) {
+      await loadOrderDetail(currentOrderId);
+    }
 
   } catch (error) {
 
