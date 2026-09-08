@@ -1191,12 +1191,178 @@ async function loadEvents() {
   if (!runtimeOffline && navigator.onLine) {
     try {
       const result = await supabase.from("events").select("id,name,location,event_date,start_time,end_time,notes,status").eq("seller_id", user.id).gte("event_date", new Date().toISOString().slice(0,10)).order("event_date", {ascending:true}).order("start_time", {ascending:true});
-      if (result.error) throw result.error; events = result.data || []; await cacheNamed(cacheKey,events);
-    } catch (error) { events = await getCachedSnapshot(cacheKey); if (!events) throw error; }
-  } else events = await getCachedSnapshot(cacheKey);
-  events = events || []; const list=$("eventsList"); list.replaceChildren(); $("eventsEmptyState").hidden = events.length>0;
-  events.forEach(event => { const card=document.createElement("article"); card.className="event-card"; const date=document.createElement("div"); date.className="event-date-box"; date.innerHTML=`<strong>${new Intl.DateTimeFormat("en-PH",{month:"short",day:"numeric"}).format(new Date(`${event.event_date}T00:00:00`))}</strong><span>${event.status || "Upcoming"}</span>`; const body=document.createElement("div"); const title=document.createElement("h2"); title.textContent=event.name; const meta=document.createElement("p"); meta.textContent=`${event.location} · ${event.start_time ? event.start_time.slice(0,5) : ""}${event.end_time ? `–${event.end_time.slice(0,5)}` : ""}`; body.append(title,meta); card.append(date,body); list.appendChild(card); });
+      if (result.error) throw result.error;
+      events = result.data || [];
+      await cacheNamed(cacheKey, events);
+    } catch (error) {
+      events = await getCachedSnapshot(cacheKey);
+      if (!events) throw error;
+    }
+  } else {
+    events = await getCachedSnapshot(cacheKey);
+  }
+
+  events = events || [];
+  const list = $("eventsList");
+  list.replaceChildren();
+  $("eventsEmptyState").hidden = events.length > 0;
+
+  for (const event of events) {
+    let orders = [];
+    try {
+      if (!runtimeOffline && navigator.onLine) {
+        const result = await supabase.from("orders")
+          .select("id,order_number,customers(name),order_items(product_name,quantity,cancelled_at)")
+          .eq("seller_id", user.id)
+          .eq("event_id", event.id)
+          .is("cancelled_at", null)
+          .order("created_at", {ascending:true});
+        if (!result.error) orders = result.data || [];
+      }
+    } catch (_) {}
+
+    const card = document.createElement("article");
+    card.className = "event-card";
+    const date = document.createElement("div");
+    date.className = "event-date-box";
+    date.innerHTML = `<strong>${new Intl.DateTimeFormat("en-PH",{month:"short",day:"numeric"}).format(new Date(`${event.event_date}T00:00:00`))}</strong><span>${event.status || "Upcoming"}</span>`;
+
+    const body = document.createElement("div");
+    const title = document.createElement("h2"); title.textContent = event.name;
+    const meta = document.createElement("p");
+    const time = `${event.start_time ? event.start_time.slice(0,5) : ""}${event.end_time ? `–${event.end_time.slice(0,5)}` : ""}`;
+    meta.textContent = `${event.location}${time ? ` · ${time}` : ""}`;
+    body.append(title, meta);
+
+    const summary = document.createElement("div");
+    summary.className = "event-order-summary";
+    if (!orders.length) {
+      summary.textContent = "No orders assigned yet.";
+    } else {
+      const quantities = new Map();
+      orders.forEach(order => (order.order_items || []).forEach(item => {
+        if (item.cancelled_at) return;
+        quantities.set(item.product_name, (quantities.get(item.product_name) || 0) + Number(item.quantity || 0));
+      }));
+      const parts = [...quantities.entries()].map(([name, qty]) => `${name} × ${qty}`);
+      summary.textContent = `${orders.length} order${orders.length === 1 ? "" : "s"} · ${parts.join(" · ") || "No active items"}`;
+    }
+    body.appendChild(summary);
+
+    const actions = document.createElement("div");
+    actions.className = "event-card-actions";
+    const edit = document.createElement("button");
+    edit.type = "button"; edit.className = "secondary-button"; edit.textContent = "Edit";
+    edit.addEventListener("click", () => openEventEditor(event));
+    actions.appendChild(edit);
+
+    const bring = document.createElement("button");
+    bring.type = "button"; bring.textContent = "Bring to Event";
+    bring.addEventListener("click", () => openEventOrders(event));
+    actions.appendChild(bring);
+
+    card.append(date, body, actions);
+    list.appendChild(card);
+  }
 }
+
+let editingEventId = null;
+
+function openEventEditor(event = null) {
+  editingEventId = event?.id || null;
+  const form = $("eventForm");
+  form.hidden = false;
+  $("eventName").value = event?.name || "";
+  $("eventLocation").value = event?.location || "";
+  $("eventDate").value = event?.event_date || new Date().toISOString().slice(0,10);
+  $("eventStartTime").value = event?.start_time?.slice(0,5) || "";
+  $("eventEndTime").value = event?.end_time?.slice(0,5) || "";
+  $("eventNotes").value = event?.notes || "";
+  $("eventEditorMessage").textContent = "";
+  $("newEventButton").textContent = event ? "Close Editor" : "Cancel";
+}
+
+function closeEventEditor() {
+  editingEventId = null;
+  $("eventForm").hidden = true;
+  $("eventEditorMessage").textContent = "";
+  $("newEventButton").textContent = "New Event";
+}
+
+async function saveEventForm(event) {
+  event.preventDefault();
+  const user = await getCurrentUser();
+  const payload = {
+    seller_id: user.id,
+    name: $("eventName").value.trim(),
+    location: $("eventLocation").value.trim(),
+    event_date: $("eventDate").value,
+    start_time: $("eventStartTime").value || null,
+    end_time: $("eventEndTime").value || null,
+    notes: $("eventNotes").value.trim() || null,
+    status: "Upcoming"
+  };
+  if (!payload.name || !payload.location || !payload.event_date) {
+    $("eventEditorMessage").textContent = "Event name, location, and date are required.";
+    return;
+  }
+  const button = $("saveEventButton");
+  setLoading(button, true, "Saving…");
+  try {
+    if (editingEventId) {
+      const result = await supabase.from("events").update(payload).eq("id", editingEventId).eq("seller_id", user.id);
+      if (result.error) throw result.error;
+    } else {
+      const result = await supabase.from("events").insert(payload);
+      if (result.error) throw result.error;
+    }
+    const refreshed = await supabase.from("events").select("id,name,location,event_date,start_time,end_time,notes,status").eq("seller_id", user.id).gte("event_date", new Date().toISOString().slice(0,10)).order("event_date", {ascending:true}).order("start_time", {ascending:true});
+    if (refreshed.error) throw refreshed.error;
+    await cacheNamed(`events:${user.id}`, refreshed.data || []);
+    closeEventEditor();
+    await loadEvents();
+  } catch (error) {
+    $("eventEditorMessage").textContent = getAuthError(error);
+  } finally {
+    resetButton(button, "Save Event");
+  }
+}
+
+async function openEventOrders(event) {
+  try {
+    const user = await getCurrentUser();
+    const result = await supabase.from("orders")
+      .select("id,order_number,event_id,customers(name),order_items(product_name,quantity,cancelled_at)")
+      .eq("seller_id", user.id).eq("event_id", event.id).order("order_number", {ascending:true});
+    if (result.error) throw result.error;
+    const orders = result.data || [];
+    const list = $("eventsList");
+    list.replaceChildren();
+    const back = document.createElement("button"); back.type="button"; back.className="secondary-button"; back.textContent="← Back to Events";
+    back.addEventListener("click", loadEvents);
+    list.appendChild(back);
+    const heading = document.createElement("div"); heading.className="section-heading";
+    heading.innerHTML = `<div><h2>${event.name}</h2><p>${event.location} · ${event.event_date}</p></div>`;
+    list.appendChild(heading);
+    if (!orders.length) {
+      const empty = document.createElement("section"); empty.className="empty-state"; empty.innerHTML="<h2>No Orders for This Event</h2><p>Orders assigned by customers will appear here.</p>"; list.appendChild(empty); return;
+    }
+    orders.forEach(order => {
+      const card = document.createElement("article"); card.className="event-card";
+      const body = document.createElement("div");
+      const title = document.createElement("h2"); title.textContent = `Order #${order.order_number}`;
+      const customer = document.createElement("p"); customer.textContent = order.customers?.name || "Customer";
+      const items = document.createElement("div"); items.className="event-order-summary";
+      items.textContent = (order.order_items || []).filter(i=>!i.cancelled_at).map(i=>`${i.product_name} × ${i.quantity}`).join(" · ");
+      body.append(title, customer, items);
+      const open = document.createElement("button"); open.type="button"; open.textContent="Open Order"; open.addEventListener("click",()=>{ currentOrderId=order.id; currentOrderShowProduction=false; navigate("order-detail"); });
+      card.append(body, open); list.appendChild(card);
+    });
+  } catch (error) {
+    $("eventsMessage").textContent = getAuthError(error);
+  }
+}
+
 
 
 async function loadHomeLogo(
@@ -1989,6 +2155,9 @@ $("homeEventsButton")?.addEventListener("click", () => navigate("events"));
 $("ordersBackButton")?.addEventListener("click", () => navigate("home"));
 $("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
 $("eventsBackButton")?.addEventListener("click", () => navigate("home"));
+$("newEventButton")?.addEventListener("click", () => { if ($("eventForm").hidden) openEventEditor(); else closeEventEditor(); });
+$("cancelEventButton")?.addEventListener("click", closeEventEditor);
+$("eventForm")?.addEventListener("submit", saveEventForm);
 document.querySelectorAll("[data-dashboard-route]").forEach(button => {
   button.addEventListener("click", () => {
     const route = button.dataset.dashboardRoute;

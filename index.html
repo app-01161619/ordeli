@@ -440,10 +440,28 @@
           <p class="page-subtitle">Pickup locations and the orders customers are bringing together.</p>
         </div>
       </header>
+      <section class="event-create-card">
+        <div class="section-heading">
+          <div><h2>Create Pickup Event</h2><p>Set the pickup place and schedule customers can choose.</p></div>
+          <button id="newEventButton" class="secondary-button" type="button">New Event</button>
+        </div>
+        <form id="eventForm" hidden>
+          <div class="form-grid">
+            <div class="form-group"><label for="eventName">Event Name</label><input id="eventName" type="text" maxlength="150" required></div>
+            <div class="form-group"><label for="eventLocation">Location</label><input id="eventLocation" type="text" maxlength="250" required></div>
+            <div class="form-group"><label for="eventDate">Date</label><input id="eventDate" type="date" required></div>
+            <div class="form-group"><label for="eventStartTime">Start Time</label><input id="eventStartTime" type="time"></div>
+            <div class="form-group"><label for="eventEndTime">End Time</label><input id="eventEndTime" type="time"></div>
+          </div>
+          <div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" rows="3" maxlength="1000"></textarea></div>
+          <div class="editor-actions"><button id="cancelEventButton" class="secondary-button" type="button">Cancel</button><button id="saveEventButton" type="submit">Save Event</button></div>
+          <p id="eventEditorMessage" class="form-message" role="alert"></p>
+        </form>
+      </section>
       <section id="eventsList" class="event-list"></section>
       <section id="eventsEmptyState" class="empty-state" hidden>
         <h2>No Upcoming Events</h2>
-        <p>Create pickup events here once event management is enabled.</p>
+        <p>Create a pickup event when customers need a location.</p>
       </section>
       <p id="eventsMessage" class="form-message" role="alert"></p>
     </div>

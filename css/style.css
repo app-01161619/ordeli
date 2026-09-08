@@ -1837,3 +1837,18 @@ a:hover {
 .add-to-order-context .context-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; opacity: .6; }
 .add-to-order-context strong { font-size: 15px; }
 .add-to-order-context span { font-size: 13px; opacity: .8; }
+
+.event-create-card {
+  margin-bottom: 18px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #e2e6eb;
+  border-radius: 16px;
+}
+.event-create-card .section-heading { margin-bottom: 14px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+.event-card { display: grid; grid-template-columns: 74px 1fr auto; gap: 14px; align-items: start; }
+.event-card-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.event-card-meta { margin-top: 10px; color: #68727d; font-size: 13px; }
+.event-order-summary { margin-top: 10px; padding-top: 10px; border-top: 1px solid #edf0f2; color: #454c54; font-size: 13px; line-height: 1.5; }
