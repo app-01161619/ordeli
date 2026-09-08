@@ -8,6 +8,12 @@ import { supabase, readPersistedSession, ensureSupabase } from "./supabase.js";
 const $ = (id) =>
   document.getElementById(id);
 
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.textContent = value == null ? "" : String(value);
+  return div.innerHTML;
+}
+
 const bootFallback = document.getElementById("bootFallback");
 function hideBootFallback() { bootFallback?.classList.add("is-hidden"); }
 

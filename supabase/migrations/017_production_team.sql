@@ -33,7 +33,7 @@ as $$
 declare
   v_member public.production_members%rowtype;
   v_email text := lower(trim(p_email));
-  v_token text := upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 10));
+  v_token text := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10));
 begin
   if auth.uid() is null then raise exception 'Authentication required.'; end if;
   if nullif(trim(p_name), '') is null then raise exception 'Name is required.'; end if;
