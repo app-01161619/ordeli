@@ -1852,3 +1852,25 @@ a:hover {
 .event-card-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .event-card-meta { margin-top: 10px; color: #68727d; font-size: 13px; }
 .event-order-summary { margin-top: 10px; padding-top: 10px; border-top: 1px solid #edf0f2; color: #454c54; font-size: 13px; line-height: 1.5; }
+
+
+.order-fulfillment-summary {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #e6e9ed;
+  border-radius: 16px;
+  background: #fff;
+}
+.order-fulfillment-summary .section-heading { margin-bottom: 12px; }
+.fulfillment-status-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 30px; padding: 6px 10px; border-radius: 999px;
+  background: #f2f4f7; color: #4b5563; font-size: 12px; font-weight: 700;
+  white-space: nowrap;
+}
+.order-event-info {
+  padding: 12px 14px; border-radius: 12px; background: #f8fafc;
+  color: #4b5563; font-size: 13px; line-height: 1.45;
+}
+.order-detail-fulfillment-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top: 14px; }
+.order-detail-fulfillment-actions button { flex:1 1 180px; }

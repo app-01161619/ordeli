@@ -392,6 +392,21 @@
 
         </section>
 
+        <section id="orderDetailFulfillmentSummary" class="order-fulfillment-summary" hidden>
+          <div class="section-heading">
+            <div>
+              <h2>Fulfillment</h2>
+              <p id="orderDetailFulfillmentText">—</p>
+            </div>
+            <span id="orderDetailPickupStatus" class="fulfillment-status-badge">—</span>
+          </div>
+          <div id="orderDetailEventInfo" class="order-event-info" hidden></div>
+          <div class="order-detail-fulfillment-actions">
+            <button id="orderDetailHandoverButton" type="button" hidden>Hand Over Order</button>
+            <button id="orderDetailUnclaimedButton" class="secondary-button" type="button" hidden>Mark Unclaimed</button>
+          </div>
+        </section>
+
         <div class="order-detail-actions"><button id="orderDetailAddItemButton" type="button">Add Another Item</button><button id="orderDetailNewTransactionButton" class="secondary-button" type="button">New Transaction</button></div>
 
         <p id="orderDetailMessage" class="form-message" role="alert"></p>
@@ -454,6 +469,7 @@
             <div class="form-group"><label for="eventEndTime">End Time</label><input id="eventEndTime" type="time"></div>
           </div>
           <div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" rows="3" maxlength="1000"></textarea></div>
+          <div class="form-group"><label for="eventChangeReason">Change Reason</label><input id="eventChangeReason" type="text" maxlength="300" placeholder="Optional reason when rescheduling an existing event"></div>
           <div class="editor-actions"><button id="cancelEventButton" class="secondary-button" type="button">Cancel</button><button id="saveEventButton" type="submit">Save Event</button></div>
           <p id="eventEditorMessage" class="form-message" role="alert"></p>
         </form>

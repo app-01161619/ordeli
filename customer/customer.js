@@ -147,6 +147,26 @@ function renderFulfillment() {
   if (!card) return;
   const state = fulfillmentState || {};
   const ready = Boolean(state.production_completed && state.fully_paid && !state.handed_over_at);
+  const statusCard = $("trackingFulfillmentNoticeCard");
+  const statusTitle = $("trackingFulfillmentNoticeTitle");
+  const statusText = $("trackingFulfillmentNoticeText");
+  if (statusCard && statusTitle && statusText) {
+    if (state.handed_over_at) {
+      statusCard.hidden = false;
+      statusTitle.textContent = "Order Received";
+      statusText.textContent = "Your order has been handed over. Thank you for your purchase!";
+    } else if (state.pickup_status === "unclaimed") {
+      statusCard.hidden = false;
+      statusTitle.textContent = "Pickup was unclaimed";
+      statusText.textContent = "You can reschedule pickup or switch to Courier Delivery below.";
+    } else if (state.fulfillment_type === "courier") {
+      statusCard.hidden = false;
+      statusTitle.textContent = "Courier Delivery";
+      statusText.textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange delivery.";
+    } else {
+      statusCard.hidden = true;
+    }
+  }
   card.hidden = false;
   $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
   $("fulfillmentRequirement").textContent = ready

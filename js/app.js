@@ -1278,6 +1278,7 @@ function openEventEditor(event = null) {
   $("eventStartTime").value = event?.start_time?.slice(0,5) || "";
   $("eventEndTime").value = event?.end_time?.slice(0,5) || "";
   $("eventNotes").value = event?.notes || "";
+  if ($("eventChangeReason")) $("eventChangeReason").value = "";
   $("eventEditorMessage").textContent = "";
   $("newEventButton").textContent = event ? "Close Editor" : "Cancel";
 }
@@ -1301,6 +1302,7 @@ async function saveEventForm(event) {
     end_time: $("eventEndTime").value || null,
     notes: $("eventNotes").value.trim() || null
   };
+  const changeReason = $("eventChangeReason")?.value.trim() || null;
   // The existing Supabase schema uses lowercase event status values.
   // Only new events receive the initial status; editing an event must not
   // accidentally reset an existing Ready/Active/Completed/Cancelled state.
@@ -1313,8 +1315,26 @@ async function saveEventForm(event) {
   setLoading(button, true, "Saving…");
   try {
     if (editingEventId) {
+      const beforeResult = await supabase.from("events").select("id,event_date,start_time,end_time").eq("id", editingEventId).eq("seller_id", user.id).single();
+      if (beforeResult.error) throw beforeResult.error;
       const result = await supabase.from("events").update(payload).eq("id", editingEventId).eq("seller_id", user.id);
       if (result.error) throw result.error;
+      const before = beforeResult.data;
+      const scheduleChanged = before.event_date !== payload.event_date || before.start_time !== payload.start_time || before.end_time !== payload.end_time;
+      if (scheduleChanged) {
+        const logResult = await supabase.from("event_change_logs").insert({
+          event_id: editingEventId,
+          original_event_date: before.event_date,
+          original_start_time: before.start_time,
+          original_end_time: before.end_time,
+          new_event_date: payload.event_date,
+          new_start_time: payload.start_time,
+          new_end_time: payload.end_time,
+          reason: changeReason,
+          changed_by_user_id: user.id
+        });
+        if (logResult.error) throw logResult.error;
+      }
     } else {
       const result = await supabase.from("events").insert(payload);
       if (result.error) throw result.error;
@@ -5340,6 +5360,64 @@ function clearOrderMessage() {
 // ORDER DETAILS
 // ============================================================
 
+function getOrderItemProductionComplete(item) {
+  if (item?.cancelled_at) return true;
+  const workflow = normaliseWorkflowSnapshot(item?.workflow_snapshot);
+  if (!workflow.length) return true;
+  const logs = Array.isArray(item?.stage_logs) ? [...item.stage_logs].sort((a,b) => new Date(a.occurred_at || 0) - new Date(b.occurred_at || 0)) : [];
+  return workflow.every(stage => {
+    const matches = logs.filter(log => Number(log.stage_order) === Number(stage.stage_order));
+    const latest = matches.length ? matches[matches.length - 1] : null;
+    return latest?.action === 'finished';
+  });
+}
+
+function getOrderProductionComplete(items) {
+  const active = (items || []).filter(item => !item.cancelled_at);
+  return active.length > 0 && active.every(getOrderItemProductionComplete);
+}
+
+function fulfillmentSellerLabel(value) {
+  return value === 'shop' ? 'Pickup at Shop' : value === 'location' ? 'Pickup at Location' : value === 'courier' ? 'Courier Delivery' : 'Not selected';
+}
+
+function pickupStatusLabel(value) {
+  const labels = { not_scheduled: 'Not scheduled', scheduled: 'Scheduled', bring_to_event: 'Bring to Event', unclaimed: 'Unclaimed', handed_over: 'Handed Over' };
+  return labels[value] || (value ? String(value).replaceAll('_',' ') : 'Not scheduled');
+}
+
+function renderOrderFulfillmentSummary(order, items, total, paid) {
+  const box = $('orderDetailFulfillmentSummary');
+  if (!box) return;
+  box.hidden = false;
+  const complete = getOrderProductionComplete(items);
+  const fullyPaid = paid >= total && total >= 0;
+  $('orderDetailFulfillmentText').textContent = `${fulfillmentSellerLabel(order?.fulfillment_type)} · ${complete ? 'Production complete' : 'Production in progress'} · ${fullyPaid ? 'Fully paid' : 'Balance remaining'}`;
+  $('orderDetailPickupStatus').textContent = pickupStatusLabel(order?.pickup_status);
+
+  const eventInfo = $('orderDetailEventInfo');
+  const event = order?.events;
+  if (event) {
+    eventInfo.hidden = false;
+    const dateText = event.event_date ? new Intl.DateTimeFormat('en-PH', {weekday:'short', month:'short', day:'numeric', year:'numeric'}).format(new Date(`${event.event_date}T00:00:00`)) : '';
+    const timeText = event.start_time ? ` · ${event.start_time.slice(0,5)}${event.end_time ? `–${event.end_time.slice(0,5)}` : ''}` : '';
+    eventInfo.textContent = `${event.name} · ${event.location}${dateText ? ` · ${dateText}` : ''}${timeText}`;
+  } else {
+    eventInfo.hidden = true; eventInfo.textContent = '';
+  }
+
+  const handover = $('orderDetailHandoverButton');
+  const unclaimed = $('orderDetailUnclaimedButton');
+  const already = Boolean(order?.handed_over_at);
+  const canHandover = !already && (order?.fulfillment_type === 'shop' || order?.fulfillment_type === 'location') && complete && fullyPaid;
+  if (handover) { handover.hidden = !canHandover; handover.disabled = false; }
+  if (unclaimed) {
+    const canUnclaim = !already && order?.fulfillment_type === 'location' && order?.event_id && order?.pickup_status !== 'unclaimed';
+    unclaimed.hidden = !canUnclaim;
+    unclaimed.disabled = false;
+  }
+}
+
 async function loadOrderDetail(
   orderId
 ) {
@@ -5361,10 +5439,10 @@ async function loadOrderDetail(
 
   if (!runtimeOffline && navigator.onLine && user?.id) {
     try {
-      const orderResult = await supabase.from("orders").select(`id,order_number,customer_id,created_at,customers(id,name,phone)`).eq("id", orderId).eq("seller_id", user.id).single();
+      const orderResult = await supabase.from("orders").select(`id,order_number,customer_id,created_at,fulfillment_type,event_id,pickup_status,handed_over_at,cancelled_at,customers(id,name,phone),events(id,name,location,event_date,start_time,end_time,status)`).eq("id", orderId).eq("seller_id", user.id).single();
       if (orderResult.error) throw orderResult.error;
       order = orderResult.data;
-      const itemsResult = await supabase.from("order_items").select(`id,product_name,quantity,unit_price,total_price,workflow_snapshot,cancelled_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
+      const itemsResult = await supabase.from("order_items").select(`id,product_name,quantity,unit_price,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at)`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
       if (itemsResult.error) throw itemsResult.error;
       items = itemsResult.data || [];
       const paymentsResult = await supabase.from("payments").select("amount,proof_status").eq("order_id", orderId).eq("seller_id", user.id);
@@ -5424,6 +5502,7 @@ async function loadOrderDetail(
   currentOrderTotal = total;
   currentOrderPaid = paid;
   $("orderDetailBalance").textContent = formatPrice(Math.max(0, total - paid));
+  renderOrderFulfillmentSummary(order, items, total, paid);
   await loadPayments(orderId);
 }
 
@@ -5434,6 +5513,7 @@ function clearOrderDetailScreen() {
   ["orderDetailTitle","orderDetailNumber","orderDetailCustomerName","orderDetailCustomer","orderDetailTotal","orderDetailPaid","orderDetailBalance"].forEach(id => { if ($(id)) $(id).textContent = ""; });
   if ($("orderDetailItems")) $("orderDetailItems").replaceChildren();
   if ($("orderDetailMessage")) $("orderDetailMessage").textContent = "";
+  if ($("orderDetailFulfillmentSummary")) $("orderDetailFulfillmentSummary").hidden = true;
 }
 
 function startNewTransaction() {
@@ -5482,6 +5562,26 @@ if (orderDetailNewTransactionButton) {
   });
 }
 
+
+async function updateOrderPickupAction(action) {
+  if (!currentOrderId) return;
+  const button = action === 'handed_over' ? $('orderDetailHandoverButton') : $('orderDetailUnclaimedButton');
+  const original = button?.textContent || '';
+  if (button) { button.disabled = true; button.textContent = action === 'handed_over' ? 'Handing Over…' : 'Saving…'; }
+  try {
+    const { data, error } = await supabase.rpc('update_order_pickup_status', { p_order_id: currentOrderId, p_action: action });
+    if (error) throw error;
+    if (!data) throw new Error('The pickup update was not saved.');
+    await loadOrderDetail(currentOrderId);
+  } catch (error) {
+    $('orderDetailMessage').textContent = error?.message || 'Unable to update pickup status.';
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original; }
+  }
+}
+
+$('orderDetailHandoverButton')?.addEventListener('click', () => updateOrderPickupAction('handed_over'));
+$('orderDetailUnclaimedButton')?.addEventListener('click', () => updateOrderPickupAction('unclaimed'));
 
 // ============================================================
 // PRODUCTION EXECUTION
