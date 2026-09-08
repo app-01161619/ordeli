@@ -2453,6 +2453,7 @@ async function loadProductionWork() {
 function productionTaskCard(task, actor) {
   const card = document.createElement("article");
   card.className = "production-work-card";
+  card.dataset.productionTaskId = task.order_item_id;
 
   const title = document.createElement("div");
   title.className = "production-work-card-head";
@@ -2583,10 +2584,56 @@ async function completeMemberProductionTask(task, note, file, button) {
     });
     if (error) throw error;
 
+    // The server has already confirmed the save. Update the UI immediately
+    // instead of waiting for another role/session lookup to finish.
+    const scannedBox = $("productionScannedItem");
+    if (scannedBox) {
+      scannedBox.replaceChildren();
+      scannedBox.hidden = false;
+
+      const successTitle = document.createElement("h3");
+      successTitle.textContent = data?.completed
+        ? "Production item completed"
+        : `${data?.stage_name || "Stage"} finished`;
+
+      const successText = document.createElement("p");
+      successText.textContent = data?.completed
+        ? "All production stages for this item are finished."
+        : data?.next_stage_order != null
+          ? "Saved successfully. The next production stage is now available."
+          : "Saved successfully.";
+
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "secondary-button";
+      closeButton.textContent = "Back to Production Work";
+      closeButton.addEventListener("click", async () => {
+        scannedBox.hidden = true;
+        scannedBox.replaceChildren();
+        try {
+          const refreshedActor = actorContextCache || await getActorContext(false);
+          await renderProductionWork(refreshedActor);
+        } catch (refreshError) {
+          $("productionMessage").textContent =
+            refreshError?.message || "Saved, but the task list could not be refreshed.";
+        }
+      });
+
+      scannedBox.append(successTitle, successText, closeButton);
+    }
+
+    // Remove the just-finished task from the visible task list immediately.
+    document
+      .querySelectorAll("[data-production-task-id]")
+      .forEach((node) => {
+        if (node.dataset.productionTaskId === String(task.order_item_id)) node.remove();
+      });
+
+    const remaining = document.querySelectorAll("[data-production-task-id]").length;
+    if ($("productionWorkCount")) $("productionWorkCount").textContent = String(remaining);
+    if ($("productionEmptyState")) $("productionEmptyState").hidden = remaining !== 0;
+
     showToast(data?.completed ? "Final stage finished — product completed." : "Stage finished.", "success");
-    $("productionScannedItem")?.replaceChildren();
-    if ($("productionScannedItem")) $("productionScannedItem").hidden = true;
-    await renderProductionWork(await getActorContext(true));
   } catch (error) {
     if (uploadedPath) {
       try { await supabase.storage.from("production-proofs").remove([uploadedPath]); } catch (_) {}
