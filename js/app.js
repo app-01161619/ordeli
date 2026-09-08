@@ -2550,12 +2550,43 @@ async function showProductionScannedItem(item) {
     await completeMemberProductionTask(item, note.value.trim() || null, photo.files?.[0] || null, finish);
   });
 
+  const sendBack = document.createElement("button");
+  sendBack.type = "button";
+  sendBack.className = "secondary-button";
+  sendBack.textContent = "Send Previous Stage Back";
+  sendBack.disabled = actor?.can_finish_stage === false;
+  sendBack.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+      "Send the most recently finished production stage back for rework?"
+    );
+    if (!confirmed) return;
+
+    sendBack.disabled = true;
+    try {
+      const { data, error } = await supabase.rpc("send_back_production_stage_member_v2", {
+        p_order_item_id: item.order_item_id
+      });
+      if (error) throw error;
+
+      const label = data?.stage_name ? `“${data.stage_name}” sent back for rework.` : "Previous stage sent back for rework.";
+      showToast(label, "success");
+      await showProductionScannedItem(await resolveProductionQr(item.public_token));
+    } catch (error) {
+      showToast(error?.message || "Unable to send the previous stage back.", "error");
+    } finally {
+      sendBack.disabled = false;
+    }
+  });
+
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "secondary-button";
   cancel.textContent = "Close";
   cancel.addEventListener("click", () => { box.hidden = true; box.replaceChildren(); });
 
+  if (Number(item.stage_order || 0) > 1 || item.has_finished_stage) {
+    box.append(sendBack);
+  }
   box.append(title, meta, stage, document.createTextNode("Proof photo (optional)"), photo, note, finish, cancel);
 }
 
