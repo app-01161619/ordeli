@@ -24,13 +24,22 @@ begin
     raise exception 'Tracking token is required.';
   end if;
 
-  select q.*, oi.order_id
-    into v_qr, v_item
+  select q.*
+    into v_qr
   from public.qr_codes q
-  join public.order_items oi on oi.id = q.order_item_id
   where q.public_token = p_public_token
     and q.status = 'assigned'
+    and q.order_item_id is not null
   limit 1;
+
+  if not found then
+    raise exception 'This tracking link is unavailable.';
+  end if;
+
+  select oi.*
+    into v_item
+  from public.order_items oi
+  where oi.id = v_qr.order_item_id;
 
   if not found then
     raise exception 'This tracking link is unavailable.';
@@ -164,11 +173,18 @@ begin
     raise exception 'Invalid fulfillment option.';
   end if;
 
-  select q.*, oi.order_id into v_qr, v_item
+  select q.* into v_qr
   from public.qr_codes q
-  join public.order_items oi on oi.id = q.order_item_id
-  where q.public_token = p_public_token and q.status = 'assigned'
+  where q.public_token = p_public_token
+    and q.status = 'assigned'
+    and q.order_item_id is not null
   limit 1;
+
+  if not found then raise exception 'This tracking link is unavailable.'; end if;
+
+  select oi.* into v_item
+  from public.order_items oi
+  where oi.id = v_qr.order_item_id;
 
   if not found then raise exception 'This tracking link is unavailable.'; end if;
 

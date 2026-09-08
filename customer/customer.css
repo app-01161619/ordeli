@@ -383,3 +383,10 @@ button:focus-visible {
 .tracking-select { width: 100%; padding: 12px 13px; border: 1px solid #d9dde3; border-radius: 10px; background: #fff; font: inherit; }
 .tracking-primary-button { width: 100%; margin-top: 14px; }
 .tracking-inline-notice { min-height: 18px; margin: 10px 0 0; color: #666; font-size: 13px; }
+
+
+.payment-proof-box { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e8ebef; display: grid; gap: 10px; }
+.payment-proof-box > div { display: grid; gap: 4px; }
+.payment-proof-box strong { font-size: 15px; }
+.payment-proof-box p { margin: 0; color: #666; line-height: 1.45; font-size: 13px; }
+.payment-proof-box button { margin-top: 2px; }

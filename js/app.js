@@ -6071,7 +6071,7 @@ async function loadPayments(
   let payments = null;
   if (navigator.onLine && user?.id) {
     try {
-      const result = await supabase.from("payments").select(`id,amount,payment_type,proof_status,created_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
+      const result = await supabase.from("payments").select(`id,amount,payment_type,proof_status,proof_path,rejection_reason,created_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
       if (result.error) throw result.error;
       payments = result.data || [];
       await cacheNamed(cacheKey, payments);
@@ -6100,12 +6100,67 @@ async function loadPayments(
     left.append(title, meta);
     const right = document.createElement("div"); right.className = "payment-row-right";
     const amount = document.createElement("strong"); amount.textContent = formatPrice(payment.amount);
-    right.appendChild(amount); row.append(left, right);
+    right.appendChild(amount);
+    if (payment.proof_status === "pending_verification") {
+      const proofButton = document.createElement("button");
+      proofButton.type = "button"; proofButton.className = "secondary-button payment-proof-button"; proofButton.textContent = "View Proof";
+      proofButton.addEventListener("click", () => viewCustomerPaymentProof(payment));
+      const confirmButton = document.createElement("button");
+      confirmButton.type = "button"; confirmButton.className = "payment-confirm-button"; confirmButton.textContent = "Confirm";
+      confirmButton.addEventListener("click", () => reviewCustomerPayment(payment, "confirmed"));
+      const rejectButton = document.createElement("button");
+      rejectButton.type = "button"; rejectButton.className = "secondary-button payment-reject-button"; rejectButton.textContent = "Reject";
+      rejectButton.addEventListener("click", () => reviewCustomerPayment(payment, "rejected"));
+      const actions = document.createElement("div"); actions.className = "payment-proof-actions"; actions.append(proofButton, confirmButton, rejectButton);
+      right.appendChild(actions);
+    }
+    row.append(left, right);
     fragment.appendChild(row);
   });
   list.appendChild(fragment);
 }
 
+
+async function viewCustomerPaymentProof(payment) {
+  if (!payment?.proof_path) { alert("This payment has no proof image."); return; }
+  try {
+    const { data, error } = await supabase.storage.from("payment-proofs").createSignedUrl(payment.proof_path, 300);
+    if (error) throw error;
+    if (!data?.signedUrl) throw new Error("Payment proof could not be opened.");
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  } catch (error) {
+    console.error("Payment proof open failed:", error);
+    alert(error?.message || "Unable to open payment proof.");
+  }
+}
+
+async function reviewCustomerPayment(payment, decision) {
+  const message = decision === "rejected" ? prompt("Reason for rejecting this payment proof (optional):", "") : null;
+  if (decision === "rejected" && message === null) return;
+  try {
+    const session = await getSession();
+    const user = session?.user;
+    if (!user) throw new Error("Please sign in again.");
+    const { error } = await supabase.rpc("review_customer_payment", {
+      p_payment_id: payment.id,
+      p_decision: decision,
+      p_rejection_reason: message || null
+    });
+    if (error) throw error;
+    const cacheKey = `order-payments-full:${currentOrderId}`;
+    const cached = await getCachedSnapshot(cacheKey);
+    if (Array.isArray(cached)) {
+      const updated = cached.map(row => row.id === payment.id ? { ...row, proof_status: decision, rejection_reason: message || null } : row);
+      await cacheNamed(cacheKey, updated);
+    }
+    await loadOrderDetail(currentOrderId);
+    await loadPayments(currentOrderId);
+    if (typeof loadDashboard === "function") loadDashboard(true).catch(() => {});
+  } catch (error) {
+    console.error("Payment review failed:", error);
+    alert(error?.message || "Unable to update payment proof.");
+  }
+}
 
 // ============================================================
 // COMMON HELPERS

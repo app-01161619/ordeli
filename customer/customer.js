@@ -20,6 +20,8 @@ let trackingPayload = null;
 let trackingOrderVisible = false;
 let fulfillmentState = null;
 let fulfillmentBusy = false;
+let paymentProofState = null;
+let paymentProofBusy = false;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
@@ -185,6 +187,80 @@ function renderFulfillment() {
   }
 }
 
+
+async function loadCustomerPaymentProof(publicToken) {
+  try {
+    const { data, error } = await supabase.rpc("get_customer_payment_proof", { p_public_token: publicToken });
+    if (error) throw error;
+    paymentProofState = data || null;
+    renderPaymentProof();
+  } catch (error) {
+    console.error("Customer payment proof load failed:", error);
+    paymentProofState = null;
+    renderPaymentProof();
+  }
+}
+
+function renderPaymentProof() {
+  const box = $("paymentProofBox");
+  if (!box) return;
+  const state = paymentProofState || {};
+  const eligible = Boolean(state.eligible);
+  box.hidden = !eligible;
+  const hint = $("paymentProofHint");
+  const message = $("paymentProofMessage");
+  const submit = $("submitPaymentProofButton");
+  const choose = $("choosePaymentProofButton");
+  if (!eligible) return;
+  if (state.pending_verification) {
+    if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify.";
+  } else if (state.rejected) {
+    if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
+  } else if (hint) {
+    hint.textContent = `Upload a clear photo of your payment proof for ${formatPrice(state.remaining)}. The seller will verify it.`;
+  }
+  if (submit) submit.hidden = state.pending_verification;
+  if (choose) choose.disabled = state.pending_verification;
+  if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
+}
+
+async function submitCustomerPaymentProof() {
+  if (paymentProofBusy) return;
+  const token = getTrackingToken();
+  const input = $("paymentProofFile");
+  const file = input?.files?.[0];
+  const state = paymentProofState || {};
+  if (!token || !file) { $("paymentProofMessage").textContent = "Choose a proof photo first."; return; }
+  if (!state.eligible) { $("paymentProofMessage").textContent = "Payment proof is not available for this order yet."; return; }
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image."; return; }
+  if (file.size > 8 * 1024 * 1024) { $("paymentProofMessage").textContent = "Please choose an image smaller than 8 MB."; return; }
+  paymentProofBusy = true;
+  const button = $("submitPaymentProofButton");
+  if (button) { button.disabled = true; button.textContent = "Submitting…"; }
+  $("paymentProofMessage").textContent = "Uploading your payment proof…";
+  try {
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `incoming/${token}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(path, file, { contentType: file.type, upsert: false });
+    if (uploadError) throw uploadError;
+    const { error } = await supabase.rpc("submit_customer_payment_proof", { p_public_token: token, p_amount: state.remaining, p_proof_path: path });
+    if (error) {
+      await supabase.storage.from("payment-proofs").remove([path]).catch(() => {});
+      throw error;
+    }
+    input.value = "";
+    $("paymentProofMessage").textContent = "Payment proof submitted. The seller will verify it.";
+    await loadCustomerTracking(token);
+    await loadCustomerPaymentProof(token);
+  } catch (error) {
+    console.error("Customer payment proof submit failed:", error);
+    $("paymentProofMessage").textContent = error?.message || "Unable to submit payment proof.";
+  } finally {
+    paymentProofBusy = false;
+    if (button) { button.disabled = false; button.textContent = "Submit Payment Proof"; }
+  }
+}
+
 async function loadCustomerFulfillment(publicToken) {
   try {
     const { data, error } = await supabase.rpc("get_customer_fulfillment", { p_public_token: publicToken });
@@ -279,6 +355,7 @@ async function loadCustomerTracking(publicToken) {
     trackingPayload = { ...data, _token: publicToken };
     renderCustomerTracking(trackingPayload);
     await loadCustomerFulfillment(publicToken);
+    await loadCustomerPaymentProof(publicToken);
   } catch (error) {
     console.error("Customer tracking load failed:", error);
     showTrackingError(error?.message || "This tracking link could not be loaded.");
@@ -325,3 +402,13 @@ $("fulfillmentEventSelect")?.addEventListener("change", () => {
   const location = option?.dataset.location || "";
   if (location) $("fulfillmentNotice").textContent = location;
 });
+
+$("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFile")?.click());
+$("paymentProofFile")?.addEventListener("change", () => {
+  const file = $("paymentProofFile").files?.[0];
+  if (file) {
+    paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
+    renderPaymentProof();
+  }
+});
+$("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
