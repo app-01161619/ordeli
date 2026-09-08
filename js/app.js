@@ -835,6 +835,38 @@ async function renderApplication() {
 
     let actor = null;
     try { actor = await getActorContext(); } catch (_) {}
+
+    // A production member must never fall through to seller/shop onboarding.
+    // The linked production_members.auth_user_id is the authoritative role
+    // fallback when the actor RPC is unavailable, stale, or not yet refreshed.
+    if (!isProductionMemberActor(actor) && navigator.onLine && !runtimeOffline) {
+      try {
+        const { data: member, error: memberError } = await supabase
+          .from("production_members")
+          .select("id,seller_id,name,email,section_label,role,can_view_production,can_scan_qr,can_finish_stage,can_upload_proof,is_active,invite_status")
+          .eq("auth_user_id", session.user.id)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (!memberError && member) {
+          actor = {
+            actor_type: "production_member",
+            member_id: member.id,
+            seller_id: member.seller_id,
+            name: member.name,
+            email: member.email,
+            section_label: member.section_label,
+            role: member.role || "production_member",
+            can_view_production: member.can_view_production,
+            can_scan_qr: member.can_scan_qr,
+            can_finish_stage: member.can_finish_stage,
+            can_upload_proof: member.can_upload_proof
+          };
+          actorContextCache = actor;
+          try { localStorage.setItem("ordeli-actor-context", JSON.stringify(actor)); } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
     if (isProductionMemberActor(actor)) {
       if (getRoute() !== "production") navigate("production");
       showScreen("production");
@@ -1609,10 +1641,22 @@ $("memberSignupForm")?.addEventListener("submit", async event => {
       });
       if (accepted.error) throw accepted.error;
 
-      actorContextCache = null;
+      actorContextCache = {
+        actor_type: "production_member",
+        member_id: accepted.data?.member_id || accepted?.data?.member_id || null,
+        seller_id: accepted.data?.seller_id || accepted?.data?.seller_id || null,
+        name: accepted.data?.name || productionInviteState.name || "Production Member",
+        email: accepted.data?.email || productionInviteState.email,
+        section_label: productionInviteState.section_label || null,
+        role: "production_member",
+        can_view_production: true,
+        can_scan_qr: true,
+        can_finish_stage: true,
+        can_upload_proof: true
+      };
+      try { localStorage.setItem("ordeli-actor-context", JSON.stringify(actorContextCache)); } catch (_) {}
       try { localStorage.removeItem("ordeli-member-login-email"); } catch (_) {}
-      await renderApplication();
-      navigate("production");
+      window.location.hash = "production";
       showToast("Production account created.", "success");
     } else {
       try { localStorage.setItem("ordeli-member-login-email", productionInviteState.email); } catch (_) {}
