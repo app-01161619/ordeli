@@ -63,39 +63,6 @@
     </div></div>
   </section>
 
-  <section id="memberSignupScreen" class="screen" hidden>
-    <div class="auth-container"><div class="auth-card">
-      <div class="brand-block"><h1>Ordeli</h1><p>Production team</p></div>
-      <h2>Join Your Production Team</h2>
-      <p id="memberSignupSubtitle" class="auth-subtitle">Loading your invitation…</p>
-      <form id="memberSignupForm">
-        <div class="form-group">
-          <label for="memberSignupName">Name</label>
-          <input id="memberSignupName" type="text" readonly>
-        </div>
-        <div class="form-group">
-          <label for="memberSignupEmail">Email</label>
-          <input id="memberSignupEmail" type="email" readonly autocomplete="email">
-        </div>
-        <div class="form-group">
-          <label>Section</label>
-          <p id="memberSignupSection" class="readonly-field">Production team</p>
-        </div>
-        <div class="form-group">
-          <label for="memberSignupPassword">Create Password</label>
-          <input id="memberSignupPassword" type="password" minlength="8" autocomplete="new-password" required>
-        </div>
-        <div class="form-group">
-          <label for="memberSignupConfirmPassword">Confirm Password</label>
-          <input id="memberSignupConfirmPassword" type="password" minlength="8" autocomplete="new-password" required>
-        </div>
-        <button id="memberSignupButton" type="submit">Create Production Account</button>
-        <p id="memberSignupMessage" class="form-message" role="alert"></p>
-      </form>
-      <p class="auth-link"><button id="memberSignupLoginLink" class="text-button" type="button">Already have an account? Log in</button></p>
-    </div></div>
-  </section>
-
   <section id="shopSetupScreen" class="screen" hidden>
     <div class="auth-container"><div class="auth-card">
       <div class="brand-block"><h1>Ordeli</h1><p>Shop setup</p></div>
@@ -554,8 +521,21 @@
       </header>
       <section class="production-work-toolbar">
         <div><strong id="productionWorkCount">0</strong><span>available tasks</span></div>
-        <button id="productionRefreshButton" class="secondary-button" type="button">Refresh</button>
+        <div class="production-toolbar-actions">
+          <button id="productionScanButton" class="secondary-button" type="button">Scan QR</button>
+          <button id="productionRefreshButton" class="secondary-button" type="button">Refresh</button>
+        </div>
       </section>
+      <section id="productionScannerPanel" class="production-scanner-panel" hidden>
+        <div class="production-scanner-head">
+          <div><strong>Scan a product QR</strong><span>Scan either the seller or customer copy.</span></div>
+          <button id="productionScannerCloseButton" class="secondary-button" type="button">Close</button>
+        </div>
+        <div id="productionQrReader" class="qr-reader"></div>
+        <button id="productionManualQrButton" class="text-button" type="button">Enter QR link manually</button>
+        <p id="productionScannerMessage" class="form-message" role="alert"></p>
+      </section>
+      <section id="productionScannedItem" class="production-scanned-item" hidden></section>
       <section id="productionWorkList" class="production-work-list"></section>
       <section id="productionEmptyState" class="empty-state" hidden>
         <h2>No production tasks</h2>

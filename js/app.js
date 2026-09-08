@@ -599,6 +599,8 @@ let currentOrderPaid = 0;
 let productionBusyItemId = null;
 let scannerInstance = null;
 let qrScanBusy = false;
+let productionScannerInstance = null;
+let productionScanBusy = false;
 
 
 // ============================================================
@@ -2440,9 +2442,51 @@ async function loadProductionWork() {
   if (!actor || !isProductionMemberActor(actor)) {
     throw new Error("This account is not linked to an active production-team member.");
   }
+  if (actor.can_view_production === false) {
+    throw new Error("You do not have permission to view production work.");
+  }
   const { data, error } = await supabase.rpc("get_production_work", { p_limit: 100 });
   if (error) throw error;
   return data || [];
+}
+
+function productionTaskCard(task, actor) {
+  const card = document.createElement("article");
+  card.className = "production-work-card";
+
+  const title = document.createElement("div");
+  title.className = "production-work-card-head";
+  title.innerHTML = `<div><strong>${escapeHtml(task.product_name || "Product")}</strong><span>Order #${escapeHtml(String(task.order_number || ""))} · ${escapeHtml(task.customer_name || "Customer")}</span></div>`;
+
+  const stage = document.createElement("div");
+  stage.className = "production-work-stage";
+  stage.innerHTML = `<span>Next stage</span><strong>${escapeHtml(task.stage_name || "—")}</strong><small>Quantity: ${escapeHtml(String(task.quantity || 0))}</small>`;
+
+  const actions = document.createElement("div");
+  actions.className = "production-work-actions";
+
+  const photo = document.createElement("input");
+  photo.type = "file";
+  photo.accept = "image/jpeg,image/png,image/webp";
+  photo.className = "production-proof-input";
+
+  const proofLabel = document.createElement("label");
+  proofLabel.className = "production-proof-label";
+  proofLabel.textContent = "Optional proof photo";
+  proofLabel.appendChild(photo);
+
+  const finish = document.createElement("button");
+  finish.type = "button";
+  finish.textContent = "Finish Stage";
+  finish.disabled = actor.can_finish_stage === false;
+  finish.addEventListener("click", async () => {
+    const note = window.prompt("Optional note for this stage:") || null;
+    await completeMemberProductionTask(task, note, photo.files?.[0] || null, finish);
+  });
+
+  actions.append(proofLabel, finish);
+  card.append(title, stage, actions);
+  return card;
 }
 
 async function renderProductionWork(actor) {
@@ -2453,45 +2497,161 @@ async function renderProductionWork(actor) {
   if (!list) return;
   subtitle.textContent = `${actor.name || "Team member"}${actor.section_label ? ` · ${actor.section_label}` : ""}`;
   list.replaceChildren();
+  $("productionMessage").textContent = "";
   try {
     const work = await loadProductionWork();
     count.textContent = String(work.length);
     empty.hidden = work.length !== 0;
-    work.forEach(task => {
-      const card = document.createElement("article");
-      card.className = "production-work-card";
-      const title = document.createElement("div");
-      title.className = "production-work-card-head";
-      title.innerHTML = `<div><strong>${escapeHtml(task.product_name || "Product")}</strong><span>Order #${escapeHtml(String(task.order_number || ""))} · ${escapeHtml(task.customer_name || "Customer")}</span></div>`;
-      const stage = document.createElement("div");
-      stage.className = "production-work-stage";
-      stage.innerHTML = `<span>Next stage</span><strong>${escapeHtml(task.stage_name || "—")}</strong>`;
-      const actions = document.createElement("div");
-      actions.className = "production-work-actions";
-      const finish = document.createElement("button");
-      finish.type = "button"; finish.textContent = "Finish Stage";
-      finish.disabled = actor.can_finish_stage === false;
-      finish.addEventListener("click", async () => {
-        const note = prompt("Optional note for this stage:") || null;
-        try {
-          finish.disabled = true;
-          const result = await supabase.rpc("finish_production_stage_member", { p_order_item_id: task.order_item_id, p_note: note });
-          if (result.error) throw result.error;
-          showToast("Stage finished.", "success");
-          await renderProductionWork(await getActorContext(true));
-        } catch (error) {
-          showToast(error?.message || "Unable to finish stage.", "error");
-        } finally { finish.disabled = actor.can_finish_stage === false; }
-      });
-      actions.append(finish);
-      card.append(title, stage, actions);
-      list.append(card);
-    });
+    work.forEach(task => list.appendChild(productionTaskCard(task, actor)));
   } catch (error) {
     empty.hidden = true;
     $("productionMessage").textContent = error?.message || "Unable to load production work.";
   }
 }
+
+async function resolveProductionQr(scannedText) {
+  const token = extractQrToken(scannedText);
+  if (!token) throw new Error("The scanned QR does not contain a valid Ordeli tracking token.");
+  const { data, error } = await supabase.rpc("resolve_production_qr", { p_public_token: token });
+  if (error) throw error;
+  if (!data?.order_item_id) throw new Error("This QR is not assigned to an active production item.");
+  return data;
+}
+
+async function showProductionScannedItem(item) {
+  const box = $("productionScannedItem");
+  if (!box) return;
+  box.replaceChildren();
+  box.hidden = false;
+
+  const title = document.createElement("h3");
+  title.textContent = `${item.product_name || "Product"} · Order #${item.order_number || ""}`;
+  const meta = document.createElement("p");
+  meta.textContent = `${item.customer_name || "Customer"} · Quantity ${item.quantity || 0}`;
+  const stage = document.createElement("p");
+  stage.innerHTML = `<strong>Next stage:</strong> ${escapeHtml(item.stage_name || "All stages finished")}`;
+
+  const note = document.createElement("textarea");
+  note.rows = 3;
+  note.maxLength = 500;
+  note.placeholder = "Optional note";
+
+  const photo = document.createElement("input");
+  photo.type = "file";
+  photo.accept = "image/jpeg,image/png,image/webp";
+
+  const finish = document.createElement("button");
+  finish.type = "button";
+  finish.textContent = "Finish Stage";
+  const actor = await getActorContext(true);
+  finish.disabled = actor?.can_finish_stage === false || !item.stage_name;
+  finish.addEventListener("click", async () => {
+    await completeMemberProductionTask(item, note.value.trim() || null, photo.files?.[0] || null, finish);
+  });
+
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "secondary-button";
+  cancel.textContent = "Close";
+  cancel.addEventListener("click", () => { box.hidden = true; box.replaceChildren(); });
+
+  box.append(title, meta, stage, document.createTextNode("Proof photo (optional)"), photo, note, finish, cancel);
+}
+
+async function completeMemberProductionTask(task, note, file, button) {
+  if (productionBusyItemId) return;
+  productionBusyItemId = task.order_item_id;
+  setLoading(button, "Saving…");
+  let uploadedPath = null;
+  try {
+    const actor = await getActorContext(true);
+    if (!actor?.can_finish_stage) throw new Error("You do not have permission to finish production stages.");
+
+    if (file) {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      uploadedPath = `${actor.seller_id}/${task.order_item_id}/${task.stage_order || "current"}-${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from("production-proofs").upload(uploadedPath, file, {
+        cacheControl: "3600", upsert: false, contentType: file.type
+      });
+      if (uploadError) throw uploadError;
+    }
+
+    const { data, error } = await supabase.rpc("finish_production_stage_member_v2", {
+      p_order_item_id: task.order_item_id,
+      p_note: note || null,
+      p_proof_photo_path: uploadedPath
+    });
+    if (error) throw error;
+
+    showToast(data?.completed ? "Final stage finished — product completed." : "Stage finished.", "success");
+    $("productionScannedItem")?.replaceChildren();
+    if ($("productionScannedItem")) $("productionScannedItem").hidden = true;
+    await renderProductionWork(await getActorContext(true));
+  } catch (error) {
+    if (uploadedPath) {
+      try { await supabase.storage.from("production-proofs").remove([uploadedPath]); } catch (_) {}
+    }
+    showToast(error?.message || "Unable to finish stage.", "error");
+  } finally {
+    productionBusyItemId = null;
+    resetButton(button, "Finish Stage");
+  }
+}
+
+async function startProductionQrScanner() {
+  if (productionScannerInstance) return;
+  const panel = $("productionScannerPanel");
+  const reader = $("productionQrReader");
+  if (!panel || !reader) return;
+  panel.hidden = false;
+  $("productionScannerMessage").textContent = "";
+  try {
+    await ensureExternalScript("scanner");
+    productionScannerInstance = new Html5Qrcode("productionQrReader");
+    await productionScannerInstance.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, async decodedText => {
+      if (productionScanBusy) return;
+      productionScanBusy = true;
+      try {
+        const item = await resolveProductionQr(decodedText);
+        await stopProductionQrScanner();
+        await showProductionScannedItem(item);
+      } catch (error) {
+        $("productionScannerMessage").textContent = error?.message || "Unable to read this production QR.";
+      } finally {
+        productionScanBusy = false;
+      }
+    }, () => {});
+  } catch (error) {
+    $("productionScannerMessage").textContent = error?.message || "Unable to start the QR scanner. Use manual entry instead.";
+  }
+}
+
+async function stopProductionQrScanner() {
+  if (!productionScannerInstance) {
+    if ($("productionScannerPanel")) $("productionScannerPanel").hidden = true;
+    return;
+  }
+  try {
+    if (productionScannerInstance.isScanning) await productionScannerInstance.stop();
+    await productionScannerInstance.clear();
+  } catch (_) {} finally {
+    productionScannerInstance = null;
+    if ($("productionScannerPanel")) $("productionScannerPanel").hidden = true;
+  }
+}
+
+$("teamButton")?.addEventListener("click", () => { navigate("team"); renderTeam(); });
+$("teamBackButton")?.addEventListener("click", () => navigate("home"));
+$("productionRefreshButton")?.addEventListener("click", async () => { try { await renderProductionWork(await getActorContext(true)); } catch (error) { $("productionMessage").textContent = error?.message || "Unable to refresh."; } });
+$("productionScanButton")?.addEventListener("click", () => startProductionQrScanner());
+$("productionScannerCloseButton")?.addEventListener("click", () => stopProductionQrScanner());
+$("productionManualQrButton")?.addEventListener("click", async () => {
+  const value = window.prompt("Enter the QR tracking URL or token:");
+  if (!value) return;
+  try { await showProductionScannedItem(await resolveProductionQr(value)); }
+  catch (error) { $("productionScannerMessage").textContent = error?.message || "Unable to resolve that QR."; }
+});
+$("productionLogoutButton")?.addEventListener("click", async () => { await supabase.auth.signOut(); location.hash = "login"; location.reload(); });
 
 async function loadTeamMembers() {
   const user = await getCurrentUser();
