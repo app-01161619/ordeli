@@ -395,3 +395,11 @@ button:focus-visible {
 .tracking-fulfillment-notice { margin-top: 14px; }
 .tracking-fulfillment-notice strong { display:block; font-size:16px; margin-bottom:4px; }
 .tracking-fulfillment-notice p { margin:0; color:#666; line-height:1.5; font-size:13px; }
+
+.customer-review-box, .customer-cancellation-box { margin-top: 14px; }
+.customer-review-stars { display:flex; gap:6px; margin:14px 0; }
+.customer-review-stars button { border:0; background:transparent; font-size:30px; color:#cfd4da; cursor:pointer; padding:3px; }
+.customer-review-stars button.is-selected { color:#f2ad16; }
+.customer-review-stars button:disabled { cursor:default; }
+.customer-review-box textarea { width:100%; box-sizing:border-box; resize:vertical; border:1px solid #d9dde3; border-radius:10px; padding:12px 13px; font:inherit; }
+.customer-cancellation-box p { margin:6px 0 12px; color:#666; line-height:1.45; font-size:13px; }

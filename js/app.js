@@ -602,7 +602,8 @@ const validRoutes = [
   "order-create",
   "order-detail",
   "orders",
-  "events"
+  "events",
+  "reviews"
 ];
 
 
@@ -2178,6 +2179,9 @@ $("homeEventsButton")?.addEventListener("click", () => navigate("events"));
 $("ordersBackButton")?.addEventListener("click", () => navigate("home"));
 $("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
 $("eventsBackButton")?.addEventListener("click", () => navigate("home"));
+$("reviewsButton")?.addEventListener("click", () => { navigate("reviews"); });
+$("reviewsBackButton")?.addEventListener("click", () => navigate("home"));
+
 $("newEventButton")?.addEventListener("click", () => { if ($("eventForm").hidden) openEventEditor(); else closeEventEditor(); });
 $("cancelEventButton")?.addEventListener("click", closeEventEditor);
 $("eventForm")?.addEventListener("submit", saveEventForm);
@@ -2378,7 +2382,7 @@ function createProductCard(
 }
 
 
-function openProductEditor(
+async function openProductEditor(
   product = null
 ) {
 
@@ -2432,6 +2436,12 @@ function openProductEditor(
   }
 
 
+
+  await populateProductCancellationOptions(
+    product?.id || null,
+    product?.customer_cancellable_until_stage ?? ""
+  );
+
   $("productEditor")
     .hidden =
       false;
@@ -2483,6 +2493,29 @@ $("productForm")
     }
   );
 
+
+
+async function populateProductCancellationOptions(productId, selectedValue = "") {
+  const select = $("productCancellationCutoff");
+  if (!select) return;
+  select.replaceChildren(new Option("Customer cancellation disabled", ""));
+  if (!productId) return;
+  try {
+    const user = await getCurrentUser();
+    const result = await supabase
+      .from("production_stages")
+      .select("stage_order,name")
+      .eq("product_id", productId)
+      .order("stage_order", { ascending: true });
+    if (result.error) throw result.error;
+    (result.data || []).forEach(stage => {
+      select.appendChild(new Option(`${stage.stage_order}. ${stage.name}`, String(stage.stage_order)));
+    });
+    select.value = selectedValue === null || selectedValue === undefined ? "" : String(selectedValue);
+  } catch (error) {
+    console.warn("Unable to load cancellation stages:", error);
+  }
+}
 
 async function saveProduct() {
 
@@ -2579,6 +2612,9 @@ async function saveProduct() {
           default_price:
             price,
 
+          customer_cancellable_until_stage:
+            $("productCancellationCutoff")?.value ? Number($("productCancellationCutoff").value) : null,
+
           updated_at:
             new Date()
               .toISOString()
@@ -2629,7 +2665,10 @@ async function saveProduct() {
           name,
 
           default_price:
-            price
+            price,
+
+          customer_cancellable_until_stage:
+            $("productCancellationCutoff")?.value ? Number($("productCancellationCutoff").value) : null
 
         })
         .select()
@@ -6259,6 +6298,58 @@ async function reviewCustomerPayment(payment, decision) {
   } catch (error) {
     console.error("Payment review failed:", error);
     alert(error?.message || "Unable to update payment proof.");
+  }
+}
+
+
+async function loadReviews() {
+  const user = await getCurrentUser();
+  const list = $("reviewsList");
+  if (!list) return;
+  list.replaceChildren();
+  $("reviewsEmptyState").hidden = true;
+  $("reviewsMessage").textContent = "";
+  try {
+    const result = await supabase
+      .from("reviews")
+      .select("id,order_id,rating,review_text,created_at,orders(order_number,customers(name))")
+      .eq("seller_id", user.id)
+      .order("created_at", { ascending: false });
+    if (result.error) throw result.error;
+    const reviews = result.data || [];
+    const average = reviews.length ? reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length : 0;
+    $("reviewsAverage").textContent = reviews.length ? `${average.toFixed(1)} / 5` : "—";
+    $("reviewsCount").textContent = `${reviews.length} review${reviews.length === 1 ? "" : "s"}`;
+    if (!reviews.length) {
+      $("reviewsEmptyState").hidden = false;
+      return;
+    }
+    reviews.forEach(review => {
+      const card = document.createElement("article");
+      card.className = "review-card";
+      const head = document.createElement("div");
+      head.className = "review-card-head";
+      const customer = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = review.orders?.customers?.name || "Customer";
+      const meta = document.createElement("span");
+      meta.textContent = `Order #${review.orders?.order_number ?? "—"} · ${formatDate(review.created_at)}`;
+      customer.append(name, meta);
+      const rating = document.createElement("strong");
+      rating.className = "review-rating";
+      rating.textContent = `${"★".repeat(Number(review.rating || 0))}${"☆".repeat(5 - Number(review.rating || 0))}`;
+      head.append(customer, rating);
+      card.appendChild(head);
+      if (review.review_text) {
+        const text = document.createElement("p");
+        text.textContent = review.review_text;
+        card.appendChild(text);
+      }
+      list.appendChild(card);
+    });
+  } catch (error) {
+    console.error("Reviews load failed:", error);
+    $("reviewsMessage").textContent = "Unable to load reviews right now.";
   }
 }
 

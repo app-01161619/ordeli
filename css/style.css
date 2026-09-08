@@ -1874,3 +1874,16 @@ a:hover {
 }
 .order-detail-fulfillment-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top: 14px; }
 .order-detail-fulfillment-actions button { flex:1 1 180px; }
+
+.review-summary-card { margin-bottom:16px; padding:18px; border:1px solid #e5e7eb; border-radius:14px; background:#fff; }
+.review-summary-card > div { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.review-summary-card strong { font-size:28px; }
+.review-summary-card span { color:#666; font-size:13px; }
+.reviews-list { display:grid; gap:12px; }
+.review-card { padding:18px; border:1px solid #e5e7eb; border-radius:14px; background:#fff; }
+.review-card-head { display:flex; justify-content:space-between; gap:18px; align-items:flex-start; }
+.review-card-head > div { display:grid; gap:4px; }
+.review-card-head span { color:#777; font-size:13px; }
+.review-rating { letter-spacing:2px; }
+.review-card p { margin:14px 0 0; line-height:1.55; color:#444; white-space:pre-wrap; }
+.form-help { color:#777; font-size:12px; line-height:1.4; }

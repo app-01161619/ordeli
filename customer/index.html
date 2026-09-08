@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-08-06">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-08-09">
 </head>
 <body>
   <main id="customerApp">
@@ -115,6 +115,32 @@
           <p id="trackingFulfillmentNoticeText"></p>
         </section>
 
+        <section id="customerReviewBox" class="tracking-card customer-review-box" hidden>
+          <div class="tracking-section-heading">
+            <div>
+              <h3>Rating & Review</h3>
+              <p id="customerReviewHint">Share your experience with the seller.</p>
+            </div>
+          </div>
+          <div id="customerReviewStars" class="customer-review-stars" aria-label="Rating">
+            <button type="button" data-rating="1" aria-label="1 star">★</button>
+            <button type="button" data-rating="2" aria-label="2 stars">★</button>
+            <button type="button" data-rating="3" aria-label="3 stars">★</button>
+            <button type="button" data-rating="4" aria-label="4 stars">★</button>
+            <button type="button" data-rating="5" aria-label="5 stars">★</button>
+          </div>
+          <textarea id="customerReviewText" rows="4" maxlength="1000" placeholder="Optional comment"></textarea>
+          <button id="submitCustomerReviewButton" class="tracking-primary-button" type="button">Submit Review</button>
+          <p id="customerReviewMessage" class="tracking-inline-notice" role="status"></p>
+        </section>
+
+        <section id="customerCancellationBox" class="tracking-card customer-cancellation-box" hidden>
+          <strong>Need to cancel this item?</strong>
+          <p id="customerCancellationHint">This item is still eligible for customer cancellation.</p>
+          <button id="customerCancelItemButton" class="secondary-button" type="button">Cancel This Item</button>
+          <p id="customerCancellationMessage" class="tracking-inline-notice" role="status"></p>
+        </section>
+
         <button id="trackingViewOrderButton" class="tracking-order-toggle" type="button">View My Order</button>
 
         <section id="trackingOrderCard" class="tracking-card tracking-order-card" hidden>
@@ -129,6 +155,6 @@
       </section>
     </div>
   </main>
-  <script type="module" src="/customer/customer.js?v=2026-09-08-06"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-08-09"></script>
 </body>
 </html>

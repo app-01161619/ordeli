@@ -106,6 +106,7 @@
         <div class="header-actions">
           <button id="productsButton" type="button">Products</button>
           <button id="qrButton" type="button">QR Management</button>
+          <button id="reviewsButton" type="button">Reviews</button>
           <button id="editShopButton" class="secondary-button" type="button">Shop Profile</button>
         </div>
       </header>
@@ -483,6 +484,31 @@
     </div>
   </section>
 
+  <section id="reviewsScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <button id="reviewsBackButton" class="back-button" type="button">← Back</button>
+          <h1>Reviews</h1>
+          <p class="page-subtitle">Private customer feedback for your orders.</p>
+        </div>
+      </header>
+      <section class="review-summary-card">
+        <div>
+          <span class="eyebrow">CUSTOMER FEEDBACK</span>
+          <strong id="reviewsAverage">—</strong>
+          <span id="reviewsCount">0 reviews</span>
+        </div>
+      </section>
+      <section id="reviewsList" class="reviews-list"></section>
+      <section id="reviewsEmptyState" class="empty-state" hidden>
+        <h2>No Reviews Yet</h2>
+        <p>Customer reviews will appear here after a completed pickup or courier order.</p>
+      </section>
+      <p id="reviewsMessage" class="form-message" role="alert"></p>
+    </div>
+  </section>
+
   <section id="productsScreen" class="screen" hidden>
     <div class="app-container">
       <header class="page-header">
@@ -518,6 +544,14 @@
                 <span>₱</span>
                 <input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" required>
               </div>
+            </div>
+
+            <div class="form-group">
+              <label for="productCancellationCutoff">Customer Cancellation Cutoff</label>
+              <select id="productCancellationCutoff">
+                <option value="">Customer cancellation disabled</option>
+              </select>
+              <small class="form-help">Customers can cancel this product until the selected stage has been finished.</small>
             </div>
 
             <div class="editor-actions">

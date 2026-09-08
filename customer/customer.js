@@ -22,6 +22,11 @@ let fulfillmentState = null;
 let fulfillmentBusy = false;
 let paymentProofState = null;
 let paymentProofBusy = false;
+let customerReviewState = null;
+let selectedReviewRating = 0;
+let customerReviewBusy = false;
+let customerCancellationState = null;
+let customerCancellationBusy = false;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
@@ -281,6 +286,125 @@ async function submitCustomerPaymentProof() {
   }
 }
 
+
+async function loadCustomerPostPurchaseActions(publicToken) {
+  try {
+    const { data, error } = await supabase.rpc("get_customer_post_purchase_actions", { p_public_token: publicToken });
+    if (error) throw error;
+    customerReviewState = data?.review || null;
+    customerCancellationState = data?.cancellation || null;
+    renderCustomerReview();
+    renderCustomerCancellation();
+  } catch (error) {
+    console.error("Customer post-purchase actions load failed:", error);
+    customerReviewState = null;
+    customerCancellationState = null;
+    renderCustomerReview();
+    renderCustomerCancellation();
+  }
+}
+
+function renderCustomerReview() {
+  const box = $("customerReviewBox");
+  if (!box) return;
+  const state = customerReviewState || {};
+  box.hidden = !state.available;
+  const hint = $("customerReviewHint");
+  const button = $("submitCustomerReviewButton");
+  if (!state.available) return;
+  if (state.submitted) {
+    if (hint) hint.textContent = "Thank you. Your review has been submitted.";
+    if (button) button.hidden = true;
+    document.querySelectorAll("#customerReviewStars button").forEach(b => b.disabled = true);
+    $("customerReviewText").disabled = true;
+    selectedReviewRating = Number(state.rating || 0);
+    setReviewStars(selectedReviewRating);
+    if (state.review_text) $("customerReviewText").value = state.review_text;
+    return;
+  }
+  if (hint) hint.textContent = state.reason || "Share your experience with the seller.";
+  if (button) button.hidden = false;
+}
+
+function setReviewStars(rating) {
+  document.querySelectorAll("#customerReviewStars button").forEach(button => {
+    button.classList.toggle("is-selected", Number(button.dataset.rating) <= Number(rating));
+  });
+}
+
+async function submitCustomerReview() {
+  if (customerReviewBusy) return;
+  const token = getTrackingToken();
+  if (!token) return;
+  const rating = Number(selectedReviewRating);
+  if (!rating || rating < 1 || rating > 5) {
+    $("customerReviewMessage").textContent = "Choose a rating from 1 to 5 stars.";
+    return;
+  }
+  customerReviewBusy = true;
+  const button = $("submitCustomerReviewButton");
+  button.disabled = true;
+  $("customerReviewMessage").textContent = "Submitting your review…";
+  try {
+    const { error } = await supabase.rpc("submit_customer_review", {
+      p_public_token: token,
+      p_rating: rating,
+      p_review_text: $("customerReviewText").value.trim() || null
+    });
+    if (error) throw error;
+    await loadCustomerPostPurchaseActions(token);
+    $("customerReviewMessage").textContent = "Thank you for your review.";
+  } catch (error) {
+    console.error("Customer review submit failed:", error);
+    $("customerReviewMessage").textContent = error?.message || "Unable to submit your review.";
+  } finally {
+    customerReviewBusy = false;
+    button.disabled = false;
+  }
+}
+
+function renderCustomerCancellation() {
+  const box = $("customerCancellationBox");
+  if (!box) return;
+  const state = customerCancellationState || {};
+  box.hidden = !state.available;
+  if (!state.available) return;
+  $("customerCancellationHint").textContent = state.hint || "This item is still eligible for cancellation.";
+  if (state.cancelled) {
+    box.hidden = false;
+    $("customerCancelItemButton").hidden = true;
+    $("customerCancellationHint").textContent = "This item has been cancelled.";
+  }
+}
+
+async function cancelCustomerItem() {
+  if (customerCancellationBusy) return;
+  const token = getTrackingToken();
+  if (!token) return;
+  const confirmed = window.confirm("Cancel this product from the order? This cannot be undone.");
+  if (!confirmed) return;
+  customerCancellationBusy = true;
+  const button = $("customerCancelItemButton");
+  button.disabled = true;
+  $("customerCancellationMessage").textContent = "Cancelling…";
+  try {
+    const { error } = await supabase.rpc("cancel_customer_order_item", {
+      p_public_token: token,
+      p_reason: "Customer cancelled from tracking page"
+    });
+    if (error) throw error;
+    await loadCustomerTracking(token);
+    await loadCustomerPostPurchaseActions(token);
+    $("customerCancellationMessage").textContent = "This item has been cancelled.";
+  } catch (error) {
+    console.error("Customer item cancellation failed:", error);
+    $("customerCancellationMessage").textContent = error?.message || "Unable to cancel this item.";
+  } finally {
+    customerCancellationBusy = false;
+    button.disabled = false;
+  }
+}
+
 async function loadCustomerFulfillment(publicToken) {
   try {
     const { data, error } = await supabase.rpc("get_customer_fulfillment", { p_public_token: publicToken });
@@ -376,6 +500,7 @@ async function loadCustomerTracking(publicToken) {
     renderCustomerTracking(trackingPayload);
     await loadCustomerFulfillment(publicToken);
     await loadCustomerPaymentProof(publicToken);
+    await loadCustomerPostPurchaseActions(publicToken);
   } catch (error) {
     console.error("Customer tracking load failed:", error);
     showTrackingError(error?.message || "This tracking link could not be loaded.");
@@ -417,6 +542,15 @@ document.querySelectorAll("input[name='fulfillmentType']").forEach((radio) => {
   });
 });
 $("saveFulfillmentButton")?.addEventListener("click", saveCustomerFulfillment);
+document.querySelectorAll("#customerReviewStars button").forEach(button => {
+  button.addEventListener("click", () => {
+    selectedReviewRating = Number(button.dataset.rating);
+    setReviewStars(selectedReviewRating);
+  });
+});
+$("submitCustomerReviewButton")?.addEventListener("click", submitCustomerReview);
+$("customerCancelItemButton")?.addEventListener("click", cancelCustomerItem);
+
 $("fulfillmentEventSelect")?.addEventListener("change", () => {
   const option = $("fulfillmentEventSelect").selectedOptions[0];
   const location = option?.dataset.location || "";
