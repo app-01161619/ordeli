@@ -107,6 +107,7 @@
           <button id="productsButton" type="button">Products</button>
           <button id="qrButton" type="button">QR Management</button>
           <button id="reviewsButton" type="button">Reviews</button>
+          <button id="teamButton" type="button">Production Team</button>
           <button id="editShopButton" class="secondary-button" type="button">Shop Profile</button>
         </div>
       </header>
@@ -506,6 +507,63 @@
         <p>Customer reviews will appear here after a completed pickup or courier order.</p>
       </section>
       <p id="reviewsMessage" class="form-message" role="alert"></p>
+    </div>
+  </section>
+
+  <section id="productionScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <h1>Production Work</h1>
+          <p id="productionMemberSubtitle" class="page-subtitle">Complete the next available production stage.</p>
+        </div>
+        <button id="productionLogoutButton" class="secondary-button" type="button">Log Out</button>
+      </header>
+      <section class="production-work-toolbar">
+        <div><strong id="productionWorkCount">0</strong><span>available tasks</span></div>
+        <button id="productionRefreshButton" class="secondary-button" type="button">Refresh</button>
+      </section>
+      <section id="productionWorkList" class="production-work-list"></section>
+      <section id="productionEmptyState" class="empty-state" hidden>
+        <h2>No production tasks</h2>
+        <p>There is nothing ready for you to complete right now.</p>
+      </section>
+      <p id="productionMessage" class="form-message" role="alert"></p>
+    </div>
+  </section>
+
+  <section id="teamScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <button id="teamBackButton" class="back-button" type="button">← Back</button>
+          <h1>Production Team</h1>
+          <p class="page-subtitle">Invite optional production members and control what they can do.</p>
+        </div>
+      </header>
+      <section class="team-create-card">
+        <div class="section-heading"><div><h2>Invite Team Member</h2><p>They can sign up with this email and will be linked to your shop automatically.</p></div></div>
+        <form id="teamMemberForm">
+          <div class="form-grid">
+            <div class="form-group"><label for="teamMemberName">Name</label><input id="teamMemberName" type="text" maxlength="150" required></div>
+            <div class="form-group"><label for="teamMemberEmail">Email</label><input id="teamMemberEmail" type="email" maxlength="255" required></div>
+            <div class="form-group"><label for="teamMemberSection">Section <span class="optional">Optional</span></label><input id="teamMemberSection" type="text" maxlength="100" placeholder="e.g. Printing"></div>
+          </div>
+          <div class="team-permissions-grid">
+            <label class="choice-row"><input id="teamCanView" type="checkbox" checked><span>View production work</span></label>
+            <label class="choice-row"><input id="teamCanScan" type="checkbox" checked><span>Scan QR codes</span></label>
+            <label class="choice-row"><input id="teamCanFinish" type="checkbox" checked><span>Finish production stages</span></label>
+            <label class="choice-row"><input id="teamCanProof" type="checkbox" checked><span>Upload proof photos</span></label>
+          </div>
+          <button id="inviteTeamMemberButton" type="submit">Create Invitation</button>
+          <p id="teamMemberMessage" class="form-message" role="alert"></p>
+        </form>
+      </section>
+      <section class="team-list-panel">
+        <div class="section-heading"><div><h2>Your Team</h2><p>Members remain optional; you can run the shop alone.</p></div></div>
+        <div id="teamList" class="team-list"></div>
+        <section id="teamEmptyState" class="empty-state" hidden><h2>No team members yet</h2><p>Create an invitation when you want someone else to help with production.</p></section>
+      </section>
     </div>
   </section>
 

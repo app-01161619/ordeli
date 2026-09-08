@@ -524,6 +524,12 @@ const screens = {
   home:
     $("homeScreen"),
 
+  production:
+    $("productionScreen"),
+
+  team:
+    $("teamScreen"),
+
   products:
     $("productsScreen"),
 
@@ -595,6 +601,8 @@ const validRoutes = [
   "register",
   "shop-setup",
   "home",
+  "production",
+  "team",
   "products",
   "workflow",
   "qr",
@@ -679,6 +687,33 @@ async function getCurrentUser() {
   return session.user;
 }
 
+
+// ============================================================
+// ACTOR / ROLE
+// ============================================================
+
+let actorContextCache = null;
+
+async function getActorContext(force = false) {
+  if (actorContextCache && !force) return actorContextCache;
+  if (!navigator.onLine || runtimeOffline) {
+    try {
+      const raw = localStorage.getItem("ordeli-actor-context");
+      if (raw) actorContextCache = JSON.parse(raw);
+    } catch (_) {}
+    return actorContextCache;
+  }
+  await ensureSupabase();
+  const { data, error } = await supabase.rpc("get_current_actor");
+  if (error) throw error;
+  actorContextCache = data || null;
+  try { localStorage.setItem("ordeli-actor-context", JSON.stringify(actorContextCache)); } catch (_) {}
+  return actorContextCache;
+}
+
+function isProductionMemberActor(actor) {
+  return actor?.actor_type === "production_member";
+}
 
 // ============================================================
 // SELLER
@@ -772,6 +807,15 @@ async function renderApplication() {
 
     }
 
+    let actor = null;
+    try { actor = await getActorContext(); } catch (_) {}
+    if (isProductionMemberActor(actor)) {
+      if (getRoute() !== "production") navigate("production");
+      showScreen("production");
+      await renderProductionWork(actor);
+      return;
+    }
+
 
     const seller =
       await getSeller(
@@ -809,6 +853,18 @@ async function renderApplication() {
 
     }
 
+
+    if (getRoute() === "production") {
+      showScreen("production");
+      await renderProductionWork(await getActorContext(true));
+      return;
+    }
+
+    if (getRoute() === "team") {
+      showScreen("team");
+      await renderTeam();
+      return;
+    }
 
     if (
       getRoute() ===
@@ -2168,8 +2224,119 @@ $("editShopButton")
 
 
 // ============================================================
-// DASHBOARD / ORDERS / EVENTS
+// DASHBOARD / ORDERS / EVENTS / TEAM
 // ============================================================
+
+async function loadProductionWork() {
+  const actor = await getActorContext(true);
+  if (!actor || !isProductionMemberActor(actor)) throw new Error("Production member access is not available.");
+  const { data, error } = await supabase.rpc("get_production_work", { p_limit: 100 });
+  if (error) throw error;
+  return data || [];
+}
+
+async function renderProductionWork(actor) {
+  const list = $("productionWorkList");
+  const empty = $("productionEmptyState");
+  const count = $("productionWorkCount");
+  const subtitle = $("productionMemberSubtitle");
+  if (!list) return;
+  subtitle.textContent = `${actor.name || "Team member"}${actor.section_label ? ` · ${actor.section_label}` : ""}`;
+  list.replaceChildren();
+  try {
+    const work = await loadProductionWork();
+    count.textContent = String(work.length);
+    empty.hidden = work.length !== 0;
+    work.forEach(task => {
+      const card = document.createElement("article");
+      card.className = "production-work-card";
+      const title = document.createElement("div");
+      title.className = "production-work-card-head";
+      title.innerHTML = `<div><strong>${escapeHtml(task.product_name || "Product")}</strong><span>Order #${escapeHtml(String(task.order_number || ""))} · ${escapeHtml(task.customer_name || "Customer")}</span></div>`;
+      const stage = document.createElement("div");
+      stage.className = "production-work-stage";
+      stage.innerHTML = `<span>Next stage</span><strong>${escapeHtml(task.stage_name || "—")}</strong>`;
+      const actions = document.createElement("div");
+      actions.className = "production-work-actions";
+      const finish = document.createElement("button");
+      finish.type = "button"; finish.textContent = "Finish Stage";
+      finish.disabled = actor.can_finish_stage === false;
+      finish.addEventListener("click", async () => {
+        const note = prompt("Optional note for this stage:") || null;
+        try {
+          finish.disabled = true;
+          const result = await supabase.rpc("finish_production_stage_member", { p_order_item_id: task.order_item_id, p_note: note });
+          if (result.error) throw result.error;
+          showToast("Stage finished.", "success");
+          await renderProductionWork(await getActorContext(true));
+        } catch (error) {
+          showToast(error?.message || "Unable to finish stage.", "error");
+        } finally { finish.disabled = actor.can_finish_stage === false; }
+      });
+      actions.append(finish);
+      card.append(title, stage, actions);
+      list.append(card);
+    });
+  } catch (error) {
+    empty.hidden = true;
+    $("productionMessage").textContent = error?.message || "Unable to load production work.";
+  }
+}
+
+async function loadTeamMembers() {
+  const user = await getCurrentUser();
+  const { data, error } = await supabase.from("production_members").select("id,name,email,section_label,role,can_view_production,can_scan_qr,can_finish_stage,can_upload_proof,is_active,invite_status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+async function renderTeam() {
+  const list = $("teamList"); if (!list) return;
+  list.replaceChildren();
+  const empty = $("teamEmptyState");
+  try {
+    const members = await loadTeamMembers();
+    empty.hidden = members.length !== 0;
+    members.forEach(member => {
+      const card = document.createElement("article"); card.className = "team-member-card";
+      const status = member.invite_status === "accepted" ? "Active" : (member.is_active ? "Invited" : "Disabled");
+      card.innerHTML = `<div><strong>${escapeHtml(member.name)}</strong><span>${escapeHtml(member.email || "")}</span><small>${escapeHtml(member.section_label || "No section")} · ${status}</small></div><div class="team-permission-summary"><span>${member.can_view_production ? "View" : "—"}</span><span>${member.can_finish_stage ? "Finish" : "—"}</span><span>${member.can_upload_proof ? "Proof" : "—"}</span></div>`;
+      list.append(card);
+    });
+  } catch (error) {
+    empty.hidden = false;
+    $("teamMemberMessage").textContent = error?.message || "Unable to load team.";
+  }
+}
+
+$("teamButton")?.addEventListener("click", () => { navigate("team"); renderTeam(); });
+$("teamBackButton")?.addEventListener("click", () => navigate("home"));
+$("productionRefreshButton")?.addEventListener("click", async () => { try { await renderProductionWork(await getActorContext(true)); } catch (error) { $("productionMessage").textContent = error?.message || "Unable to refresh."; } });
+$("productionLogoutButton")?.addEventListener("click", async () => { await supabase.auth.signOut(); location.hash = "login"; location.reload(); });
+$("teamMemberForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const message = $("teamMemberMessage");
+  message.textContent = "";
+  try {
+    const payload = {
+      p_name: $("teamMemberName").value.trim(),
+      p_email: $("teamMemberEmail").value.trim().toLowerCase(),
+      p_section_label: $("teamMemberSection").value.trim() || null,
+      p_can_view_production: $("teamCanView").checked,
+      p_can_scan_qr: $("teamCanScan").checked,
+      p_can_finish_stage: $("teamCanFinish").checked,
+      p_can_upload_proof: $("teamCanProof").checked
+    };
+    const { data, error } = await supabase.rpc("create_production_member_invite", payload);
+    if (error) throw error;
+    const invite = data || {};
+    message.textContent = `Invitation created for ${payload.p_email}. They can sign up with that email and will be linked automatically.${invite.invite_token ? ` Invite token: ${invite.invite_token}` : ""}`;
+    event.target.reset();
+    $("teamCanView").checked = $("teamCanScan").checked = $("teamCanFinish").checked = $("teamCanProof").checked = true;
+    await renderTeam();
+  } catch (error) { message.textContent = error?.message || "Unable to create invitation."; }
+});
+
 
 $("homeOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
