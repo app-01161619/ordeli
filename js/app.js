@@ -721,7 +721,42 @@ async function getActorContext(force = false) {
     } catch (_) {}
     return actorContextCache;
   }
+
   await ensureSupabase();
+  const session = await getSession();
+  const user = session?.user;
+  if (!user) return null;
+
+  try {
+    const { data: member, error: memberError } = await supabase
+      .from("production_members")
+      .select("id,seller_id,name,email,section_label,role,can_view_production,can_scan_qr,can_finish_stage,can_upload_proof,is_active,invite_status")
+      .eq("auth_user_id", user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (!memberError && member) {
+      actorContextCache = {
+        actor_type: "production_member",
+        user_id: user.id,
+        seller_id: member.seller_id,
+        member_id: member.id,
+        name: member.name,
+        email: member.email || user.email || null,
+        section_label: member.section_label,
+        role: member.role || "production_member",
+        can_view_production: member.can_view_production !== false,
+        can_scan_qr: member.can_scan_qr !== false,
+        can_finish_stage: member.can_finish_stage !== false,
+        can_upload_proof: member.can_upload_proof !== false
+      };
+      try { localStorage.setItem("ordeli-actor-context", JSON.stringify(actorContextCache)); } catch (_) {}
+      return actorContextCache;
+    }
+  } catch (error) {
+    console.warn("Production-member lookup failed:", error);
+  }
+
   const { data, error } = await supabase.rpc("get_current_actor");
   if (error) throw error;
   actorContextCache = data || null;
@@ -2402,7 +2437,9 @@ $("editShopButton")
 
 async function loadProductionWork() {
   const actor = await getActorContext(true);
-  if (!actor || !isProductionMemberActor(actor)) throw new Error("Production member access is not available.");
+  if (!actor || !isProductionMemberActor(actor)) {
+    throw new Error("This account is not linked to an active production-team member.");
+  }
   const { data, error } = await supabase.rpc("get_production_work", { p_limit: 100 });
   if (error) throw error;
   return data || [];
