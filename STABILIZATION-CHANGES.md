@@ -30,3 +30,10 @@ These require verification or database-side changes rather than guessing:
 - Password recovery implementation.
 
 Those items remain on the production-readiness checklist until the live Supabase security boundary is verified.
+
+
+## Post-deploy regression fixes (2026-09-09)
+- Fixed the Reviews screen registration in the `screens` map so `showScreen("reviews")` can reveal it.
+- Fixed shop onboarding completion: saving the shop profile now navigates to `#home` before re-rendering the application.
+- Worker now attaches the authoritative CSP/security headers to asset responses, including `cdn.jsdelivr.net` in `connect-src`.
+- Bumped service-worker cache namespaces again to force replacement of the earlier cached app shell.

@@ -705,6 +705,9 @@ const screens = {
   updates:
     $("updatesScreen"),
 
+  reviews:
+    $("reviewsScreen"),
+
 };
 
 
@@ -2225,6 +2228,7 @@ $("loginForm")
         }
 
 
+        navigate("home");
         await renderApplication();
 
 
@@ -2738,6 +2742,9 @@ $("shopSetupForm")
         }
 
 
+        // Shop onboarding is complete. Move the hash away from the setup
+        // route before rendering so renderApplication() shows the dashboard.
+        navigate("home");
         await renderApplication();
 
 
