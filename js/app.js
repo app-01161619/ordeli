@@ -1433,6 +1433,11 @@ async function loadEvents() {
     bring.addEventListener("click", () => openEventOrders(event));
     actions.appendChild(bring);
 
+    const reschedule = document.createElement("button");
+    reschedule.type = "button"; reschedule.className = "secondary-button"; reschedule.textContent = "Reschedule Event";
+    reschedule.addEventListener("click", () => openEventReschedulePicker(event, card));
+    actions.appendChild(reschedule);
+
     card.append(date, body, actions);
     list.appendChild(card);
   }
@@ -1522,6 +1527,91 @@ async function saveEventForm(event) {
     resetButton(button, "Save Event");
   }
 }
+
+async function openEventReschedulePicker(event, card) {
+  if (!event?.id || card.querySelector('.event-reschedule-picker')) return;
+  const user = await getCurrentUser();
+  const picker = document.createElement('div');
+  picker.className = 'event-reschedule-picker';
+  const label = document.createElement('label');
+  label.textContent = 'Move assigned orders to';
+  const select = document.createElement('select');
+  select.className = 'tracking-select';
+  select.innerHTML = '<option value="">Choose a new event</option>';
+  const reason = document.createElement('input');
+  reason.type = 'text'; reason.maxLength = 300; reason.placeholder = 'Reason (optional)';
+  const actions = document.createElement('div');
+  actions.className = 'event-card-actions';
+  const save = document.createElement('button');
+  save.type = 'button'; save.textContent = 'Move Orders';
+  const cancel = document.createElement('button');
+  cancel.type = 'button'; cancel.className = 'secondary-button'; cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => picker.remove());
+  actions.append(save, cancel);
+  picker.append(label, select, reason, actions);
+  card.appendChild(picker);
+
+  save.disabled = true;
+  try {
+    const result = await supabase.from('events')
+      .select('id,name,location,event_date,start_time,status')
+      .eq('seller_id', user.id)
+      .neq('id', event.id)
+      .in('status', ['upcoming','ready','active'])
+      .gte('event_date', new Date().toISOString().slice(0,10))
+      .order('event_date', { ascending: true })
+      .order('start_time', { ascending: true });
+    if (result.error) throw result.error;
+    const options = result.data || [];
+    if (!options.length) {
+      const none = document.createElement('p'); none.className = 'form-message'; none.textContent = 'No eligible future event is available to move these orders to.';
+      picker.insertBefore(none, actions);
+      return;
+    }
+    options.forEach(target => {
+      const option = document.createElement('option');
+      option.value = target.id;
+      const dateText = target.event_date ? new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',year:'numeric'}).format(new Date(`${target.event_date}T00:00:00`)) : '';
+      const timeText = target.start_time ? ` · ${target.start_time.slice(0,5)}` : '';
+      option.textContent = `${target.name} · ${dateText}${timeText}`;
+      select.appendChild(option);
+    });
+    select.addEventListener('change', () => { save.disabled = !select.value; });
+    save.addEventListener('click', async () => {
+      if (!select.value) return;
+      save.disabled = true;
+      save.textContent = 'Rescheduling…';
+      try {
+        const rpc = await supabase.rpc('reschedule_event_orders', {
+          p_event_id: event.id,
+          p_new_event_id: select.value,
+          p_reason: reason.value.trim() || null
+        });
+        if (rpc.error) throw rpc.error;
+        picker.remove();
+        await loadEvents();
+      } catch (error) {
+        save.disabled = false;
+        save.textContent = 'Move Orders';
+        const message = document.createElement('p');
+        message.className = 'form-message';
+        message.textContent = error?.message || 'Unable to reschedule this event.';
+        const old = picker.querySelector('.event-reschedule-error');
+        old?.remove();
+        message.classList.add('event-reschedule-error');
+        picker.insertBefore(message, actions);
+      }
+    });
+  } catch (error) {
+    const message = document.createElement('p');
+    message.className = 'form-message';
+    message.textContent = error?.message || 'Unable to load eligible events.';
+    picker.insertBefore(message, actions);
+  } finally {
+    save.disabled = !select.value;
+  }
+}
+
 
 async function openEventOrders(event) {
   try {
