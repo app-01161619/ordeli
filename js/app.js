@@ -6796,13 +6796,14 @@ async function sendBackProductionStage(
       throw error;
     }
 
-    // The database mutation succeeded. Refresh the production panel
-    // in place so the worker sees the reverted stage immediately.
-
-    // Refresh the production panel in place so the worker sees the
-    // reverted stage immediately without leaving Production Work.
+    // The RPC has already succeeded. Do not call an optional toast helper here;
+    // an undefined helper would abort the UI update after the database mutation.
     if (panel) {
       await renderProductionPanel(item, panel);
+      const notice = document.createElement("p");
+      notice.className = "production-success";
+      notice.textContent = `“${stage.name}” was sent back for rework.`;
+      panel.prepend(notice);
     } else if (currentOrderId) {
       await loadOrderDetail(currentOrderId);
     }
