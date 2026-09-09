@@ -215,6 +215,35 @@ a:hover {
 }
 
 
+
+/* Shared form controls */
+.form-group select,
+.form-select {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 40px 11px 13px;
+  border: 1px solid #d2d6dc;
+  border-radius: 10px;
+  background-color: #fff;
+  color: #202124;
+  outline: none;
+  appearance: auto;
+}
+.form-group select:focus,
+.form-select:focus {
+  border-color: #208aef;
+  box-shadow: 0 0 0 3px rgba(32,138,239,.12);
+}
+.form-group select:disabled,
+.form-select:disabled {
+  color: #8a94a3;
+  background: #f2f4f7;
+  cursor: not-allowed;
+}
+.form-message.success-message {
+  color: #18743a;
+}
+
 /* MESSAGES */
 
 .form-message {
@@ -1914,6 +1943,132 @@ a:hover {
 .review-rating { letter-spacing:2px; }
 .review-card p { margin:14px 0 0; line-height:1.55; color:#444; white-space:pre-wrap; }
 .form-help { color:#777; font-size:12px; line-height:1.4; }
+
+
+/* Product cancellation settings */
+.product-cancellation-settings {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.setting-copy {
+  min-width: 0;
+}
+.setting-copy > label {
+  margin-bottom: 4px;
+}
+.setting-copy .form-help {
+  margin: 0;
+  max-width: 560px;
+}
+.switch-control {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 28px;
+  margin: 0;
+  cursor: pointer;
+}
+.switch-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.switch-track {
+  position: relative;
+  display: block;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  background: #d8dde5;
+  transition: background .16s ease;
+}
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.18);
+  transition: transform .16s ease;
+}
+.switch-control input:checked + .switch-track {
+  background: #208aef;
+}
+.switch-control input:checked + .switch-track::after {
+  transform: translateX(20px);
+}
+.switch-control input:focus-visible + .switch-track {
+  box-shadow: 0 0 0 3px rgba(32,138,239,.16);
+}
+.product-cancellation-stage-group {
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+.product-cancellation-stage-group[hidden] {
+  display: none;
+}
+
+/* Production team invitation result */
+.team-invite-result {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid #cfe3f8;
+  border-radius: 14px;
+  background: #f7fbff;
+  color: #263747;
+  text-align: left;
+}
+.team-invite-result strong {
+  color: #163b5b;
+  font-size: 15px;
+}
+.team-invite-result > span {
+  color: #596a79;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.team-invite-result code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+  border: 1px solid #dce7f2;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.team-invite-result .secondary-button {
+  width: auto;
+  justify-self: start;
+}
+@media (max-width: 640px) {
+  .setting-row {
+    align-items: flex-start;
+  }
+  .team-invite-result .secondary-button {
+    width: 100%;
+  }
+}
 
 /* Production team */
 .production-work-toolbar{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:1rem 0;padding:1rem 1.1rem;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:16px}

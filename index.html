@@ -647,12 +647,22 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <label for="productCancellationCutoff">Customer Cancellation Cutoff</label>
-              <select id="productCancellationCutoff">
-                <option value="">Customer cancellation disabled</option>
-              </select>
-              <small class="form-help">Customers can cancel this product until the selected stage has been finished.</small>
+            <div class="product-cancellation-settings">
+              <div class="setting-row">
+                <div class="setting-copy">
+                  <label for="productCancellationEnabled">Customer Cancellation</label>
+                  <p class="form-help">Allow customers to cancel this product while it is still before a selected production stage.</p>
+                </div>
+                <label class="switch-control" aria-label="Allow customer cancellation">
+                  <input id="productCancellationEnabled" type="checkbox">
+                  <span class="switch-track" aria-hidden="true"></span>
+                </label>
+              </div>
+              <div id="productCancellationStageGroup" class="form-group product-cancellation-stage-group" hidden>
+                <label for="productCancellationCutoff">Cancellation available until</label>
+                <select id="productCancellationCutoff" class="form-select"></select>
+                <small class="form-help">Customers can cancel until this stage has been finished.</small>
+              </div>
             </div>
 
             <div class="editor-actions">

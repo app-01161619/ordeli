@@ -3333,6 +3333,7 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
   event.preventDefault();
   const message = $("teamMemberMessage");
   message.textContent = "";
+  message.className = "form-message";
   try {
     if (editingProductionMemberId) {
       const payload = {
@@ -3365,6 +3366,7 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
     if (error) throw error;
     const invite = data || {};
     message.replaceChildren();
+    message.className = "form-message success-message";
 
     if (invite.invite_token) {
       const inviteUrl = `${window.location.origin}${window.location.pathname}#member-signup/${encodeURIComponent(invite.invite_token)}`;
@@ -3401,7 +3403,10 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
     event.target.reset();
     $("teamCanView").checked = $("teamCanScan").checked = $("teamCanFinish").checked = $("teamCanProof").checked = true;
     await renderTeam();
-  } catch (error) { message.textContent = error?.message || "Unable to save team member."; }
+  } catch (error) {
+    message.className = "form-message";
+    message.textContent = error?.message || "Unable to save team member.";
+  }
 });
 
 
@@ -3683,6 +3688,7 @@ async function openProductEditor(
     product?.id || null,
     product?.customer_cancellable_until_stage ?? ""
   );
+  setProductCancellationUi(Boolean(product?.customer_cancellable_until_stage));
 
   $("productEditor")
     .hidden =
@@ -3694,6 +3700,21 @@ async function openProductEditor(
 
 }
 
+
+function setProductCancellationUi(enabled) {
+  const checkbox = $("productCancellationEnabled");
+  const group = $("productCancellationStageGroup");
+  const select = $("productCancellationCutoff");
+  if (checkbox) checkbox.checked = Boolean(enabled);
+  if (group) group.hidden = !enabled;
+  if (select) select.disabled = !enabled;
+}
+
+$("productCancellationEnabled")?.addEventListener("change", event => {
+  const enabled = Boolean(event.target.checked);
+  setProductCancellationUi(enabled);
+  if (!enabled && $("productCancellationCutoff")) $("productCancellationCutoff").value = "";
+});
 
 function closeProductEditor() {
 
@@ -3739,9 +3760,16 @@ $("productForm")
 
 async function populateProductCancellationOptions(productId, selectedValue = "") {
   const select = $("productCancellationCutoff");
+  const checkbox = $("productCancellationEnabled");
   if (!select) return;
-  select.replaceChildren(new Option("Customer cancellation disabled", ""));
-  if (!productId) return;
+  select.replaceChildren();
+  if (!productId) {
+    select.appendChild(new Option("Add production stages first", ""));
+    select.disabled = true;
+    if (checkbox) checkbox.disabled = true;
+    return;
+  }
+  if (checkbox) checkbox.disabled = false;
   try {
     const user = await getCurrentUser();
     const result = await supabase
@@ -3750,10 +3778,18 @@ async function populateProductCancellationOptions(productId, selectedValue = "")
       .eq("product_id", productId)
       .order("stage_order", { ascending: true });
     if (result.error) throw result.error;
-    (result.data || []).forEach(stage => {
+    const stages = result.data || [];
+    if (!stages.length) {
+      select.appendChild(new Option("Add production stages first", ""));
+      select.disabled = true;
+      if (checkbox) checkbox.checked = false;
+      return;
+    }
+    stages.forEach(stage => {
       select.appendChild(new Option(`${stage.stage_order}. ${stage.name}`, String(stage.stage_order)));
     });
     select.value = selectedValue === null || selectedValue === undefined ? "" : String(selectedValue);
+    select.disabled = false;
   } catch (error) {
     console.warn("Unable to load cancellation stages:", error);
   }
@@ -3855,7 +3891,9 @@ async function saveProduct() {
             price,
 
           customer_cancellable_until_stage:
-            $("productCancellationCutoff")?.value ? Number($("productCancellationCutoff").value) : null,
+            $("productCancellationEnabled")?.checked && $("productCancellationCutoff")?.value
+              ? Number($("productCancellationCutoff").value)
+              : null,
 
           updated_at:
             new Date()
@@ -3910,7 +3948,9 @@ async function saveProduct() {
             price,
 
           customer_cancellable_until_stage:
-            $("productCancellationCutoff")?.value ? Number($("productCancellationCutoff").value) : null
+            $("productCancellationEnabled")?.checked && $("productCancellationCutoff")?.value
+              ? Number($("productCancellationCutoff").value)
+              : null
 
         })
         .select()
