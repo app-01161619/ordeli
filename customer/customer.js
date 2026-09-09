@@ -27,6 +27,7 @@ let selectedReviewRating = 0;
 let customerReviewBusy = false;
 let customerCancellationState = null;
 let customerCancellationBusy = false;
+let customerRescheduleBusy = false;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
@@ -151,6 +152,7 @@ function renderFulfillment() {
   const card = $("trackingFulfillmentCard");
   if (!card) return;
   const state = fulfillmentState || {};
+  renderCustomerReschedule();
   const ready = Boolean(state.production_completed && state.fully_paid && !state.handed_over_at);
   const statusCard = $("trackingFulfillmentNoticeCard");
   const statusTitle = $("trackingFulfillmentNoticeTitle");
@@ -212,6 +214,66 @@ function renderFulfillment() {
   }
 }
 
+
+function renderCustomerReschedule() {
+  const box = $("customerRescheduleBox");
+  const select = $("customerRescheduleEventSelect");
+  if (!box || !select) return;
+  const state = fulfillmentState || {};
+  const eligible = state.pickup_status === "unclaimed" && state.fulfillment_type === "location" && !state.handed_over_at;
+  box.hidden = !eligible;
+  if (!eligible) return;
+
+  select.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose a new event";
+  select.appendChild(placeholder);
+  const events = (state.events || []).filter(event => event.id && event.id !== state.event?.id);
+  events.forEach(event => {
+    const option = document.createElement("option");
+    option.value = event.id;
+    option.textContent = `${event.name} · ${formatEventDate(event.event_date)}${event.start_time ? ` · ${formatEventTime(event.start_time, event.end_time)}` : ""}`;
+    select.appendChild(option);
+  });
+  if (!events.length) {
+    select.disabled = true;
+    $("customerRescheduleButton").disabled = true;
+    $("customerRescheduleMessage").textContent = "There are no other upcoming pickup events available right now.";
+  } else {
+    select.disabled = false;
+    $("customerRescheduleButton").disabled = false;
+    $("customerRescheduleMessage").textContent = "";
+  }
+}
+
+async function rescheduleCustomerPickup() {
+  if (customerRescheduleBusy) return;
+  const token = getTrackingToken();
+  const eventId = $("customerRescheduleEventSelect")?.value || "";
+  if (!token) return;
+  if (!eventId) { $("customerRescheduleMessage").textContent = "Choose a new pickup event."; return; }
+  customerRescheduleBusy = true;
+  const button = $("customerRescheduleButton");
+  if (button) { button.disabled = true; button.textContent = "Rescheduling…"; }
+  $("customerRescheduleMessage").textContent = "Updating your pickup schedule…";
+  try {
+    const { error } = await supabase.rpc("reschedule_customer_pickup", {
+      p_public_token: token,
+      p_new_event_id: eventId
+    });
+    if (error) throw error;
+    $("customerRescheduleMessage").textContent = "Pickup rescheduled successfully.";
+    await loadCustomerTracking(token);
+    await loadCustomerFulfillment(token);
+  } catch (error) {
+    console.error("Customer pickup reschedule failed:", error);
+    $("customerRescheduleMessage").textContent = error?.message || "Unable to reschedule pickup.";
+  } finally {
+    customerRescheduleBusy = false;
+    if (button) { button.disabled = false; button.textContent = "Reschedule Pickup"; }
+  }
+}
 
 async function loadCustomerPaymentProof(publicToken) {
   try {
@@ -550,6 +612,7 @@ document.querySelectorAll("#customerReviewStars button").forEach(button => {
 });
 $("submitCustomerReviewButton")?.addEventListener("click", submitCustomerReview);
 $("customerCancelItemButton")?.addEventListener("click", cancelCustomerItem);
+$("customerRescheduleButton")?.addEventListener("click", rescheduleCustomerPickup);
 
 $("fulfillmentEventSelect")?.addEventListener("change", () => {
   const option = $("fulfillmentEventSelect").selectedOptions[0];
