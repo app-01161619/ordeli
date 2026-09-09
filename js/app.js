@@ -5195,7 +5195,7 @@ $("qrSeriesForm").addEventListener("submit",async event=>{
   finally { resetButton($("generateQrButton"),"Generate QR Series"); }
 });
 
-$("qrButton").addEventListener("click",()=>navigate("qr"));
+$("qrButton")?.addEventListener("click",()=>navigate("qr"));
 $("qrBackButton").addEventListener("click",()=>navigate("home"));
 $("qrLogoutButton").addEventListener("click",logout);
 
