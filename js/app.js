@@ -14,21 +14,6 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
-function normalizeQrInput(value) {
-  let token = String(value ?? "").trim();
-  if (!token) return "";
-  try {
-    if (/^https?:\/\//i.test(token)) {
-      const url = new URL(token);
-      const parts = url.pathname.split("/").filter(Boolean);
-      const tIndex = parts.findIndex(part => part.toLowerCase() === "t");
-      if (tIndex >= 0 && parts[tIndex + 1]) token = parts[tIndex + 1];
-      else token = parts[parts.length - 1] || token;
-    }
-  } catch (_) {}
-  return decodeURIComponent(token).trim();
-}
-
 const bootFallback = document.getElementById("bootFallback");
 function hideBootFallback() { bootFallback?.classList.add("is-hidden"); }
 
@@ -490,7 +475,10 @@ function initializeOfflineFoundation() {
       try { await loadOrderDetail(currentOrderId); } catch (_) {}
     }
     if (getRoute() !== "login" && getRoute() !== "register" && getRoute() !== "order-create" && getRoute() !== "order-detail") {
-      renderApplication();
+      $("sellerUpdatesBackButton")?.addEventListener("click", () => navigate("home"));
+$("openSellerUpdatesButton")?.addEventListener("click", () => navigate("seller-updates"));
+
+renderApplication();
     }
   });
 
@@ -577,6 +565,8 @@ const screens = {
 
   events:
     $("eventsScreen"),
+  sellerUpdates:
+    $("sellerUpdatesScreen"),
 
 };
 
@@ -638,7 +628,8 @@ const validRoutes = [
   "order-detail",
   "orders",
   "events",
-  "reviews"
+  "reviews",
+  "seller-updates"
 ];
 
 
@@ -1012,6 +1003,12 @@ async function renderApplication() {
     if (getRoute() === "events") {
       showScreen("events");
       await loadEvents();
+      return;
+    }
+
+    if (getRoute() === "seller-updates") {
+      showScreen("sellerUpdates");
+      await loadSellerUpdates();
       return;
     }
 
@@ -4475,6 +4472,105 @@ $("qrBackButton").addEventListener("click",()=>navigate("home"));
 $("qrLogoutButton").addEventListener("click",logout);
 
 function clearQrMessage(){ $("qrMessage").textContent=""; $("qrMessage").classList.remove("success-message"); }
+
+
+
+// ============================================================
+// SELLER CUSTOMER UPDATES
+// ============================================================
+
+async function loadSellerUpdates() {
+  const list = $("sellerUpdatesList");
+  const empty = $("sellerUpdatesEmpty");
+  const count = $("sellerUpdatesCount");
+  if (!list) return;
+
+  const user = await getCurrentUser();
+  const { data, error } = await supabase
+    .from("sms_update_drafts")
+    .select("id,order_id,message_text,status,created_at,sent_marked_at")
+    .eq("seller_id", user.id)
+    .neq("status", "sent")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw error;
+
+  const rows = data || [];
+  if (count) count.textContent = String(rows.length);
+  list.replaceChildren();
+  if (empty) empty.hidden = rows.length > 0;
+
+  if (!rows.length) return;
+
+  for (const draft of rows) {
+    const card = document.createElement("article");
+    card.className = "seller-update-card";
+
+    const title = document.createElement("strong");
+    title.textContent = "Customer update";
+
+    const message = document.createElement("p");
+    message.className = "seller-update-message";
+    message.textContent = draft.message_text || "";
+
+    const meta = document.createElement("small");
+    meta.textContent = new Date(draft.created_at).toLocaleString("en-PH");
+
+    const actions = document.createElement("div");
+    actions.className = "seller-update-actions";
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "secondary-button";
+    copy.textContent = "Copy";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(draft.message_text || "");
+        copy.textContent = "Copied";
+        setTimeout(() => { copy.textContent = "Copy"; }, 1200);
+      } catch {
+        alert("Unable to copy the message.");
+      }
+    });
+
+    const openSms = document.createElement("button");
+    openSms.type = "button";
+    openSms.textContent = "Open SMS";
+    openSms.addEventListener("click", () => {
+      window.location.href =
+        `sms:?body=${encodeURIComponent(draft.message_text || "")}`;
+    });
+
+    const markSent = document.createElement("button");
+    markSent.type = "button";
+    markSent.className = "secondary-button";
+    markSent.textContent = "Mark Sent";
+    markSent.addEventListener("click", async () => {
+      markSent.disabled = true;
+      try {
+        const result = await supabase
+          .from("sms_update_drafts")
+          .update({
+            status: "sent",
+            sent_marked_at: new Date().toISOString()
+          })
+          .eq("id", draft.id)
+          .eq("seller_id", user.id);
+
+        if (result.error) throw result.error;
+        await loadSellerUpdates();
+      } catch (error) {
+        markSent.disabled = false;
+        alert(error?.message || "Unable to mark update as sent.");
+      }
+    });
+
+    actions.append(copy, openSms, markSent);
+    card.append(title, message, meta, actions);
+    list.appendChild(card);
+  }
+}
 
 
 // ============================================================
