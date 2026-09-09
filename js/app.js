@@ -6798,8 +6798,8 @@ async function sendBackProductionStage(
 
     showToast(`“${stage.name}” sent back for rework.`, "success");
 
-    // Keep the production member on the same screen and refresh only the
-    // production panel. The server mutation has already succeeded.
+    // Refresh the production panel in place so the worker sees the
+    // reverted stage immediately without leaving Production Work.
     if (panel) {
       await renderProductionPanel(item, panel);
     } else if (currentOrderId) {
