@@ -51,7 +51,7 @@ async function ensureExternalScript(key) {
 // OFFLINE / SYNC FOUNDATION
 // ============================================================
 const OFFLINE_DB_NAME = "ordeli-offline";
-const OFFLINE_DB_VERSION = 3;
+const OFFLINE_DB_VERSION = 4;
 const OFFLINE_QUEUE_STORE = "sync_queue";
 const OFFLINE_QR_STORE = "offline_qr_cache";
 const OFFLINE_DEVICE_KEY = "ordeli-device-id";
@@ -214,13 +214,36 @@ async function enqueueOfflineOrder(payload) {
   return row;
 }
 
+async function enqueueOfflineProductionStage(payload) {
+  const db = await openOfflineDb();
+  if (!db) throw new Error("Offline storage is not available on this device.");
+  const clientActionId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const row = {
+    type: "finish_production_stage",
+    status: "waiting",
+    clientActionId,
+    clientOrderId: payload?.orderId || null,
+    deviceId: getOfflineDeviceId(),
+    createdAt: new Date().toISOString(),
+    attempts: 0,
+    payload
+  };
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(OFFLINE_QUEUE_STORE, "readwrite");
+    tx.objectStore(OFFLINE_QUEUE_STORE).add(row);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error || new Error("Unable to save the production update offline."));
+  });
+  return row;
+}
+
 async function getOfflineQueueRows({ includeFinished = false } = {}) {
   const db = await openOfflineDb();
   if (!db) return [];
   return new Promise(resolve => {
     const request = db.transaction(OFFLINE_QUEUE_STORE, "readonly").objectStore(OFFLINE_QUEUE_STORE).getAll();
     request.onsuccess = () => {
-      const rows = (request.result || []).filter(row => ["create_order", "add_order_item"].includes(row.type));
+      const rows = (request.result || []).filter(row => ["create_order", "add_order_item", "finish_production_stage"].includes(row.type));
       resolve(includeFinished ? rows : rows.filter(row => ["waiting", "error", "syncing"].includes(row.status)));
     };
     request.onerror = () => resolve([]);
@@ -320,7 +343,41 @@ async function syncOfflineOrders() {
       await updateConnectivityIndicator();
       try {
         const p = row.payload || {};
-        if (row.type === "add_order_item") {
+        if (row.type === "finish_production_stage") {
+          const p = row.payload || {};
+          let uploadedPath = p.proofPath || null;
+          if (p.file && uploadedPath) {
+            const { error: uploadError } = await supabase.storage.from("production-proofs").upload(uploadedPath, p.file, {
+              cacheControl: "3600", upsert: false, contentType: p.file.type
+            });
+            if (uploadError && !String(uploadError.message || "").toLowerCase().includes("already exists")) throw uploadError;
+          }
+
+          let data, error;
+          if (p.actorType === "production_member") {
+            ({ data, error } = await supabase.rpc("finish_production_stage_member_v2", {
+              p_order_item_id: p.orderItemId,
+              p_note: p.note || null,
+              p_proof_photo_path: uploadedPath
+            }));
+          } else {
+            ({ data, error } = await supabase.rpc("finish_production_stage", {
+              p_order_item_id: p.orderItemId,
+              p_stage_order: p.stageOrder,
+              p_stage_name: p.stageName,
+              p_note: p.note || null
+            }));
+            if (!error && uploadedPath && data?.stage_log_id) {
+              const updateResult = await supabase.from("stage_logs").update({ proof_photo_path: uploadedPath }).eq("id", data.stage_log_id).eq("order_item_id", p.orderItemId);
+              if (updateResult.error) throw updateResult.error;
+            }
+          }
+          if (error) throw error;
+          row.serverResult = data || {};
+          if (p.orderId && !String(p.orderId).startsWith("offline:")) {
+            try { await reconcileOrderCacheFromServer(p.orderId); } catch (refreshError) { console.warn("Order reconciliation after production sync failed; local state retained.", refreshError); }
+          }
+        } else if (row.type === "add_order_item") {
           let serverOrderId = p.orderId || null;
           if (String(serverOrderId || "").startsWith("offline:")) serverOrderId = await resolveServerOrderId(serverOrderId);
           if (!serverOrderId && p.parentClientOrderId) {
@@ -409,6 +466,86 @@ function ensureConnectivityIndicator() {
   document.body.appendChild(indicator);
   return indicator;
 }
+async function showOfflineSyncRecovery() {
+  const existing = document.getElementById("offlineSyncRecoveryPanel");
+  if (existing) { existing.remove(); return; }
+
+  const rows = await getOfflineQueueRows({ includeFinished: false });
+  const errors = rows.filter(row => row.status === "error");
+  if (!errors.length) {
+    const notice = document.createElement("div");
+    notice.className = "sync-recovery-notice";
+    notice.textContent = "There are no failed sync actions. Pending work will continue automatically.";
+    document.body.appendChild(notice);
+    window.setTimeout(() => notice.remove(), 2800);
+    return;
+  }
+
+  if (!document.getElementById("ordeli-sync-recovery-style")) {
+    const style = document.createElement("style");
+    style.id = "ordeli-sync-recovery-style";
+    style.textContent = `.sync-recovery-panel{position:fixed;z-index:9999;right:16px;bottom:16px;width:min(430px,calc(100vw - 32px));max-height:min(70vh,620px);overflow:auto;background:var(--surface,#fff);color:var(--text,#1f2937);border:1px solid rgba(0,0,0,.12);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.18);padding:16px}.sync-recovery-head,.sync-recovery-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.sync-recovery-head{margin-bottom:8px}.sync-recovery-panel p{margin:8px 0 12px}.sync-recovery-list{display:grid;gap:8px}.sync-recovery-item{display:grid;gap:3px;padding:10px 12px;border-radius:10px;background:rgba(127,127,127,.08)}.sync-recovery-item span{font-size:.88rem;line-height:1.35;overflow-wrap:anywhere}.sync-recovery-notice{position:fixed;z-index:9999;right:16px;bottom:16px;padding:12px 14px;border-radius:10px;background:var(--surface,#fff);border:1px solid rgba(0,0,0,.12);box-shadow:0 10px 30px rgba(0,0,0,.15)}.connectivity-indicator.is-clickable{cursor:pointer}`;
+    document.head.appendChild(style);
+  }
+
+  const panel = document.createElement("section");
+  panel.id = "offlineSyncRecoveryPanel";
+  panel.className = "sync-recovery-panel";
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-label", "Sync recovery");
+
+  const head = document.createElement("div");
+  head.className = "sync-recovery-head";
+  const title = document.createElement("strong");
+  title.textContent = "Sync needs attention";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "secondary-button";
+  close.textContent = "Close";
+  close.addEventListener("click", () => panel.remove());
+  head.append(title, close);
+
+  const text = document.createElement("p");
+  text.textContent = `${errors.length} queued action${errors.length === 1 ? " is" : "s are"} waiting because synchronization failed. You can retry them now.`;
+
+  const list = document.createElement("div");
+  list.className = "sync-recovery-list";
+  errors.forEach(row => {
+    const item = document.createElement("article");
+    item.className = "sync-recovery-item";
+    const kind = document.createElement("strong");
+    kind.textContent = row.type === "finish_production_stage" ? "Production stage" : row.type === "add_order_item" ? "Add order item" : "Create order";
+    const detail = document.createElement("span");
+    detail.textContent = row.lastError || "Synchronization failed.";
+    item.append(kind, detail);
+    list.appendChild(item);
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "sync-recovery-actions";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "primary-button";
+  retry.textContent = "Retry Sync";
+  retry.addEventListener("click", async () => {
+    retry.disabled = true;
+    retry.textContent = "Retrying…";
+    for (const row of errors) {
+      row.status = "waiting";
+      row.nextAttemptAt = null;
+      await updateQueuedOrder(row);
+    }
+    panel.remove();
+    await updateConnectivityIndicator();
+    await syncOfflineOrders();
+    await updateConnectivityIndicator();
+  });
+  actions.appendChild(retry);
+
+  panel.append(head, text, list, actions);
+  document.body.appendChild(panel);
+}
+
 async function updateConnectivityIndicator() {
   const indicator = ensureConnectivityIndicator();
   const online = navigator.onLine;
@@ -416,6 +553,8 @@ async function updateConnectivityIndicator() {
   indicator.classList.toggle("is-offline", !online);
   indicator.classList.toggle("is-online", online && pending === 0);
   indicator.classList.toggle("has-pending", pending > 0);
+  indicator.classList.toggle("is-clickable", pending > 0 && online);
+  indicator.onclick = pending > 0 && online ? () => showOfflineSyncRecovery().catch(error => console.warn("Sync recovery panel failed:", error)) : null;
   if (!online) {
     indicator.textContent = pending ? `Offline · ${pending} waiting to sync` : "Offline";
     return;
@@ -1384,7 +1523,7 @@ async function loadEvents() {
     try {
       if (!runtimeOffline && navigator.onLine) {
         const result = await supabase.from("orders")
-          .select("id,order_number,customers(name),order_items(product_name,quantity,cancelled_at)")
+          .select("id,order_number,pickup_status,handed_over_at,cancelled_at,customers(name),order_items(product_name,quantity,cancelled_at)")
           .eq("seller_id", user.id)
           .eq("event_id", event.id)
           .is("cancelled_at", null)
@@ -1436,7 +1575,16 @@ async function loadEvents() {
     const reschedule = document.createElement("button");
     reschedule.type = "button"; reschedule.className = "secondary-button"; reschedule.textContent = "Reschedule Event";
     reschedule.addEventListener("click", () => openEventReschedulePicker(event, card));
+    reschedule.hidden = ["completed", "cancelled"].includes(String(event.status || "").toLowerCase());
     actions.appendChild(reschedule);
+
+    const statusButton = document.createElement("button");
+    statusButton.type = "button";
+    statusButton.className = "secondary-button";
+    statusButton.textContent = "Change Status";
+    statusButton.hidden = ["completed", "cancelled"].includes(String(event.status || "").toLowerCase());
+    statusButton.addEventListener("click", () => openEventStatusPicker(event, card, orders));
+    actions.appendChild(statusButton);
 
     card.append(date, body, actions);
     list.appendChild(card);
@@ -1456,7 +1604,6 @@ function openEventEditor(event = null) {
   $("eventEndTime").value = event?.end_time?.slice(0,5) || "";
   $("eventNotes").value = event?.notes || "";
   if ($("eventChangeReason")) $("eventChangeReason").value = "";
-  if ($("eventChangeReasonGroup")) $("eventChangeReasonGroup").hidden = !event;
   $("eventEditorMessage").textContent = "";
   $("newEventButton").textContent = event ? "Close Editor" : "Cancel";
 }
@@ -1465,8 +1612,6 @@ function closeEventEditor() {
   editingEventId = null;
   $("eventForm").hidden = true;
   $("eventEditorMessage").textContent = "";
-  if ($("eventChangeReasonGroup")) $("eventChangeReasonGroup").hidden = true;
-  if ($("eventChangeReason")) $("eventChangeReason").value = "";
   $("newEventButton").textContent = "New Event";
 }
 
@@ -1529,6 +1674,71 @@ async function saveEventForm(event) {
   } finally {
     resetButton(button, "Save Event");
   }
+}
+
+async function updateEventStatus(eventId, status, orders = []) {
+  if (!eventId || !status) throw new Error("Event status is required.");
+  const normalized = String(status).toLowerCase();
+  if (["completed", "cancelled"].includes(normalized) && orders.some(order => !order.handed_over_at && order.pickup_status !== "unclaimed" && !order.cancelled_at)) {
+    throw new Error("This event still has active customer orders. Hand them over, mark them unclaimed, or reschedule them before closing the event.");
+  }
+  const user = await getCurrentUser();
+  const result = await supabase.from("events").update({ status: normalized }).eq("id", eventId).eq("seller_id", user.id);
+  if (result.error) throw result.error;
+}
+
+async function openEventStatusPicker(event, card, orders = []) {
+  if (!event?.id || card.querySelector('.event-status-picker')) return;
+  const picker = document.createElement('div');
+  picker.className = 'event-status-picker';
+  const label = document.createElement('label');
+  label.textContent = 'Event status';
+  const select = document.createElement('select');
+  select.className = 'tracking-select';
+  const statuses = [
+    ['upcoming', 'Upcoming'],
+    ['ready', 'Ready'],
+    ['active', 'Active'],
+    ['completed', 'Completed'],
+    ['cancelled', 'Cancelled']
+  ];
+  statuses.forEach(([value, text]) => {
+    const option = document.createElement('option');
+    option.value = value; option.textContent = text;
+    if (String(event.status || 'upcoming').toLowerCase() === value) option.selected = true;
+    select.appendChild(option);
+  });
+  const message = document.createElement('p');
+  message.className = 'form-message';
+  message.hidden = true;
+  const actions = document.createElement('div');
+  actions.className = 'event-card-actions';
+  const save = document.createElement('button');
+  save.type = 'button'; save.textContent = 'Save Status';
+  const cancel = document.createElement('button');
+  cancel.type = 'button'; cancel.className = 'secondary-button'; cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => picker.remove());
+  actions.append(save, cancel);
+  picker.append(label, select, message, actions);
+  card.appendChild(picker);
+
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    save.textContent = 'Saving…';
+    message.hidden = true;
+    try {
+      const next = select.value;
+      if (next === String(event.status || 'upcoming').toLowerCase()) { picker.remove(); return; }
+      await updateEventStatus(event.id, next, orders);
+      picker.remove();
+      await loadEvents();
+    } catch (error) {
+      message.hidden = false;
+      message.textContent = error?.message || 'Unable to change event status.';
+      save.disabled = false;
+      save.textContent = 'Save Status';
+    }
+  });
 }
 
 async function openEventReschedulePicker(event, card) {
@@ -1620,7 +1830,7 @@ async function openEventOrders(event) {
   try {
     const user = await getCurrentUser();
     const result = await supabase.from("orders")
-      .select("id,order_number,event_id,customers(name),order_items(product_name,quantity,cancelled_at)")
+      .select("id,order_number,event_id,pickup_status,handed_over_at,cancelled_at,customers(name),order_items(product_name,quantity,cancelled_at)")
       .eq("seller_id", user.id).eq("event_id", event.id).order("order_number", {ascending:true});
     if (result.error) throw result.error;
     const orders = result.data || [];
@@ -1635,16 +1845,92 @@ async function openEventOrders(event) {
     if (!orders.length) {
       const empty = document.createElement("section"); empty.className="empty-state"; empty.innerHTML="<h2>No Orders for This Event</h2><p>Orders assigned by customers will appear here.</p>"; list.appendChild(empty); return;
     }
+
+    const eligibleOrders = orders.filter(order => !order.cancelled_at && !order.handed_over_at && order.pickup_status !== "unclaimed");
+    const bulkBar = document.createElement("div");
+    bulkBar.className = "event-bulk-actions";
+    const selectAll = document.createElement("input");
+    selectAll.type = "checkbox";
+    selectAll.id = "eventSelectAll";
+    selectAll.disabled = eligibleOrders.length === 0;
+    const selectAllLabel = document.createElement("label");
+    selectAllLabel.htmlFor = "eventSelectAll";
+    selectAllLabel.textContent = "Select all active orders";
+    const bulkButton = document.createElement("button");
+    bulkButton.type = "button";
+    bulkButton.className = "secondary-button";
+    bulkButton.textContent = "Mark Selected Unclaimed";
+    bulkButton.disabled = true;
+    const bulkMessage = document.createElement("p");
+    bulkMessage.className = "form-message";
+    bulkMessage.setAttribute("role", "status");
+    bulkBar.append(selectAll, selectAllLabel, bulkButton, bulkMessage);
+    list.appendChild(bulkBar);
+
+    const selected = new Set();
+    const updateBulkState = () => {
+      bulkButton.disabled = selected.size === 0;
+      bulkButton.textContent = selected.size ? `Mark ${selected.size} Unclaimed` : "Mark Selected Unclaimed";
+      if (eligibleOrders.length) selectAll.checked = eligibleOrders.every(order => selected.has(order.id));
+    };
+    selectAll.addEventListener("change", () => {
+      eligibleOrders.forEach(order => {
+        if (selectAll.checked) selected.add(order.id);
+        else selected.delete(order.id);
+      });
+      document.querySelectorAll("[data-event-order-select]").forEach(input => { input.checked = selected.has(input.dataset.eventOrderSelect); });
+      updateBulkState();
+    });
+
     orders.forEach(order => {
       const card = document.createElement("article"); card.className="event-card";
       const body = document.createElement("div");
+      const head = document.createElement("div");
+      head.className = "event-order-card-head";
+      const eligible = !order.cancelled_at && !order.handed_over_at && order.pickup_status !== "unclaimed";
+      if (eligible) {
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.dataset.eventOrderSelect = order.id;
+        checkbox.setAttribute("aria-label", `Select Order #${order.order_number}`);
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) selected.add(order.id); else selected.delete(order.id);
+          updateBulkState();
+        });
+        head.appendChild(checkbox);
+      }
       const title = document.createElement("h2"); title.textContent = `Order #${order.order_number}`;
+      head.appendChild(title);
       const customer = document.createElement("p"); customer.textContent = order.customers?.name || "Customer";
       const items = document.createElement("div"); items.className="event-order-summary";
       items.textContent = (order.order_items || []).filter(i=>!i.cancelled_at).map(i=>`${i.product_name} × ${i.quantity}`).join(" · ");
-      body.append(title, customer, items);
+      const state = document.createElement("span");
+      state.className = "event-order-state";
+      state.textContent = order.cancelled_at ? "Cancelled" : order.handed_over_at ? "Handed Over" : order.pickup_status === "unclaimed" ? "Unclaimed" : "Bring to Event";
+      body.append(head, customer, items, state);
       const open = document.createElement("button"); open.type="button"; open.textContent="Open Order"; open.addEventListener("click",()=>{ currentOrderId=order.id; currentOrderShowProduction=false; navigate("order-detail"); });
       card.append(body, open); list.appendChild(card);
+    });
+
+    bulkButton.addEventListener("click", async () => {
+      if (!selected.size) return;
+      if (!window.confirm(`Mark ${selected.size} selected order${selected.size === 1 ? "" : "s"} as unclaimed?`)) return;
+      bulkButton.disabled = true;
+      selectAll.disabled = true;
+      bulkMessage.textContent = "Updating pickup status…";
+      try {
+        const ids = [...selected];
+        for (const orderId of ids) {
+          const { error } = await supabase.rpc("update_order_pickup_status", { p_order_id: orderId, p_action: "unclaimed" });
+          if (error) throw error;
+        }
+        bulkMessage.textContent = `${ids.length} order${ids.length === 1 ? "" : "s"} marked unclaimed.`;
+        await openEventOrders(event);
+      } catch (error) {
+        bulkMessage.textContent = error?.message || "Unable to update the selected orders.";
+        bulkButton.disabled = selected.size === 0;
+        selectAll.disabled = eligibleOrders.length === 0;
+      }
     });
   } catch (error) {
     $("eventsMessage").textContent = getAuthError(error);
@@ -1724,6 +2010,7 @@ async function loadHomeLogo(
 // ============================================================
 
 let productionInviteState = null;
+let editingProductionMemberId = null;
 
 async function loadProductionInvite(token) {
   if (!token) throw new Error("This invitation link is missing its invitation token.");
@@ -2558,9 +2845,21 @@ async function loadProductionWork() {
   if (actor.can_view_production === false) {
     throw new Error("You do not have permission to view production work.");
   }
-  const { data, error } = await supabase.rpc("get_production_work", { p_limit: 100 });
-  if (error) throw error;
-  return data || [];
+  const cacheKey = `production-work:${actor.member_id || actor.seller_id}`;
+  if (navigator.onLine && !runtimeOffline) {
+    try {
+      const { data, error } = await supabase.rpc("get_production_work", { p_limit: 100 });
+      if (error) throw error;
+      const work = data || [];
+      await cacheNamed(cacheKey, work);
+      return work;
+    } catch (error) {
+      const cached = await getCachedSnapshot(cacheKey);
+      if (cached != null) return cached;
+      throw error;
+    }
+  }
+  return (await getCachedSnapshot(cacheKey)) || [];
 }
 
 function productionTaskCard(task, actor) {
@@ -2684,6 +2983,41 @@ async function completeMemberProductionTask(task, note, file, button) {
     if (file) {
       const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
       uploadedPath = `${actor.seller_id}/${task.order_item_id}/${task.stage_order || "current"}-${crypto.randomUUID()}.${extension}`;
+    }
+
+    if (!navigator.onLine || runtimeOffline) {
+      await enqueueOfflineProductionStage({
+        actorType: "production_member",
+        orderItemId: task.order_item_id,
+        stageOrder: task.stage_order || null,
+        note: note || null,
+        proofPath: uploadedPath,
+        file: file || null
+      });
+      const scannedBox = $("productionScannedItem");
+      if (scannedBox) {
+        scannedBox.replaceChildren();
+        scannedBox.hidden = false;
+        const successTitle = document.createElement("h3");
+        successTitle.textContent = "Saved offline";
+        const successText = document.createElement("p");
+        successText.textContent = "This production update is saved on this device and will synchronize automatically when you reconnect.";
+        const closeButton = document.createElement("button");
+        closeButton.type = "button";
+        closeButton.className = "secondary-button";
+        closeButton.textContent = "Back to Production Work";
+        closeButton.addEventListener("click", async () => { scannedBox.hidden = true; scannedBox.replaceChildren(); try { await renderProductionWork(actor); } catch (_) {} });
+        scannedBox.append(successTitle, successText, closeButton);
+      }
+      document.querySelectorAll("[data-production-task-id]").forEach(node => { if (node.dataset.productionTaskId === String(task.order_item_id)) node.remove(); });
+      const cachedWork = await getCachedSnapshot(`production-work:${actor.member_id || actor.seller_id}`) || [];
+      await cacheNamed(`production-work:${actor.member_id || actor.seller_id}`, cachedWork.filter(row => String(row.order_item_id) !== String(task.order_item_id)));
+      await updateConnectivityIndicator();
+      showToast("Stage saved offline — waiting to sync.", "success");
+      return;
+    }
+
+    if (file) {
       const { error: uploadError } = await supabase.storage.from("production-proofs").upload(uploadedPath, file, {
         cacheControl: "3600", upsert: false, contentType: file.type
       });
@@ -2828,9 +3162,67 @@ async function renderTeam() {
     const members = await loadTeamMembers();
     empty.hidden = members.length !== 0;
     members.forEach(member => {
-      const card = document.createElement("article"); card.className = "team-member-card";
-      const status = member.invite_status === "accepted" ? "Active" : (member.is_active ? "Invited" : "Disabled");
-      card.innerHTML = `<div><strong>${escapeHtml(member.name)}</strong><span>${escapeHtml(member.email || "")}</span><small>${escapeHtml(member.section_label || "No section")} · ${status}</small></div><div class="team-permission-summary"><span>${member.can_view_production ? "View" : "—"}</span><span>${member.can_finish_stage ? "Finish" : "—"}</span><span>${member.can_upload_proof ? "Proof" : "—"}</span></div>`;
+      const card = document.createElement("article");
+      card.className = "team-member-card";
+
+      const info = document.createElement("div");
+      const name = document.createElement("strong");
+      name.textContent = member.name || "Unnamed member";
+      const email = document.createElement("span");
+      email.textContent = member.email || "";
+      const status = member.invite_status === "accepted" ? (member.is_active ? "Active" : "Disabled") : (member.is_active ? "Invited" : "Disabled");
+      const meta = document.createElement("small");
+      meta.textContent = `${member.section_label || "No section"} · ${status}`;
+      info.append(name, email, meta);
+
+      const right = document.createElement("div");
+      right.className = "team-member-card-actions";
+
+      const permissions = document.createElement("div");
+      permissions.className = "team-permission-summary";
+      [
+        ["View", member.can_view_production],
+        ["Finish", member.can_finish_stage],
+        ["Proof", member.can_upload_proof],
+        ["Scan", member.can_scan_qr]
+      ].forEach(([label, enabled]) => {
+        const pill = document.createElement("span");
+        pill.textContent = enabled ? label : `— ${label}`;
+        if (!enabled) pill.classList.add("team-permission-disabled");
+        permissions.appendChild(pill);
+      });
+
+      const actions = document.createElement("div");
+      actions.className = "team-member-actions";
+
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "secondary-button";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", () => startEditProductionMember(member));
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = member.is_active ? "secondary-button" : "secondary-button";
+      toggle.textContent = member.is_active ? "Disable" : "Enable";
+      toggle.addEventListener("click", async () => {
+        const action = member.is_active ? "disable" : "enable";
+        if (!window.confirm(`${action === "disable" ? "Disable" : "Enable"} ${member.name || "this team member"}?`)) return;
+        try {
+          toggle.disabled = true;
+          const { error } = await supabase.rpc("set_production_member_active", { p_member_id: member.id, p_active: !member.is_active });
+          if (error) throw error;
+          if (editingProductionMemberId === member.id) cancelEditProductionMember();
+          await renderTeam();
+        } catch (error) {
+          $("teamMemberMessage").textContent = error?.message || `Unable to ${action} team member.`;
+          toggle.disabled = false;
+        }
+      });
+
+      actions.append(edit, toggle);
+      right.append(permissions, actions);
+      card.append(info, right);
       list.append(card);
     });
   } catch (error) {
@@ -2838,6 +3230,47 @@ async function renderTeam() {
     $("teamMemberMessage").textContent = error?.message || "Unable to load team.";
   }
 }
+
+function startEditProductionMember(member) {
+  editingProductionMemberId = member.id;
+  $("teamMemberName").value = member.name || "";
+  $("teamMemberEmail").value = member.email || "";
+  $("teamMemberEmail").disabled = true;
+  $("teamMemberSection").value = member.section_label || "";
+  $("teamCanView").checked = member.can_view_production !== false;
+  $("teamCanScan").checked = member.can_scan_qr !== false;
+  $("teamCanFinish").checked = member.can_finish_stage !== false;
+  $("teamCanProof").checked = member.can_upload_proof !== false;
+  const heading = document.querySelector("#teamMemberForm")?.closest(".team-create-card")?.querySelector("h2");
+  if (heading) heading.textContent = "Edit Team Member";
+  $("inviteTeamMemberButton").textContent = "Save Changes";
+  let cancel = $("cancelTeamMemberEditButton");
+  if (!cancel) {
+    cancel = document.createElement("button");
+    cancel.id = "cancelTeamMemberEditButton";
+    cancel.type = "button";
+    cancel.className = "secondary-button";
+    cancel.textContent = "Cancel Edit";
+    $("inviteTeamMemberButton").insertAdjacentElement("afterend", cancel);
+    cancel.addEventListener("click", cancelEditProductionMember);
+  }
+  cancel.hidden = false;
+  $("teamMemberName").focus();
+}
+
+function cancelEditProductionMember() {
+  editingProductionMemberId = null;
+  $("teamMemberForm")?.reset();
+  $("teamMemberEmail").disabled = false;
+  $("teamCanView").checked = $("teamCanScan").checked = $("teamCanFinish").checked = $("teamCanProof").checked = true;
+  const heading = document.querySelector("#teamMemberForm")?.closest(".team-create-card")?.querySelector("h2");
+  if (heading) heading.textContent = "Invite Team Member";
+  $("inviteTeamMemberButton").textContent = "Create Invitation";
+  const cancel = $("cancelTeamMemberEditButton");
+  if (cancel) cancel.hidden = true;
+  $("teamMemberMessage").textContent = "";
+}
+
 
 $("teamButton")?.addEventListener("click", () => { navigate("team"); renderTeam(); });
 $("teamBackButton")?.addEventListener("click", () => navigate("home"));
@@ -2848,6 +3281,24 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
   const message = $("teamMemberMessage");
   message.textContent = "";
   try {
+    if (editingProductionMemberId) {
+      const payload = {
+        p_member_id: editingProductionMemberId,
+        p_name: $("teamMemberName").value.trim(),
+        p_section_label: $("teamMemberSection").value.trim() || null,
+        p_can_view_production: $("teamCanView").checked,
+        p_can_scan_qr: $("teamCanScan").checked,
+        p_can_finish_stage: $("teamCanFinish").checked,
+        p_can_upload_proof: $("teamCanProof").checked
+      };
+      const { error } = await supabase.rpc("update_production_member", payload);
+      if (error) throw error;
+      message.textContent = "Team member updated.";
+      cancelEditProductionMember();
+      await renderTeam();
+      return;
+    }
+
     const payload = {
       p_name: $("teamMemberName").value.trim(),
       p_email: $("teamMemberEmail").value.trim().toLowerCase(),
@@ -2897,7 +3348,7 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
     event.target.reset();
     $("teamCanView").checked = $("teamCanScan").checked = $("teamCanFinish").checked = $("teamCanProof").checked = true;
     await renderTeam();
-  } catch (error) { message.textContent = error?.message || "Unable to create invitation."; }
+  } catch (error) { message.textContent = error?.message || "Unable to save team member."; }
 });
 
 
@@ -4505,6 +4956,32 @@ function createQrSeriesCard(group){
     await reserveOfflineQrSeries(group.productId, group.seriesName, quantity);
   });
   actions.appendChild(reserve);
+
+  const revoke = document.createElement("button");
+  revoke.type = "button";
+  revoke.className = "secondary-button";
+  revoke.textContent = "Revoke QR";
+  revoke.disabled = group.available < 1;
+  revoke.addEventListener("click", async () => {
+    if (group.available < 1) return;
+    const code = window.prompt(`Enter the seller code printed on the QR card to revoke it.\n\nSeries: ${group.seriesName}`);
+    if (code === null) return;
+    const normalized = code.trim();
+    if (!normalized) return;
+    if (!window.confirm(`Revoke QR code ${normalized}?\n\nA revoked QR cannot be assigned to a new order.`)) return;
+    try {
+      const { data, error } = await supabase.rpc("revoke_qr_code", { p_code: normalized });
+      if (error) throw error;
+      if (!data?.revoked) throw new Error(data?.message || "QR code was not revoked.");
+      await refreshOfflineQrCache();
+      await loadQrSeries();
+      alert(`QR code ${normalized} was revoked.`);
+    } catch (error) {
+      console.error("QR revoke failed:", error);
+      alert(error?.message || "Unable to revoke that QR code.");
+    }
+  });
+  actions.appendChild(revoke);
 
 
   card.append(
@@ -6249,7 +6726,7 @@ async function loadOrderDetail(
 
   let total = 0;
   items.forEach(item => {
-    total += Number(item.total_price) || 0;
+    if (!item.cancelled_at) total += Number(item.total_price) || 0;
     const row = document.createElement("div");
     row.className = "order-detail-item";
     const left = document.createElement("div");
@@ -6276,15 +6753,99 @@ async function loadOrderDetail(
   currentOrderPaid = paid;
   $("orderDetailBalance").textContent = formatPrice(Math.max(0, total - paid));
   renderOrderFulfillmentSummary(order, items, total, paid);
+  renderSellerCancellationActions(order, items);
   await loadPayments(orderId);
 }
 
+
+
+function renderSellerCancellationActions(order, items) {
+  const container = $('orderDetailCancellationActions');
+  if (container) container.remove();
+  if (!order || order.cancelled_at) return;
+  if (order.handed_over_at) return;
+  const activeItems = (items || []).filter(item => !item.cancelled_at);
+  if (!activeItems.length) return;
+
+  const box = document.createElement('section');
+  box.id = 'orderDetailCancellationActions';
+  box.className = 'order-detail-cancellation-actions';
+
+  const title = document.createElement('strong');
+  title.textContent = 'Cancellation';
+  box.appendChild(title);
+
+  const help = document.createElement('p');
+  help.textContent = 'Cancel the whole order or an individual item. The historical record is kept.';
+  box.appendChild(help);
+
+  const itemList = document.createElement('div');
+  itemList.className = 'order-cancel-item-list';
+  activeItems.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'order-cancel-item-row';
+    const label = document.createElement('span');
+    label.textContent = `${item.product_name} × ${item.quantity}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary-button';
+    button.textContent = 'Cancel Item';
+    button.addEventListener('click', async () => {
+      const reason = window.prompt(`Cancel ${item.product_name} × ${item.quantity}?\n\nOptional reason:`, 'Seller unable to fulfill');
+      if (reason === null) return;
+      button.disabled = true;
+      try {
+        const { error } = await supabase.rpc('seller_cancel_order_item', {
+          p_order_item_id: item.id,
+          p_reason: reason.trim() || null
+        });
+        if (error) throw error;
+        await loadOrderDetail(order.id);
+      } catch (error) {
+        console.error('Seller item cancellation failed:', error);
+        $('orderDetailMessage').textContent = error?.message || 'Unable to cancel this item.';
+        button.disabled = false;
+      }
+    });
+    row.append(label, button);
+    itemList.appendChild(row);
+  });
+  box.appendChild(itemList);
+
+  const cancelOrder = document.createElement('button');
+  cancelOrder.type = 'button';
+  cancelOrder.className = 'danger-button';
+  cancelOrder.textContent = 'Cancel Entire Order';
+  cancelOrder.addEventListener('click', async () => {
+    const reason = window.prompt(`Cancel Order #${order.order_number}?\n\nOptional reason:`, 'Seller unable to fulfill');
+    if (reason === null) return;
+    if (!window.confirm(`Cancel Order #${order.order_number}? This will cancel every active item in the order.`)) return;
+    cancelOrder.disabled = true;
+    try {
+      const { error } = await supabase.rpc('seller_cancel_order', {
+        p_order_id: order.id,
+        p_reason: reason.trim() || null
+      });
+      if (error) throw error;
+      await loadOrderDetail(order.id);
+    } catch (error) {
+      console.error('Seller order cancellation failed:', error);
+      $('orderDetailMessage').textContent = error?.message || 'Unable to cancel the order.';
+      cancelOrder.disabled = false;
+    }
+  });
+  box.appendChild(cancelOrder);
+
+  const itemsHost = $('orderDetailItems');
+  if (itemsHost?.parentElement) itemsHost.parentElement.appendChild(box);
+}
 
 function clearOrderDetailScreen() {
   currentOrderTotal = 0;
   currentOrderPaid = 0;
   ["orderDetailTitle","orderDetailNumber","orderDetailCustomerName","orderDetailCustomer","orderDetailTotal","orderDetailPaid","orderDetailBalance"].forEach(id => { if ($(id)) $(id).textContent = ""; });
   if ($("orderDetailItems")) $("orderDetailItems").replaceChildren();
+  $("orderDetailCancellationActions")?.remove();
   if ($("orderDetailMessage")) $("orderDetailMessage").textContent = "";
   if ($("orderDetailFulfillmentSummary")) $("orderDetailFulfillmentSummary").hidden = true;
 }
@@ -6732,6 +7293,35 @@ async function finishProductionStage(
   try {
 
     const user = await getCurrentUser();
+    if (file) {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      proofPath = `${user.id}/${item.id}/${stage.stage_order}-${crypto.randomUUID()}.${extension}`;
+    }
+
+    if (!navigator.onLine || runtimeOffline) {
+      await enqueueOfflineProductionStage({
+        actorType: "seller",
+        orderId: currentOrderId,
+        orderItemId: item.id,
+        stageOrder: stage.stage_order,
+        stageName: stage.name,
+        note: note || null,
+        proofPath,
+        file: file || null
+      });
+
+      const cachedItems = await getCachedSnapshot(`order-items:${currentOrderId}`) || [];
+      const nextItems = cachedItems.map(cachedItem => {
+        if (cachedItem.id !== item.id) return cachedItem;
+        const logs = Array.isArray(cachedItem.stage_logs) ? [...cachedItem.stage_logs] : [];
+        logs.push({ id: `offline-stage:${Date.now()}`, stage_order: stage.stage_order, action: "finished", note: note || null, proof_photo_path: proofPath, occurred_at: new Date().toISOString(), offline_pending: true });
+        return { ...cachedItem, stage_logs: logs };
+      });
+      await cacheNamed(`order-items:${currentOrderId}`, nextItems);
+      await loadOrderDetail(currentOrderId);
+      showToast("Stage saved offline — waiting to sync.", "success");
+      return;
+    }
 
     const { data: result, error } =
       await supabase.rpc(
@@ -6751,11 +7341,6 @@ async function finishProductionStage(
     const logId = result?.stage_log_id;
 
     if (file && logId) {
-
-      const extension =
-        file.name.split(".").pop()?.toLowerCase() || "jpg";
-
-      proofPath = `${user.id}/${item.id}/${stage.stage_order}-${crypto.randomUUID()}.${extension}`;
 
       const { error: uploadError } =
         await supabase.storage
@@ -6896,6 +7481,72 @@ async function loadPayments(
   list.appendChild(fragment);
 }
 
+
+function openPaymentEditor() {
+  const editor = $("paymentEditor");
+  if (!editor) return;
+  const remaining = Math.max(0, Number(currentOrderTotal || 0) - Number(currentOrderPaid || 0));
+  if (remaining <= 0) {
+    $("paymentMessage").textContent = "This order is already fully paid.";
+    editor.hidden = false;
+    $("paymentAmount").value = "";
+    return;
+  }
+  $("paymentAmount").value = remaining.toFixed(2);
+  $("paymentType").value = remaining > 0 ? "final" : "additional";
+  $("paymentMessage").textContent = `Remaining balance: ${formatPrice(remaining)}`;
+  editor.hidden = false;
+  $("paymentAmount").focus();
+}
+
+function closePaymentEditor() {
+  const editor = $("paymentEditor");
+  if (!editor) return;
+  editor.hidden = true;
+  $("paymentAmount").value = "";
+  $("paymentType").value = "additional";
+  $("paymentMessage").textContent = "";
+}
+
+async function recordSellerPayment() {
+  const amount = Number($("paymentAmount")?.value || 0);
+  const paymentType = $("paymentType")?.value || "additional";
+  const remaining = Math.max(0, Number(currentOrderTotal || 0) - Number(currentOrderPaid || 0));
+
+  if (!currentOrderId) throw new Error("No order selected.");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a payment amount greater than ₱0.00.");
+  if (remaining <= 0) throw new Error("This order is already fully paid.");
+  if (amount > remaining + 0.005) throw new Error(`Payment cannot exceed the remaining balance of ${formatPrice(remaining)}.`);
+  if (!["additional", "final", "cash", "other"].includes(paymentType)) throw new Error("Choose a valid payment type.");
+
+  const saveButton = $("savePaymentButton");
+  setLoading(saveButton, true, "Recording…");
+  $("paymentMessage").textContent = "";
+
+  try {
+    const { data, error } = await supabase.rpc("seller_record_payment", {
+      p_order_id: currentOrderId,
+      p_amount: Number(amount.toFixed(2)),
+      p_payment_type: paymentType
+    });
+    if (error) throw error;
+    if (!data?.payment_id) throw new Error("The payment was not recorded.");
+
+    closePaymentEditor();
+    await loadOrderDetail(currentOrderId);
+    await loadPayments(currentOrderId);
+    if (typeof loadDashboard === "function") loadDashboard(true).catch(() => {});
+  } catch (error) {
+    console.error("Seller payment recording failed:", error);
+    $("paymentMessage").textContent = error?.message || "Unable to record payment.";
+  } finally {
+    resetButton(saveButton, "Record Payment");
+  }
+}
+
+$("addPaymentButton")?.addEventListener("click", openPaymentEditor);
+$("cancelPaymentButton")?.addEventListener("click", closePaymentEditor);
+$("savePaymentButton")?.addEventListener("click", recordSellerPayment);
 
 async function viewCustomerPaymentProof(payment) {
   if (!payment?.proof_path) { alert("This payment has no proof image."); return; }

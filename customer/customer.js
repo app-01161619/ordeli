@@ -104,10 +104,57 @@ function renderTrackingStages(stages) {
     const status = document.createElement("span");
     status.textContent = stage.status === "finished" ? "Finished" : stage.status === "in_progress" ? "In Progress" : "Upcoming";
     body.append(name, status);
+
+    if (stage.status === "finished") {
+      const proofButton = document.createElement("button");
+      proofButton.type = "button";
+      proofButton.className = "tracking-photo-button";
+      proofButton.textContent = "View Photo";
+      proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
+      body.appendChild(proofButton);
+    }
+
     row.append(icon, body);
     fragment.appendChild(row);
   });
   list.appendChild(fragment);
+}
+
+
+
+async function viewCustomerProductionProof(stageOrder, button) {
+  const token = getTrackingToken();
+  if (!token || !stageOrder || !button) return;
+  if (button.dataset.loading === "1") return;
+
+  button.dataset.loading = "1";
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = "Loading Photo…";
+  try {
+    const { data, error } = await supabase.rpc("get_customer_stage_proof", {
+      p_public_token: token,
+      p_stage_order: Number(stageOrder)
+    });
+    if (error) throw error;
+    if (!data?.available || !data?.url) {
+      throw new Error("No proof photo is available for this stage.");
+    }
+    const viewer = $("customerPhotoViewer");
+    const image = $("customerPhotoViewerImage");
+    const caption = $("customerPhotoViewerCaption");
+    if (image) image.src = data.url;
+    if (caption) caption.textContent = `${data.stage_name || `Stage ${stageOrder}`} · Production proof`;
+    if (viewer?.showModal) viewer.showModal();
+    else if (viewer) viewer.hidden = false;
+  } catch (error) {
+    console.error("Customer production proof failed:", error);
+    alert(error?.message || "Unable to open the proof photo.");
+  } finally {
+    button.dataset.loading = "0";
+    button.disabled = false;
+    button.textContent = original;
+  }
 }
 
 function renderTrackingOrderItems(items) {
