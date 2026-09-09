@@ -1,7 +1,8 @@
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch((error) => {
-      console.warn("Ordeli service worker registration failed.", error);
-    });
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("./sw.js");
+      try { await registration.update(); } catch (_) {}
+    } catch (_) {}
   });
 }
