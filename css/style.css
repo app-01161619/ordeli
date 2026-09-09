@@ -1278,17 +1278,14 @@ a:hover {
 }
 
 .home-menu-icon {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
-  flex: 0 0 42px;
-  border-radius: 12px;
-  background: #f1f4f7;
-  color: #202124;
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1;
+  flex: 0 0 38px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  font-size: 19px;
 }
 
 .home-menu-item > span:last-child {
@@ -1368,60 +1365,6 @@ a:hover {
     min-width: 136px;
     bottom: max(14px, env(safe-area-inset-bottom));
   }
-}
-
-
-/* UNIVERSAL SELLER MENU BUTTON */
-.app-page-header,
-.app-header {
-  position: relative;
-}
-
-.app-page-header {
-  padding-right: 62px;
-}
-
-.app-menu-button {
-  width: 46px;
-  height: 46px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 10px;
-  background: var(--surface, #fff);
-  color: var(--text, #202124);
-  box-shadow: 0 2px 8px rgba(0,0,0,.06);
-  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
-}
-
-.app-page-header > .app-menu-button {
-  position: absolute;
-  top: 12px;
-  right: 0;
-}
-
-.app-menu-button:hover {
-  background: #f8fafc;
-  border-color: #cbd3dc;
-  box-shadow: 0 4px 12px rgba(0,0,0,.08);
-}
-
-.app-menu-button:active {
-  transform: scale(.96);
-}
-
-@media (max-width: 640px) {
-  .app-page-header {
-    padding-right: 58px;
-  }
-
-  .app-page-header > .app-menu-button {
-    top: 10px;
-    right: 0;
-  }
-
 }
 
 /* ==========================================================
@@ -2516,5 +2459,155 @@ a:hover {
 
   .event-reschedule-picker {
     grid-column: 1;
+  }
+}
+
+
+/* ==========================================================
+   SHARED SELLER TOP NAVIGATION
+   ========================================================== */
+.seller-topbar {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 20px;
+  margin: 0;
+}
+
+.seller-brand-button {
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+  min-height: 54px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  background: transparent;
+  color: var(--text, #202124);
+  text-align: left;
+  box-shadow: none;
+  border-radius: 12px;
+}
+
+.seller-brand-button:hover {
+  background: transparent;
+}
+
+.seller-brand-button:focus-visible {
+  outline: 3px solid rgba(32,138,239,.16);
+  outline-offset: 4px;
+}
+
+.seller-topbar-logo {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 11px;
+  background: var(--surface, #fff);
+}
+
+.seller-topbar-logo[hidden] {
+  display: none;
+}
+
+.seller-topbar-logo-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.seller-topbar-text {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.seller-topbar-text strong,
+.seller-topbar-text small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seller-topbar-text strong {
+  font-size: 20px;
+  line-height: 1.15;
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+
+.seller-topbar-text small {
+  color: var(--text-muted, #68727d);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.seller-topbar > .app-menu-button,
+.seller-topbar .app-menu-button {
+  position: static;
+  inset: auto;
+  top: auto;
+  right: auto;
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+  flex: 0 0 46px;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.seller-topbar .home-menu-glyph {
+  width: 20px;
+  height: 18px;
+}
+
+@media (max-width: 640px) {
+  .seller-topbar {
+    gap: 10px;
+    padding: 4px 0 16px;
+  }
+
+  .seller-topbar-logo {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+  }
+
+  .seller-topbar {
+    min-height: 50px;
+  }
+
+  .seller-topbar-text strong {
+    font-size: 18px;
+  }
+
+  .seller-topbar-text small {
+    font-size: 12px;
+  }
+
+  .seller-topbar > .app-menu-button,
+  .seller-topbar .app-menu-button {
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    flex-basis: 44px;
   }
 }

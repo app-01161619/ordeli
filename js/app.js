@@ -1076,6 +1076,9 @@ async function renderApplication() {
     }
 
 
+    updateSellerTopbars(seller);
+    try { await loadHomeLogo(seller.shop_logo_path); } catch (error) { console.warn("Seller header logo unavailable:", error); }
+
     if (
       !shopComplete(
         seller
@@ -1304,8 +1307,7 @@ async function renderApplication() {
 // ============================================================
 
 async function renderHome(seller) {
-  $("homeShopName").textContent = seller.shop_name || "My Shop";
-  $("homeShopAddress").textContent = seller.shop_address || "";
+  updateSellerTopbars(seller);
   $("homeDashboardSubtitle").textContent = "Loading your shop activity…";
   // Never let a logo/network failure prevent the dashboard from appearing.
   showScreen("home");
@@ -1993,70 +1995,29 @@ async function openEventOrders(event) {
 
 
 
-async function loadHomeLogo(
-  logoPath
-) {
-
-  $("homeLogoContainer")
-    .hidden =
-      true;
-
-
-  $("homeLogo")
-    .removeAttribute(
-      "src"
-    );
-
-
-  if (!logoPath || !navigator.onLine || runtimeOffline) {
-    return;
-  }
-
-
-  const {
-    data,
-    error
-  } =
-  await supabase
-    .storage
-    .from(
-      "shop-logos"
-    )
-    .createSignedUrl(
-      logoPath,
-      3600
-    );
-
-
-  if (error) {
-
-    console.warn(
-      "Unable to load shop logo:",
-      error
-    );
-
-    return;
-
-  }
-
-
-  if (
-    data?.signedUrl
-  ) {
-
-    $("homeLogo")
-      .src =
-        data.signedUrl;
-
-
-    $("homeLogoContainer")
-      .hidden =
-        false;
-
-  }
-
+function updateSellerTopbars(seller) {
+  const shopName = seller?.shop_name?.trim() || "My Shop";
+  const shopAddress = seller?.shop_address?.trim() || "";
+  document.querySelectorAll("[data-seller-shop-name]").forEach((el) => { el.textContent = shopName; });
+  document.querySelectorAll("[data-seller-shop-address]").forEach((el) => { el.textContent = shopAddress; });
+  document.querySelectorAll("[data-seller-logo-wrap]").forEach((el) => { el.hidden = !seller?.shop_logo_path; });
 }
 
+async function loadHomeLogo(logoPath) {
+  const wraps = [...document.querySelectorAll("[data-seller-logo-wrap]")];
+  const images = [...document.querySelectorAll("[data-seller-logo]")];
+  wraps.forEach((el) => { el.hidden = true; });
+  images.forEach((el) => { el.removeAttribute("src"); });
+  if (!logoPath || !navigator.onLine || runtimeOffline) return;
+  const { data, error } = await supabase.storage.from("shop-logos").createSignedUrl(logoPath, 3600);
+  if (error) { console.warn("Unable to load shop logo:", error); return; }
+  if (data?.signedUrl) {
+    images.forEach((img, index) => {
+      img.src = data.signedUrl;
+      if (wraps[index]) wraps[index].hidden = false;
+    });
+  }
+}
 
 
 // ============================================================
@@ -3439,20 +3400,14 @@ $("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
 $("eventsBackButton")?.addEventListener("click", () => navigate("home"));
 $("reviewsBackButton")?.addEventListener("click", () => navigate("home"));
 
-function setupGlobalMenuButtons() {
-  document.querySelectorAll(".app-page-header, .app-header").forEach((header) => {
-    if (header.querySelector(".app-menu-button")) return;
-    if (header.closest("#loginScreen, #registerScreen, #shopSetupScreen")) return;
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "home-menu-button app-menu-button";
-    button.setAttribute("aria-label", "Open menu");
-    button.setAttribute("aria-expanded", "false");
-    button.setAttribute("aria-controls", "homeMenu");
-    button.innerHTML = '<span class="home-menu-glyph" aria-hidden="true"><i></i><i></i><i></i></span>';
-    header.appendChild(button);
-  });
+function openHomeMenu() {
+  const menu = $("homeMenu");
+  const backdrop = $("homeMenuBackdrop");
+  if (!menu) return;
+  menu.hidden = false;
+  if (backdrop) backdrop.hidden = false;
+  document.querySelectorAll("[data-app-menu-trigger], .app-menu-button").forEach((button) => button.setAttribute("aria-expanded", "true"));
+  document.body.classList.add("home-menu-open");
 }
 
 function closeHomeMenu() {
@@ -3461,21 +3416,10 @@ function closeHomeMenu() {
   if (!menu) return;
   menu.hidden = true;
   if (backdrop) backdrop.hidden = true;
-  document.querySelectorAll(".app-menu-button").forEach((button) => button.setAttribute("aria-expanded", "false"));
+  document.querySelectorAll("[data-app-menu-trigger], .app-menu-button").forEach((button) => button.setAttribute("aria-expanded", "false"));
   document.body.classList.remove("home-menu-open");
 }
 
-function openHomeMenu() {
-  const menu = $("homeMenu");
-  const backdrop = $("homeMenuBackdrop");
-  if (!menu) return;
-  menu.hidden = false;
-  if (backdrop) backdrop.hidden = false;
-  document.querySelectorAll(".app-menu-button").forEach((button) => button.setAttribute("aria-expanded", "true"));
-  document.body.classList.add("home-menu-open");
-}
-
-setupGlobalMenuButtons();
 $("homeMenuCloseButton")?.addEventListener("click", closeHomeMenu);
 $("homeMenuBackdrop")?.addEventListener("click", closeHomeMenu);
 $("homeMenuLogoutButton")?.addEventListener("click", async () => { closeHomeMenu(); await logout(); });
@@ -3488,15 +3432,19 @@ document.querySelectorAll("[data-home-menu-route]").forEach(button => {
   });
 });
 document.addEventListener("click", (event) => {
-  const button = event.target.closest?.(".app-menu-button");
-  if (button) {
+  const menuTrigger = event.target.closest?.("[data-app-menu-trigger], .app-menu-button");
+  if (menuTrigger) {
     if ($("homeMenu")?.hidden) openHomeMenu();
     else closeHomeMenu();
+    return;
   }
+  const homeTrigger = event.target.closest?.("[data-seller-home]");
+  if (homeTrigger) { closeHomeMenu(); navigate("home"); }
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && $("homeMenu") && !$("homeMenu").hidden) closeHomeMenu();
 });
+
 
 $("newEventButton")?.addEventListener("click", () => { if ($("eventForm").hidden) openEventEditor(); else closeEventEditor(); });
 

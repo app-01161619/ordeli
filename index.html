@@ -1,870 +1,708 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#208aef">
-  <meta name="description" content="Ordeli seller application">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="./css/style.css">
-  <title>Ordeli</title>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="#208aef" name="theme-color"/>
+<meta content="Ordeli seller application" name="description"/>
+<link href="./manifest.webmanifest" rel="manifest"/>
+<link href="./icons/apple-touch-icon.png" rel="apple-touch-icon"/>
+<link href="./css/style.css" rel="stylesheet"/>
+<title>Ordeli</title>
 </head>
 <body>
-<div id="bootFallback" class="boot-fallback" aria-live="polite"><strong>Ordeli</strong><span>Restoring your shop…</span></div>
+<div aria-live="polite" class="boot-fallback" id="bootFallback"><strong>Ordeli</strong><span>Restoring your shop…</span></div>
 <main id="app">
-
-  <section id="loginScreen" class="screen" hidden>
-    <div class="auth-container"><div class="auth-card">
-      <div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
-      <h2>Log In</h2>
-      <p class="auth-subtitle">Continue to your seller account.</p>
-      <button id="googleLoginButton" class="google-button" type="button">
-        <span class="google-logo" aria-hidden="true">
-          <svg viewBox="0 0 18 18" role="presentation">
-            <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.795 2.717v2.258h2.908c1.702-1.567 2.683-3.875 2.683-6.616Z"/>
-            <path fill="#34A853" d="M9 18c2.43 0 4.467-.805 5.956-2.179l-2.908-2.258c-.805.54-1.835.859-3.048.859-2.344 0-4.33-1.583-5.04-3.711H.954v2.332A8.999 8.999 0 0 0 9 18Z"/>
-            <path fill="#FBBC05" d="M3.96 10.711A5.41 5.41 0 0 1 3.68 9c0-.594.102-1.171.28-1.711V4.957H.954A8.996 8.996 0 0 0 0 9c0 1.452.348 2.826.954 4.043l3.006-2.332Z"/>
-            <path fill="#EA4335" d="M9 3.578c1.321 0 2.507.454 3.439 1.345l2.581-2.581C13.463.891 11.426 0 9 0A8.999 8.999 0 0 0 .954 4.957L3.96 7.289C4.67 5.161 6.656 3.578 9 3.578Z"/>
-          </svg>
-        </span>
-        <span>Continue with Google</span>
-      </button>
-      <div class="divider"><span>or</span></div>
-      <form id="loginForm">
-        <div class="form-group">
-          <label for="loginEmail">Email</label>
-          <input id="loginEmail" type="email" autocomplete="email" required>
-        </div>
-        <div class="form-group">
-          <label for="loginPassword">Password</label>
-          <input id="loginPassword" type="password" autocomplete="current-password" required>
-        </div>
-        <button id="loginButton" type="submit">Log In</button>
-        <p id="loginMessage" class="form-message" role="alert"></p>
-      </form>
-      <p class="auth-link">Don't have an account? <a href="#register">Create one</a></p>
-    </div></div>
-  </section>
-
-  <section id="registerScreen" class="screen" hidden>
-    <div class="auth-container"><div class="auth-card">
-      <div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
-      <h2>Create Account</h2>
-      <p class="auth-subtitle">Choose how you want to sign up.</p>
-      <button id="googleRegisterButton" class="google-button" type="button">
-        <span class="google-logo" aria-hidden="true">
-          <svg viewBox="0 0 18 18" role="presentation">
-            <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.795 2.717v2.258h2.908c1.702-1.567 2.683-3.875 2.683-6.616Z"/>
-            <path fill="#34A853" d="M9 18c2.43 0 4.467-.805 5.956-2.179l-2.908-2.258c-.805.54-1.835.859-3.048.859-2.344 0-4.33-1.583-5.04-3.711H.954v2.332A8.999 8.999 0 0 0 9 18Z"/>
-            <path fill="#FBBC05" d="M3.96 10.711A5.41 5.41 0 0 1 3.68 9c0-.594.102-1.171.28-1.711V4.957H.954A8.996 8.996 0 0 0 0 9c0 1.452.348 2.826.954 4.043l3.006-2.332Z"/>
-            <path fill="#EA4335" d="M9 3.578c1.321 0 2.507.454 3.439 1.345l2.581-2.581C13.463.891 11.426 0 9 0A8.999 8.999 0 0 0 .954 4.957L3.96 7.289C4.67 5.161 6.656 3.578 9 3.578Z"/>
-          </svg>
-        </span>
-        <span>Sign up with Google</span>
-      </button>
-      <div class="divider"><span>or</span></div>
-      <form id="registerForm">
-        <div class="form-group">
-          <label for="registerEmail">Email</label>
-          <input id="registerEmail" type="email" autocomplete="email" required>
-        </div>
-        <div class="form-group">
-          <label for="registerPassword">Password</label>
-          <input id="registerPassword" type="password" minlength="8" autocomplete="new-password" required>
-        </div>
-        <div class="form-group">
-          <label for="registerConfirmPassword">Confirm Password</label>
-          <input id="registerConfirmPassword" type="password" minlength="8" autocomplete="new-password" required>
-        </div>
-        <button id="registerButton" type="submit">Create Account</button>
-        <p id="registerMessage" class="form-message" role="alert"></p>
-      </form>
-      <p class="auth-link">Already have an account? <a href="#login">Log In</a></p>
-    </div></div>
-  </section>
-
-  <section id="shopSetupScreen" class="screen" hidden>
-    <div class="auth-container"><div class="auth-card">
-      <div class="brand-block"><h1>Ordeli</h1><p>Shop setup</p></div>
-      <h2>Set Up Your Shop</h2>
-      <p class="auth-subtitle">Complete the information customers will see.</p>
-      <form id="shopSetupForm">
-        <div class="form-group">
-          <label for="shopName">Shop Name</label>
-          <input id="shopName" type="text" maxlength="150" required>
-        </div>
-        <div class="form-group">
-          <label for="shopAddress">Shop Address</label>
-          <textarea id="shopAddress" rows="4" maxlength="500" required></textarea>
-          <p class="field-help">Customers will see this address when they choose <strong>Pickup at Shop</strong>.</p>
-        </div>
-        <div class="form-group">
-          <label for="shopLogo">Shop Logo <span class="optional">Optional</span></label>
-          <div id="shopLogoUploader" class="shop-logo-uploader">
-            <input id="shopLogo" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-            <label for="shopLogo" class="shop-logo-dropzone">
-              <span class="shop-logo-placeholder">
-                <span class="shop-logo-placeholder-icon" aria-hidden="true">＋</span>
-                <span class="shop-logo-placeholder-title">Add shop logo</span>
-                <span class="shop-logo-placeholder-text">PNG, JPG or WebP · up to 5 MB</span>
-              </span>
-              <span id="shopLogoPreviewContainer" class="shop-logo-preview-state" hidden>
-                <img id="shopLogoPreview" class="logo-preview" alt="Shop logo preview">
-                <span class="shop-logo-change">Change photo</span>
-              </span>
-            </label>
-          </div>
-        </div>
-        <button id="saveShopButton" type="submit">Save &amp; Continue</button>
-        <p id="shopSetupMessage" class="form-message" role="alert"></p>
-      </form>
-      <button id="shopSetupLogoutButton" class="secondary-button" type="button">Log Out</button>
-    </div></div>
-  </section>
-
-  <section id="homeScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="app-header home-app-header">
-        <div class="shop-heading">
-          <div id="homeLogoContainer" class="home-logo-container" hidden>
-            <img id="homeLogo" class="home-logo" alt="Shop logo">
-          </div>
-          <div>
-            <h1 id="homeShopName">Shop</h1>
-            <p id="homeShopAddress"></p>
-          </div>
-        </div>
-        <div class="header-actions home-header-actions">
-          <button id="homeMenuButton" class="home-menu-button app-menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="homeMenu">
-            <span class="home-menu-glyph" aria-hidden="true"><i></i><i></i><i></i></span>
-          </button>
-        </div>
-      </header>
-
-      <section class="dashboard-hero">
-        <div>
-          <span class="eyebrow">SELLER DASHBOARD</span>
-          <h2>What needs your attention?</h2>
-          <p id="homeDashboardSubtitle">Your shop is ready. Your operational work will appear here.</p>
-        </div>
-      </section>
-
-      <section class="attention-grid" aria-label="Needs attention">
-        <button class="attention-card" data-dashboard-route="orders" data-dashboard-filter="production" type="button">
-          <span class="attention-icon">◷</span><span><strong id="attentionProduction">0</strong><small>Production tasks</small></span>
-        </button>
-        <button class="attention-card" data-dashboard-route="orders" data-dashboard-filter="payments" type="button">
-          <span class="attention-icon">₱</span><span><strong id="attentionPayments">0</strong><small>Payment reviews</small></span>
-        </button>
-        <button class="attention-card" data-dashboard-route="orders" data-dashboard-filter="ready" type="button">
-          <span class="attention-icon">✓</span><span><strong id="attentionReady">0</strong><small>Ready for pickup</small></span>
-        </button>
-        <button class="attention-card" data-dashboard-route="events" type="button">
-          <span class="attention-icon">⌁</span><span><strong id="attentionEvents">0</strong><small>Upcoming event orders</small></span>
-        </button>
-        <button class="attention-card" data-dashboard-route="updates" type="button">
-          <span class="attention-icon">✉</span><span><strong id="attentionUpdates">0</strong><small>SMS updates to send</small></span>
-        </button>
-      </section>
-
-      <section class="dashboard-panels">
-        <div class="dashboard-panel">
-          <div class="section-heading"><div><h2>Recent Orders</h2><p>Jump back into the latest customer work.</p></div><button id="homeViewOrdersButton" class="secondary-button" type="button">View all</button></div>
-          <div id="homeRecentOrders" class="dashboard-order-list"></div>
-        </div>
-      </section>
+<section class="screen" hidden="" id="loginScreen">
+<div class="auth-container"><div class="auth-card">
+<div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
+<h2>Log In</h2>
+<p class="auth-subtitle">Continue to your seller account.</p>
+<button class="google-button" id="googleLoginButton" type="button">
+<span aria-hidden="true" class="google-logo">
+<svg role="presentation" viewbox="0 0 18 18">
+<path d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.795 2.717v2.258h2.908c1.702-1.567 2.683-3.875 2.683-6.616Z" fill="#4285F4"></path>
+<path d="M9 18c2.43 0 4.467-.805 5.956-2.179l-2.908-2.258c-.805.54-1.835.859-3.048.859-2.344 0-4.33-1.583-5.04-3.711H.954v2.332A8.999 8.999 0 0 0 9 18Z" fill="#34A853"></path>
+<path d="M3.96 10.711A5.41 5.41 0 0 1 3.68 9c0-.594.102-1.171.28-1.711V4.957H.954A8.996 8.996 0 0 0 0 9c0 1.452.348 2.826.954 4.043l3.006-2.332Z" fill="#FBBC05"></path>
+<path d="M9 3.578c1.321 0 2.507.454 3.439 1.345l2.581-2.581C13.463.891 11.426 0 9 0A8.999 8.999 0 0 0 .954 4.957L3.96 7.289C4.67 5.161 6.656 3.578 9 3.578Z" fill="#EA4335"></path>
+</svg>
+</span>
+<span>Continue with Google</span>
+</button>
+<div class="divider"><span>or</span></div>
+<form id="loginForm">
+<div class="form-group">
+<label for="loginEmail">Email</label>
+<input autocomplete="email" id="loginEmail" required="" type="email"/>
+</div>
+<div class="form-group">
+<label for="loginPassword">Password</label>
+<input autocomplete="current-password" id="loginPassword" required="" type="password"/>
+</div>
+<button id="loginButton" type="submit">Log In</button>
+<p class="form-message" id="loginMessage" role="alert"></p>
+</form>
+<p class="auth-link">Don't have an account? <a href="#register">Create one</a></p>
+</div></div>
+</section>
+<section class="screen" hidden="" id="registerScreen">
+<div class="auth-container"><div class="auth-card">
+<div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
+<h2>Create Account</h2>
+<p class="auth-subtitle">Choose how you want to sign up.</p>
+<button class="google-button" id="googleRegisterButton" type="button">
+<span aria-hidden="true" class="google-logo">
+<svg role="presentation" viewbox="0 0 18 18">
+<path d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.482h4.844a4.14 4.14 0 0 1-1.795 2.717v2.258h2.908c1.702-1.567 2.683-3.875 2.683-6.616Z" fill="#4285F4"></path>
+<path d="M9 18c2.43 0 4.467-.805 5.956-2.179l-2.908-2.258c-.805.54-1.835.859-3.048.859-2.344 0-4.33-1.583-5.04-3.711H.954v2.332A8.999 8.999 0 0 0 9 18Z" fill="#34A853"></path>
+<path d="M3.96 10.711A5.41 5.41 0 0 1 3.68 9c0-.594.102-1.171.28-1.711V4.957H.954A8.996 8.996 0 0 0 0 9c0 1.452.348 2.826.954 4.043l3.006-2.332Z" fill="#FBBC05"></path>
+<path d="M9 3.578c1.321 0 2.507.454 3.439 1.345l2.581-2.581C13.463.891 11.426 0 9 0A8.999 8.999 0 0 0 .954 4.957L3.96 7.289C4.67 5.161 6.656 3.578 9 3.578Z" fill="#EA4335"></path>
+</svg>
+</span>
+<span>Sign up with Google</span>
+</button>
+<div class="divider"><span>or</span></div>
+<form id="registerForm">
+<div class="form-group">
+<label for="registerEmail">Email</label>
+<input autocomplete="email" id="registerEmail" required="" type="email"/>
+</div>
+<div class="form-group">
+<label for="registerPassword">Password</label>
+<input autocomplete="new-password" id="registerPassword" minlength="8" required="" type="password"/>
+</div>
+<div class="form-group">
+<label for="registerConfirmPassword">Confirm Password</label>
+<input autocomplete="new-password" id="registerConfirmPassword" minlength="8" required="" type="password"/>
+</div>
+<button id="registerButton" type="submit">Create Account</button>
+<p class="form-message" id="registerMessage" role="alert"></p>
+</form>
+<p class="auth-link">Already have an account? <a href="#login">Log In</a></p>
+</div></div>
+</section>
+<section class="screen" hidden="" id="shopSetupScreen">
+<div class="auth-container"><div class="auth-card">
+<div class="brand-block"><h1>Ordeli</h1><p>Shop setup</p></div>
+<h2>Set Up Your Shop</h2>
+<p class="auth-subtitle">Complete the information customers will see.</p>
+<form id="shopSetupForm">
+<div class="form-group">
+<label for="shopName">Shop Name</label>
+<input id="shopName" maxlength="150" required="" type="text"/>
+</div>
+<div class="form-group">
+<label for="shopAddress">Shop Address</label>
+<textarea id="shopAddress" maxlength="500" required="" rows="4"></textarea>
+<p class="field-help">Customers will see this address when they choose <strong>Pickup at Shop</strong>.</p>
+</div>
+<div class="form-group">
+<label for="shopLogo">Shop Logo <span class="optional">Optional</span></label>
+<div class="shop-logo-uploader" id="shopLogoUploader">
+<input accept="image/png,image/jpeg,image/webp" hidden="" id="shopLogo" type="file"/>
+<label class="shop-logo-dropzone" for="shopLogo">
+<span class="shop-logo-placeholder">
+<span aria-hidden="true" class="shop-logo-placeholder-icon">＋</span>
+<span class="shop-logo-placeholder-title">Add shop logo</span>
+<span class="shop-logo-placeholder-text">PNG, JPG or WebP · up to 5 MB</span>
+</span>
+<span class="shop-logo-preview-state" hidden="" id="shopLogoPreviewContainer">
+<img alt="Shop logo preview" class="logo-preview" id="shopLogoPreview"/>
+<span class="shop-logo-change">Change photo</span>
+</span>
+</label>
+</div>
+</div>
+<button id="saveShopButton" type="submit">Save &amp; Continue</button>
+<p class="form-message" id="shopSetupMessage" role="alert"></p>
+</form>
+<button class="secondary-button" id="shopSetupLogoutButton" type="button">Log Out</button>
+</div></div>
+</section>
+<section class="screen" hidden="" id="homeScreen">
+<div class="app-container">
+<header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<section class="dashboard-hero">
+<div>
+<span class="eyebrow">SELLER DASHBOARD</span>
+<h2>What needs your attention?</h2>
+<p id="homeDashboardSubtitle">Your shop is ready. Your operational work will appear here.</p>
+</div>
+</section>
+<section aria-label="Needs attention" class="attention-grid">
+<button class="attention-card" data-dashboard-filter="production" data-dashboard-route="orders" type="button">
+<span class="attention-icon">◷</span><span><strong id="attentionProduction">0</strong><small>Production tasks</small></span>
+</button>
+<button class="attention-card" data-dashboard-filter="payments" data-dashboard-route="orders" type="button">
+<span class="attention-icon">₱</span><span><strong id="attentionPayments">0</strong><small>Payment reviews</small></span>
+</button>
+<button class="attention-card" data-dashboard-filter="ready" data-dashboard-route="orders" type="button">
+<span class="attention-icon">✓</span><span><strong id="attentionReady">0</strong><small>Ready for pickup</small></span>
+</button>
+<button class="attention-card" data-dashboard-route="events" type="button">
+<span class="attention-icon">⌁</span><span><strong id="attentionEvents">0</strong><small>Upcoming event orders</small></span>
+</button>
+<button class="attention-card" data-dashboard-route="updates" type="button">
+<span class="attention-icon">✉</span><span><strong id="attentionUpdates">0</strong><small>SMS updates to send</small></span>
+</button>
+</section>
+<section class="dashboard-panels">
+<div class="dashboard-panel">
+<div class="section-heading"><div><h2>Recent Orders</h2><p>Jump back into the latest customer work.</p></div><button class="secondary-button" id="homeViewOrdersButton" type="button">View all</button></div>
+<div class="dashboard-order-list" id="homeRecentOrders"></div>
+</div>
+</section>
 
 
-      <button id="homeScanButton" class="scan-button home-fixed-scan-button" type="button">
-        <span class="scan-button-icon">▣</span>
-        <span>Scan QR</span>
-      </button>
-    </div>
-  </section>
-
-  
-
-      <aside id="homeMenu" class="home-menu" hidden aria-label="Seller menu">
-        <div class="home-menu-header">
-          <div>
-            <span class="home-menu-eyebrow">SELLER MENU</span>
-            <h2>More</h2>
-          </div>
-          <button id="homeMenuCloseButton" class="home-menu-close" type="button" aria-label="Close menu">×</button>
-        </div>
-        <nav class="home-menu-list" aria-label="More navigation">
-          <button class="home-menu-item" data-home-menu-route="products" type="button"><span class="home-menu-icon">◷</span><span><strong>Products</strong><small>Manage products and workflows</small></span></button>
-          <button class="home-menu-item" data-home-menu-route="qr" type="button"><span class="home-menu-icon">▣</span><span><strong>QR Management</strong><small>Generate, print, and manage QR codes</small></span></button>
-          <button class="home-menu-item" data-home-menu-route="reviews" type="button"><span class="home-menu-icon">✓</span><span><strong>Reviews</strong><small>Read customer feedback</small></span></button>
-          <button class="home-menu-item" data-home-menu-route="updates" type="button"><span class="home-menu-icon">✉</span><span><strong>Updates</strong><small>Customer messages waiting to send</small></span></button>
-          <button class="home-menu-item" data-home-menu-route="team" type="button"><span class="home-menu-icon">⌁</span><span><strong>Production Team</strong><small>Manage team members and permissions</small></span></button>
-          <button id="homeMenuShopProfileButton" class="home-menu-item" type="button"><span class="home-menu-icon">◷</span><span><strong>Shop Profile</strong><small>Update your shop information</small></span></button>
-          <button id="homeMenuLogoutButton" class="home-menu-item home-menu-item-danger" type="button"><span class="home-menu-icon">✉</span><span><strong>Log Out</strong><small>Sign out of this device</small></span></button>
-        </nav>
-      </aside>
-      <div id="homeMenuBackdrop" class="home-menu-backdrop" hidden></div>
-
-
-  <section id="scannerScreen" class="screen" hidden>
-    <div class="app-container scanner-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="scannerBackButton" class="back-button" type="button">← Back</button>
-          <h1>Scan Product QR</h1>
-          <p class="page-subtitle">Scan a product QR to create or open its order.</p>
-        </div>
-      </header>
-      <section class="scanner-card">
-        <div id="qrReader" class="qr-reader"></div>
-        <p id="scannerMessage" class="form-message" role="alert"></p>
-        <button id="scannerManualButton" class="secondary-button scanner-manual-button" type="button">
+<button class="scan-button home-fixed-scan-button" id="homeScanButton" type="button">
+<span class="scan-button-icon">▣</span>
+<span>Scan QR</span>
+</button>
+</div>
+</section>
+<section class="screen" hidden="" id="scannerScreen">
+<div class="app-container scanner-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="scannerBackButton" type="button">← Back</button>
+<h1>Scan Product QR</h1>
+<p class="page-subtitle">Scan a product QR to create or open its order.</p>
+</div>
+</header>
+<section class="scanner-card">
+<div class="qr-reader" id="qrReader"></div>
+<p class="form-message" id="scannerMessage" role="alert"></p>
+<button class="secondary-button scanner-manual-button" id="scannerManualButton" type="button">
           Enter QR URL manually
         </button>
-      </section>
-    </div>
-  </section>
-
-  <section id="orderCreateScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="orderCreateBackButton" class="back-button" type="button">← Back</button>
-          <h1>Create Order</h1>
-          <p class="page-subtitle">The scanned QR has already identified the product.</p>
-        </div>
-      </header>
-
-      <section class="order-card">
-        <div class="detected-product">
-          <div class="detected-label">SCANNED PRODUCT</div>
-          <h2 id="orderDetectedProduct">Product</h2>
-          <p id="orderDetectedPrice">₱0.00</p>
-        </div>
-
-        <form id="orderCreateForm">
-
-          <div class="customer-choice">
-            <label class="choice-row">
-              <input id="newCustomerChoice" type="radio" name="customerChoice" value="new" checked>
-              <span>New customer</span>
-            </label>
-            <label class="choice-row">
-              <input id="existingCustomerChoice" type="radio" name="customerChoice" value="existing">
-              <span>Existing customer</span>
-            </label>
-          </div>
-
-          <div id="newCustomerFields">
-            <div class="form-group">
-              <label for="orderCustomerName">Customer Name</label>
-              <input id="orderCustomerName" type="text" maxlength="150" required>
-            </div>
-
-            <div class="form-group">
-              <label for="orderCustomerPhone">
+</section>
+</div>
+</section>
+<section class="screen" hidden="" id="orderCreateScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="orderCreateBackButton" type="button">← Back</button>
+<h1>Create Order</h1>
+<p class="page-subtitle">The scanned QR has already identified the product.</p>
+</div>
+</header>
+<section class="order-card">
+<div class="detected-product">
+<div class="detected-label">SCANNED PRODUCT</div>
+<h2 id="orderDetectedProduct">Product</h2>
+<p id="orderDetectedPrice">₱0.00</p>
+</div>
+<form id="orderCreateForm">
+<div class="customer-choice">
+<label class="choice-row">
+<input checked="" id="newCustomerChoice" name="customerChoice" type="radio" value="new"/>
+<span>New customer</span>
+</label>
+<label class="choice-row">
+<input id="existingCustomerChoice" name="customerChoice" type="radio" value="existing"/>
+<span>Existing customer</span>
+</label>
+</div>
+<div id="newCustomerFields">
+<div class="form-group">
+<label for="orderCustomerName">Customer Name</label>
+<input id="orderCustomerName" maxlength="150" required="" type="text"/>
+</div>
+<div class="form-group">
+<label for="orderCustomerPhone">
                 Phone Number
                 <span class="optional">Optional</span>
-              </label>
-              <input id="orderCustomerPhone" type="tel" maxlength="40" autocomplete="tel">
-            </div>
-          </div>
-
-          <div id="existingCustomerFields" hidden>
-            <div class="form-group">
-              <label for="existingCustomerSelect">Active Customer</label>
-              <select id="existingCustomerSelect" class="form-select"></select>
-              <p class="field-help">
+</label>
+<input autocomplete="tel" id="orderCustomerPhone" maxlength="40" type="tel"/>
+</div>
+</div>
+<div hidden="" id="existingCustomerFields">
+<div class="form-group">
+<label for="existingCustomerSelect">Active Customer</label>
+<select class="form-select" id="existingCustomerSelect"></select>
+<p class="field-help">
                 Choose a customer from your shop when starting a new transaction.
               </p>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="orderQuantity">Quantity</label>
-            <input id="orderQuantity" type="number" min="1" step="1" value="1" inputmode="numeric" required>
-          </div>
-
-          <div class="form-group">
-            <label for="orderDownpayment">
+</div>
+</div>
+<div class="form-group">
+<label for="orderQuantity">Quantity</label>
+<input id="orderQuantity" inputmode="numeric" min="1" required="" step="1" type="number" value="1"/>
+</div>
+<div class="form-group">
+<label for="orderDownpayment">
               Downpayment
               <span class="optional">Optional — can be ₱0</span>
-            </label>
-            <div class="price-input">
-              <span>₱</span>
-              <input id="orderDownpayment" type="number" min="0" step="0.01" value="0" inputmode="decimal">
-            </div>
-          </div>
-
-          <div class="order-total-box">
-            <div>
-              <span>Total</span>
-              <strong id="orderCreateTotal">₱0.00</strong>
-            </div>
-            <div>
-              <span>Remaining Balance</span>
-              <strong id="orderCreateBalance">₱0.00</strong>
-            </div>
-          </div>
-
-          <div class="order-form-actions">
-            <button id="orderCancelButton" class="secondary-button" type="button">Cancel</button>
-            <button id="orderSaveButton" type="submit">Save Order</button>
-          </div>
-
-          <p id="orderCreateMessage" class="form-message" role="alert"></p>
-        </form>
-      </section>
-    </div>
-  </section>
-
-  <section id="orderDetailScreen" class="screen" hidden>
-    <div class="app-container">
-
-      <header class="page-header app-page-header">
-        <div>
-          <button id="orderDetailBackButton" class="back-button" type="button">← Back</button>
-          <h1 id="orderDetailTitle">Order</h1>
-          <p id="orderDetailCustomer" class="page-subtitle"></p>
-        </div>
-      </header>
-
-      <section class="order-detail-card">
-        <div class="order-detail-heading">
-          <div>
-            <span class="detail-label">ORDER</span>
-            <strong id="orderDetailNumber">#—</strong>
-          </div>
-          <div>
-            <span class="detail-label">Customer</span>
-            <strong id="orderDetailCustomerName">—</strong>
-          </div>
-        </div>
-
-        <div id="orderDetailItems" class="order-detail-items"></div>
-
-        <div class="order-total-box">
-          <div><span>Total</span><strong id="orderDetailTotal">₱0.00</strong></div>
-          <div><span>Paid</span><strong id="orderDetailPaid">₱0.00</strong></div>
-          <div><span>Remaining Balance</span><strong id="orderDetailBalance">₱0.00</strong></div>
-        </div>
-
-        <section class="payment-section">
-
-          <div class="payment-section-heading">
-            <div>
-              <h2>Payments</h2>
-              <p>Record payments and track the remaining balance.</p>
-            </div>
-
-            <button
-              id="addPaymentButton"
-              type="button"
-            >
+</label>
+<div class="price-input">
+<span>₱</span>
+<input id="orderDownpayment" inputmode="decimal" min="0" step="0.01" type="number" value="0"/>
+</div>
+</div>
+<div class="order-total-box">
+<div>
+<span>Total</span>
+<strong id="orderCreateTotal">₱0.00</strong>
+</div>
+<div>
+<span>Remaining Balance</span>
+<strong id="orderCreateBalance">₱0.00</strong>
+</div>
+</div>
+<div class="order-form-actions">
+<button class="secondary-button" id="orderCancelButton" type="button">Cancel</button>
+<button id="orderSaveButton" type="submit">Save Order</button>
+</div>
+<p class="form-message" id="orderCreateMessage" role="alert"></p>
+</form>
+</section>
+</div>
+</section>
+<section class="screen" hidden="" id="orderDetailScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="orderDetailBackButton" type="button">← Back</button>
+<h1 id="orderDetailTitle">Order</h1>
+<p class="page-subtitle" id="orderDetailCustomer"></p>
+</div>
+</header>
+<section class="order-detail-card">
+<div class="order-detail-heading">
+<div>
+<span class="detail-label">ORDER</span>
+<strong id="orderDetailNumber">#—</strong>
+</div>
+<div>
+<span class="detail-label">Customer</span>
+<strong id="orderDetailCustomerName">—</strong>
+</div>
+</div>
+<div class="order-detail-items" id="orderDetailItems"></div>
+<div class="order-total-box">
+<div><span>Total</span><strong id="orderDetailTotal">₱0.00</strong></div>
+<div><span>Paid</span><strong id="orderDetailPaid">₱0.00</strong></div>
+<div><span>Remaining Balance</span><strong id="orderDetailBalance">₱0.00</strong></div>
+</div>
+<section class="payment-section">
+<div class="payment-section-heading">
+<div>
+<h2>Payments</h2>
+<p>Record payments and track the remaining balance.</p>
+</div>
+<button id="addPaymentButton" type="button">
               Add Payment
             </button>
-          </div>
-
-          <div
-            id="paymentList"
-            class="payment-list"
-          ></div>
-
-          <section
-            id="paymentEditor"
-            class="payment-editor"
-            hidden
-          >
-            <div class="payment-editor-inner">
-
-              <h3>Record Payment</h3>
-
-              <div class="form-group">
-                <label for="paymentAmount">
+</div>
+<div class="payment-list" id="paymentList"></div>
+<section class="payment-editor" hidden="" id="paymentEditor">
+<div class="payment-editor-inner">
+<h3>Record Payment</h3>
+<div class="form-group">
+<label for="paymentAmount">
                   Amount
                 </label>
-
-                <div class="price-input">
-                  <span>₱</span>
-                  <input
-                    id="paymentAmount"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    inputmode="decimal"
-                  >
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="paymentType">
+<div class="price-input">
+<span>₱</span>
+<input id="paymentAmount" inputmode="decimal" min="0.01" step="0.01" type="number"/>
+</div>
+</div>
+<div class="form-group">
+<label for="paymentType">
                   Payment Type
                 </label>
-
-                <select
-                  id="paymentType"
-                  class="form-select"
-                >
-                  <option value="additional">Additional Payment</option>
-                  <option value="final">Final Payment</option>
-                  <option value="cash">Cash</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div class="editor-actions">
-                <button
-                  id="cancelPaymentButton"
-                  class="secondary-button"
-                  type="button"
-                >
+<select class="form-select" id="paymentType">
+<option value="additional">Additional Payment</option>
+<option value="final">Final Payment</option>
+<option value="cash">Cash</option>
+<option value="other">Other</option>
+</select>
+</div>
+<div class="editor-actions">
+<button class="secondary-button" id="cancelPaymentButton" type="button">
                   Cancel
                 </button>
-
-                <button
-                  id="savePaymentButton"
-                  type="button"
-                >
+<button id="savePaymentButton" type="button">
                   Record Payment
                 </button>
-              </div>
-
-              <p
-                id="paymentMessage"
-                class="form-message"
-                role="alert"
-              ></p>
-
-            </div>
-          </section>
-
-        </section>
-
-        <section id="orderDetailFulfillmentSummary" class="order-fulfillment-summary" hidden>
-          <div class="section-heading">
-            <div>
-              <h2>Fulfillment</h2>
-              <p id="orderDetailFulfillmentText">—</p>
-            </div>
-            <span id="orderDetailPickupStatus" class="fulfillment-status-badge">—</span>
-          </div>
-          <div id="orderDetailEventInfo" class="order-event-info" hidden></div>
-          <div class="order-detail-fulfillment-actions">
-            <button id="orderDetailHandoverButton" type="button" hidden>Hand Over Order</button>
-            <button id="orderDetailUnclaimedButton" class="secondary-button" type="button" hidden>Mark Unclaimed</button>
-          </div>
-        </section>
-
-        <div class="order-detail-actions"><button id="orderDetailAddItemButton" type="button">Add Another Item</button><button id="orderDetailNewTransactionButton" class="secondary-button" type="button">New Transaction</button></div>
-
-        <p id="orderDetailMessage" class="form-message" role="alert"></p>
-      </section>
-    </div>
-  </section>
-  <section id="ordersScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="ordersBackButton" class="back-button" type="button">← Back</button>
-          <h1>Orders</h1>
-          <p class="page-subtitle">Your customer orders, organized around the work that needs action.</p>
-        </div>
-        <button id="ordersScanButton" type="button">Scan QR</button>
-      </header>
-
-      <section class="orders-toolbar">
-        <div class="orders-filter-tabs" role="tablist" aria-label="Order filters">
-          <button class="orders-filter is-active" data-orders-filter="all" type="button">All</button>
-          <button class="orders-filter" data-orders-filter="production" type="button">Production</button>
-          <button class="orders-filter" data-orders-filter="payments" type="button">Payments</button>
-          <button class="orders-filter" data-orders-filter="ready" type="button">Ready</button>
-          <button class="orders-filter" data-orders-filter="completed" type="button">Completed</button>
-          <button class="orders-filter" data-orders-filter="cancelled" type="button">Cancelled</button>
-        </div>
-        <input id="ordersSearch" class="orders-search" type="search" placeholder="Search customer or order #" autocomplete="off">
-      </section>
-
-      <section id="ordersSummary" class="orders-summary"></section>
-      <section id="ordersList" class="orders-list"></section>
-      <section id="ordersEmptyState" class="empty-state" hidden>
-        <h2>No matching orders</h2>
-        <p>Try another filter or search term.</p>
-      </section>
-      <p id="ordersMessage" class="form-message" role="alert"></p>
-    </div>
-  </section>
-
-  <section id="eventsScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="eventsBackButton" class="back-button" type="button">← Back</button>
-          <h1>Events</h1>
-          <p class="page-subtitle">Pickup locations and the orders customers are bringing together.</p>
-        </div>
-      </header>
-      <section class="event-create-card">
-        <div class="section-heading">
-          <div><h2>Create Pickup Event</h2><p>Set the pickup place and schedule customers can choose.</p></div>
-          <button id="newEventButton" class="secondary-button" type="button">New Event</button>
-        </div>
-        <form id="eventForm" hidden>
-          <div class="form-grid">
-            <div class="form-group"><label for="eventName">Event Name</label><input id="eventName" type="text" maxlength="150" required></div>
-            <div class="form-group"><label for="eventLocation">Location</label><input id="eventLocation" type="text" maxlength="250" required></div>
-            <div class="form-group"><label for="eventDate">Date</label><input id="eventDate" type="date" required></div>
-            <div class="form-group"><label for="eventStartTime">Start Time</label><input id="eventStartTime" type="time"></div>
-            <div class="form-group"><label for="eventEndTime">End Time</label><input id="eventEndTime" type="time"></div>
-          </div>
-          <div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" rows="3" maxlength="1000"></textarea></div>
-          <div id="eventChangeReasonGroup" class="form-group" hidden><label for="eventChangeReason">Change Reason</label><input id="eventChangeReason" type="text" maxlength="300" placeholder="Optional reason for changing an existing event"></div>
-          <div class="editor-actions"><button id="cancelEventButton" class="secondary-button" type="button">Cancel</button><button id="saveEventButton" type="submit">Save Event</button></div>
-          <p id="eventEditorMessage" class="form-message" role="alert"></p>
-        </form>
-      </section>
-      <section id="eventsList" class="event-list"></section>
-      <section id="eventsEmptyState" class="empty-state" hidden>
-        <h2>No Upcoming Events</h2>
-        <p>Create a pickup event when customers need a location.</p>
-      </section>
-      <p id="eventsMessage" class="form-message" role="alert"></p>
-    </div>
-  </section>
-
-  <section id="updatesScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="updatesBackButton" class="back-button" type="button">← Back</button>
-          <h1>Updates</h1>
-          <p class="page-subtitle">Customer updates waiting for you to send from your phone.</p>
-        </div>
-        <button id="updatesRefreshButton" class="secondary-button" type="button">Refresh</button>
-      </header>
-      <section class="updates-summary-card">
-        <div>
-          <span class="eyebrow">SELLER ACTION</span>
-          <strong id="updatesCount">0 updates</strong>
-          <p>Ordeli prepares the message. You decide whether to send it.</p>
-        </div>
-      </section>
-      <section id="updatesList" class="sms-draft-list"></section>
-      <section id="updatesEmptyState" class="empty-state" hidden>
-        <h2>No Updates Waiting</h2>
-        <p>New customer updates will appear here when an order needs a message.</p>
-      </section>
-      <p id="updatesMessage" class="form-message" role="alert"></p>
-    </div>
-  </section>
-
-  <section id="reviewsScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="reviewsBackButton" class="back-button" type="button">← Back</button>
-          <h1>Reviews</h1>
-          <p class="page-subtitle">Private customer feedback for your orders.</p>
-        </div>
-      </header>
-      <section class="review-summary-card">
-        <div>
-          <span class="eyebrow">CUSTOMER FEEDBACK</span>
-          <strong id="reviewsAverage">—</strong>
-          <span id="reviewsCount">0 reviews</span>
-        </div>
-      </section>
-      <section id="reviewsList" class="reviews-list"></section>
-      <section id="reviewsEmptyState" class="empty-state" hidden>
-        <h2>No Reviews Yet</h2>
-        <p>Customer reviews will appear here after a completed pickup or courier order.</p>
-      </section>
-      <p id="reviewsMessage" class="form-message" role="alert"></p>
-    </div>
-  </section>
-
-  <section id="productionScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <h1>Production Work</h1>
-          <p id="productionMemberSubtitle" class="page-subtitle">Complete the next available production stage.</p>
-        </div>
-        <button id="productionLogoutButton" class="secondary-button" type="button">Log Out</button>
-      </header>
-      <section class="production-work-toolbar">
-        <div><strong id="productionWorkCount">0</strong><span>available tasks</span></div>
-        <div class="production-toolbar-actions">
-          <button id="productionScanButton" class="secondary-button" type="button">Scan QR</button>
-          <button id="productionRefreshButton" class="secondary-button" type="button">Refresh</button>
-        </div>
-      </section>
-      <section id="productionScannerPanel" class="production-scanner-panel" hidden>
-        <div class="production-scanner-head">
-          <div><strong>Scan a product QR</strong><span>Scan either the seller or customer copy.</span></div>
-          <button id="productionScannerCloseButton" class="secondary-button" type="button">Close</button>
-        </div>
-        <div id="productionQrReader" class="qr-reader"></div>
-        <button id="productionManualQrButton" class="text-button" type="button">Enter QR link manually</button>
-        <p id="productionScannerMessage" class="form-message" role="alert"></p>
-      </section>
-      <section id="productionScannedItem" class="production-scanned-item" hidden></section>
-      <section id="productionWorkList" class="production-work-list"></section>
-      <section id="productionEmptyState" class="empty-state" hidden>
-        <h2>No production tasks</h2>
-        <p>There is nothing ready for you to complete right now.</p>
-      </section>
-      <p id="productionMessage" class="form-message" role="alert"></p>
-    </div>
-  </section>
-
-  <section id="teamScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="teamBackButton" class="back-button" type="button">← Back</button>
-          <h1>Production Team</h1>
-          <p class="page-subtitle">Invite optional production members and control what they can do.</p>
-        </div>
-      </header>
-      <section class="team-create-card">
-        <div class="section-heading"><div><h2>Invite Team Member</h2><p>They can sign up with this email and will be linked to your shop automatically.</p></div></div>
-        <form id="teamMemberForm">
-          <div class="form-grid">
-            <div class="form-group"><label for="teamMemberName">Name</label><input id="teamMemberName" type="text" maxlength="150" required></div>
-            <div class="form-group"><label for="teamMemberEmail">Email</label><input id="teamMemberEmail" type="email" maxlength="255" required></div>
-            <div class="form-group"><label for="teamMemberSection">Section <span class="optional">Optional</span></label><input id="teamMemberSection" type="text" maxlength="100" placeholder="e.g. Printing"></div>
-          </div>
-          <div class="team-permissions-grid">
-            <label class="choice-row"><input id="teamCanView" type="checkbox" checked><span>View production work</span></label>
-            <label class="choice-row"><input id="teamCanScan" type="checkbox" checked><span>Scan QR codes</span></label>
-            <label class="choice-row"><input id="teamCanFinish" type="checkbox" checked><span>Finish production stages</span></label>
-            <label class="choice-row"><input id="teamCanProof" type="checkbox" checked><span>Upload proof photos</span></label>
-          </div>
-          <button id="inviteTeamMemberButton" type="submit">Create Invitation</button>
-          <p id="teamMemberMessage" class="form-message" role="alert"></p>
-        </form>
-      </section>
-      <section class="team-list-panel">
-        <div class="section-heading"><div><h2>Your Team</h2><p>Members remain optional; you can run the shop alone.</p></div></div>
-        <div id="teamList" class="team-list"></div>
-        <section id="teamEmptyState" class="empty-state" hidden><h2>No team members yet</h2><p>Create an invitation when you want someone else to help with production.</p></section>
-      </section>
-    </div>
-  </section>
-
-  <section id="productsScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header">
-        <div>
-          <button id="productsBackButton" class="back-button" type="button">← Back</button>
-          <h1>Products</h1>
-          <p class="page-subtitle">Manage products and their production workflows.</p>
-        </div>
-        <button id="addProductButton" type="button">Add Product</button>
-      </header>
-
-      <section id="productList" class="product-list"></section>
-
-      <section id="emptyProductsState" class="empty-state" hidden>
-        <h2>No Products Yet</h2>
-        <p>Add your first product to get started.</p>
-        <button id="emptyAddProductButton" type="button">Add Product</button>
-      </section>
-
-      <section id="productEditor" class="product-editor" hidden>
-        <div class="editor-card">
-          <h2 id="productEditorTitle">Add Product</h2>
-
-          <form id="productForm">
-            <div class="form-group">
-              <label for="productName">Product Name</label>
-              <input id="productName" type="text" maxlength="150" required>
-            </div>
-
-            <div class="form-group">
-              <label for="productPrice">Default Price</label>
-              <div class="price-input">
-                <span>₱</span>
-                <input id="productPrice" type="number" min="0" step="0.01" inputmode="decimal" required>
-              </div>
-            </div>
-
-            <div class="product-cancellation-settings">
-              <div class="setting-row">
-                <div class="setting-copy">
-                  <label for="productCancellationEnabled">Customer Cancellation</label>
-                  <p class="form-help">Allow customers to cancel this product while it is still before a selected production stage.</p>
-                </div>
-                <label class="switch-control" aria-label="Allow customer cancellation">
-                  <input id="productCancellationEnabled" type="checkbox">
-                  <span class="switch-track" aria-hidden="true"></span>
-                </label>
-              </div>
-              <div id="productCancellationStageGroup" class="form-group product-cancellation-stage-group" hidden>
-                <label for="productCancellationCutoff">Cancellation available until</label>
-                <select id="productCancellationCutoff" class="form-select"></select>
-                <small class="form-help">Customers can cancel until this stage has been finished.</small>
-              </div>
-            </div>
-
-            <div class="editor-actions">
-              <button id="cancelProductButton" class="secondary-button" type="button">Cancel</button>
-              <button id="saveProductButton" type="submit">Save Product</button>
-            </div>
-
-            <p id="productMessage" class="form-message" role="alert"></p>
-          </form>
-        </div>
-      </section>
-
-      <button id="productsLogoutButton" class="secondary-button products-logout-button" type="button">Log Out</button>
-    </div>
-  </section>
-
-  <section id="workflowScreen" class="screen" hidden>
-    <div class="app-container">
-
-      <header class="page-header app-page-header">
-        <div>
-          <button id="workflowBackButton" class="back-button" type="button">← Back to Products</button>
-          <h1>Production Workflow</h1>
-          <p class="page-subtitle">
-            <span id="workflowProductName"></span>
-          </p>
-        </div>
-
-        <button id="addStageButton" type="button">Add Stage</button>
-      </header>
-
-      <section class="workflow-card">
-
-        <div class="workflow-help">
-          <h2>Stages</h2>
-          <p>
+</div>
+<p class="form-message" id="paymentMessage" role="alert"></p>
+</div>
+</section>
+</section>
+<section class="order-fulfillment-summary" hidden="" id="orderDetailFulfillmentSummary">
+<div class="section-heading">
+<div>
+<h2>Fulfillment</h2>
+<p id="orderDetailFulfillmentText">—</p>
+</div>
+<span class="fulfillment-status-badge" id="orderDetailPickupStatus">—</span>
+</div>
+<div class="order-event-info" hidden="" id="orderDetailEventInfo"></div>
+<div class="order-detail-fulfillment-actions">
+<button hidden="" id="orderDetailHandoverButton" type="button">Hand Over Order</button>
+<button class="secondary-button" hidden="" id="orderDetailUnclaimedButton" type="button">Mark Unclaimed</button>
+</div>
+</section>
+<div class="order-detail-actions"><button id="orderDetailAddItemButton" type="button">Add Another Item</button><button class="secondary-button" id="orderDetailNewTransactionButton" type="button">New Transaction</button></div>
+<p class="form-message" id="orderDetailMessage" role="alert"></p>
+</section>
+</div>
+</section>
+<section class="screen" hidden="" id="ordersScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="ordersBackButton" type="button">← Back</button>
+<h1>Orders</h1>
+<p class="page-subtitle">Your customer orders, organized around the work that needs action.</p>
+</div>
+<button id="ordersScanButton" type="button">Scan QR</button>
+</header>
+<section class="orders-toolbar">
+<div aria-label="Order filters" class="orders-filter-tabs" role="tablist">
+<button class="orders-filter is-active" data-orders-filter="all" type="button">All</button>
+<button class="orders-filter" data-orders-filter="production" type="button">Production</button>
+<button class="orders-filter" data-orders-filter="payments" type="button">Payments</button>
+<button class="orders-filter" data-orders-filter="ready" type="button">Ready</button>
+<button class="orders-filter" data-orders-filter="completed" type="button">Completed</button>
+<button class="orders-filter" data-orders-filter="cancelled" type="button">Cancelled</button>
+</div>
+<input autocomplete="off" class="orders-search" id="ordersSearch" placeholder="Search customer or order #" type="search"/>
+</section>
+<section class="orders-summary" id="ordersSummary"></section>
+<section class="orders-list" id="ordersList"></section>
+<section class="empty-state" hidden="" id="ordersEmptyState">
+<h2>No matching orders</h2>
+<p>Try another filter or search term.</p>
+</section>
+<p class="form-message" id="ordersMessage" role="alert"></p>
+</div>
+</section>
+<section class="screen" hidden="" id="eventsScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="eventsBackButton" type="button">← Back</button>
+<h1>Events</h1>
+<p class="page-subtitle">Pickup locations and the orders customers are bringing together.</p>
+</div>
+</header>
+<section class="event-create-card">
+<div class="section-heading">
+<div><h2>Create Pickup Event</h2><p>Set the pickup place and schedule customers can choose.</p></div>
+<button class="secondary-button" id="newEventButton" type="button">New Event</button>
+</div>
+<form hidden="" id="eventForm">
+<div class="form-grid">
+<div class="form-group"><label for="eventName">Event Name</label><input id="eventName" maxlength="150" required="" type="text"/></div>
+<div class="form-group"><label for="eventLocation">Location</label><input id="eventLocation" maxlength="250" required="" type="text"/></div>
+<div class="form-group"><label for="eventDate">Date</label><input id="eventDate" required="" type="date"/></div>
+<div class="form-group"><label for="eventStartTime">Start Time</label><input id="eventStartTime" type="time"/></div>
+<div class="form-group"><label for="eventEndTime">End Time</label><input id="eventEndTime" type="time"/></div>
+</div>
+<div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" maxlength="1000" rows="3"></textarea></div>
+<div class="form-group" hidden="" id="eventChangeReasonGroup"><label for="eventChangeReason">Change Reason</label><input id="eventChangeReason" maxlength="300" placeholder="Optional reason for changing an existing event" type="text"/></div>
+<div class="editor-actions"><button class="secondary-button" id="cancelEventButton" type="button">Cancel</button><button id="saveEventButton" type="submit">Save Event</button></div>
+<p class="form-message" id="eventEditorMessage" role="alert"></p>
+</form>
+</section>
+<section class="event-list" id="eventsList"></section>
+<section class="empty-state" hidden="" id="eventsEmptyState">
+<h2>No Upcoming Events</h2>
+<p>Create a pickup event when customers need a location.</p>
+</section>
+<p class="form-message" id="eventsMessage" role="alert"></p>
+</div>
+</section>
+<section class="screen" hidden="" id="updatesScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="updatesBackButton" type="button">← Back</button>
+<h1>Updates</h1>
+<p class="page-subtitle">Customer updates waiting for you to send from your phone.</p>
+</div>
+<button class="secondary-button" id="updatesRefreshButton" type="button">Refresh</button>
+</header>
+<section class="updates-summary-card">
+<div>
+<span class="eyebrow">SELLER ACTION</span>
+<strong id="updatesCount">0 updates</strong>
+<p>Ordeli prepares the message. You decide whether to send it.</p>
+</div>
+</section>
+<section class="sms-draft-list" id="updatesList"></section>
+<section class="empty-state" hidden="" id="updatesEmptyState">
+<h2>No Updates Waiting</h2>
+<p>New customer updates will appear here when an order needs a message.</p>
+</section>
+<p class="form-message" id="updatesMessage" role="alert"></p>
+</div>
+</section>
+<section class="screen" hidden="" id="reviewsScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="reviewsBackButton" type="button">← Back</button>
+<h1>Reviews</h1>
+<p class="page-subtitle">Private customer feedback for your orders.</p>
+</div>
+</header>
+<section class="review-summary-card">
+<div>
+<span class="eyebrow">CUSTOMER FEEDBACK</span>
+<strong id="reviewsAverage">—</strong>
+<span id="reviewsCount">0 reviews</span>
+</div>
+</section>
+<section class="reviews-list" id="reviewsList"></section>
+<section class="empty-state" hidden="" id="reviewsEmptyState">
+<h2>No Reviews Yet</h2>
+<p>Customer reviews will appear here after a completed pickup or courier order.</p>
+</section>
+<p class="form-message" id="reviewsMessage" role="alert"></p>
+</div>
+</section>
+<section class="screen" hidden="" id="productionScreen">
+<div class="app-container">
+<header class="page-header">
+<div>
+<h1>Production Work</h1>
+<p class="page-subtitle" id="productionMemberSubtitle">Complete the next available production stage.</p>
+</div>
+<button class="secondary-button" id="productionLogoutButton" type="button">Log Out</button>
+</header>
+<section class="production-work-toolbar">
+<div><strong id="productionWorkCount">0</strong><span>available tasks</span></div>
+<div class="production-toolbar-actions">
+<button class="secondary-button" id="productionScanButton" type="button">Scan QR</button>
+<button class="secondary-button" id="productionRefreshButton" type="button">Refresh</button>
+</div>
+</section>
+<section class="production-scanner-panel" hidden="" id="productionScannerPanel">
+<div class="production-scanner-head">
+<div><strong>Scan a product QR</strong><span>Scan either the seller or customer copy.</span></div>
+<button class="secondary-button" id="productionScannerCloseButton" type="button">Close</button>
+</div>
+<div class="qr-reader" id="productionQrReader"></div>
+<button class="text-button" id="productionManualQrButton" type="button">Enter QR link manually</button>
+<p class="form-message" id="productionScannerMessage" role="alert"></p>
+</section>
+<section class="production-scanned-item" hidden="" id="productionScannedItem"></section>
+<section class="production-work-list" id="productionWorkList"></section>
+<section class="empty-state" hidden="" id="productionEmptyState">
+<h2>No production tasks</h2>
+<p>There is nothing ready for you to complete right now.</p>
+</section>
+<p class="form-message" id="productionMessage" role="alert"></p>
+</div>
+</section>
+<section class="screen" hidden="" id="teamScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="teamBackButton" type="button">← Back</button>
+<h1>Production Team</h1>
+<p class="page-subtitle">Invite optional production members and control what they can do.</p>
+</div>
+</header>
+<section class="team-create-card">
+<div class="section-heading"><div><h2>Invite Team Member</h2><p>They can sign up with this email and will be linked to your shop automatically.</p></div></div>
+<form id="teamMemberForm">
+<div class="form-grid">
+<div class="form-group"><label for="teamMemberName">Name</label><input id="teamMemberName" maxlength="150" required="" type="text"/></div>
+<div class="form-group"><label for="teamMemberEmail">Email</label><input id="teamMemberEmail" maxlength="255" required="" type="email"/></div>
+<div class="form-group"><label for="teamMemberSection">Section <span class="optional">Optional</span></label><input id="teamMemberSection" maxlength="100" placeholder="e.g. Printing" type="text"/></div>
+</div>
+<div class="team-permissions-grid">
+<label class="choice-row"><input checked="" id="teamCanView" type="checkbox"/><span>View production work</span></label>
+<label class="choice-row"><input checked="" id="teamCanScan" type="checkbox"/><span>Scan QR codes</span></label>
+<label class="choice-row"><input checked="" id="teamCanFinish" type="checkbox"/><span>Finish production stages</span></label>
+<label class="choice-row"><input checked="" id="teamCanProof" type="checkbox"/><span>Upload proof photos</span></label>
+</div>
+<button id="inviteTeamMemberButton" type="submit">Create Invitation</button>
+<p class="form-message" id="teamMemberMessage" role="alert"></p>
+</form>
+</section>
+<section class="team-list-panel">
+<div class="section-heading"><div><h2>Your Team</h2><p>Members remain optional; you can run the shop alone.</p></div></div>
+<div class="team-list" id="teamList"></div>
+<section class="empty-state" hidden="" id="teamEmptyState"><h2>No team members yet</h2><p>Create an invitation when you want someone else to help with production.</p></section>
+</section>
+</div>
+</section>
+<section class="screen" hidden="" id="productsScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="productsBackButton" type="button">← Back</button>
+<h1>Products</h1>
+<p class="page-subtitle">Manage products and their production workflows.</p>
+</div>
+<button id="addProductButton" type="button">Add Product</button>
+</header>
+<section class="product-list" id="productList"></section>
+<section class="empty-state" hidden="" id="emptyProductsState">
+<h2>No Products Yet</h2>
+<p>Add your first product to get started.</p>
+<button id="emptyAddProductButton" type="button">Add Product</button>
+</section>
+<section class="product-editor" hidden="" id="productEditor">
+<div class="editor-card">
+<h2 id="productEditorTitle">Add Product</h2>
+<form id="productForm">
+<div class="form-group">
+<label for="productName">Product Name</label>
+<input id="productName" maxlength="150" required="" type="text"/>
+</div>
+<div class="form-group">
+<label for="productPrice">Default Price</label>
+<div class="price-input">
+<span>₱</span>
+<input id="productPrice" inputmode="decimal" min="0" required="" step="0.01" type="number"/>
+</div>
+</div>
+<div class="product-cancellation-settings">
+<div class="setting-row">
+<div class="setting-copy">
+<label for="productCancellationEnabled">Customer Cancellation</label>
+<p class="form-help">Allow customers to cancel this product while it is still before a selected production stage.</p>
+</div>
+<label aria-label="Allow customer cancellation" class="switch-control">
+<input id="productCancellationEnabled" type="checkbox"/>
+<span aria-hidden="true" class="switch-track"></span>
+</label>
+</div>
+<div class="form-group product-cancellation-stage-group" hidden="" id="productCancellationStageGroup">
+<label for="productCancellationCutoff">Cancellation available until</label>
+<select class="form-select" id="productCancellationCutoff"></select>
+<small class="form-help">Customers can cancel until this stage has been finished.</small>
+</div>
+</div>
+<div class="editor-actions">
+<button class="secondary-button" id="cancelProductButton" type="button">Cancel</button>
+<button id="saveProductButton" type="submit">Save Product</button>
+</div>
+<p class="form-message" id="productMessage" role="alert"></p>
+</form>
+</div>
+</section>
+<button class="secondary-button products-logout-button" id="productsLogoutButton" type="button">Log Out</button>
+</div>
+</section>
+<section class="screen" hidden="" id="workflowScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div>
+<button class="back-button" id="workflowBackButton" type="button">← Back to Products</button>
+<h1>Production Workflow</h1>
+<p class="page-subtitle">
+<span id="workflowProductName"></span>
+</p>
+</div>
+<button id="addStageButton" type="button">Add Stage</button>
+</header>
+<section class="workflow-card">
+<div class="workflow-help">
+<h2>Stages</h2>
+<p>
             Arrange the stages in the order the product is made.
           </p>
-        </div>
-
-        <div
-          id="stageList"
-          class="stage-list"
-        ></div>
-
-        <section
-          id="emptyStagesState"
-          class="empty-state compact-empty"
-          hidden
-        >
-          <h3>No Workflow Stages</h3>
-          <p>
+</div>
+<div class="stage-list" id="stageList"></div>
+<section class="empty-state compact-empty" hidden="" id="emptyStagesState">
+<h3>No Workflow Stages</h3>
+<p>
             Add the first production stage for this product.
           </p>
-
-          <button
-            id="emptyAddStageButton"
-            type="button"
-          >
+<button id="emptyAddStageButton" type="button">
             Add Stage
           </button>
-        </section>
-
-        <div class="workflow-actions">
-
-          <button
-            id="cancelWorkflowButton"
-            class="secondary-button"
-            type="button"
-          >
+</section>
+<div class="workflow-actions">
+<button class="secondary-button" id="cancelWorkflowButton" type="button">
             Cancel
           </button>
-
-          <button
-            id="saveWorkflowButton"
-            type="button"
-          >
+<button id="saveWorkflowButton" type="button">
             Save Workflow
           </button>
-
-        </div>
-
-        <p
-          id="workflowMessage"
-          class="form-message"
-          role="alert"
-        ></p>
-
-      </section>
-
-      <button
-        id="workflowLogoutButton"
-        class="secondary-button products-logout-button"
-        type="button"
-      >
+</div>
+<p class="form-message" id="workflowMessage" role="alert"></p>
+</section>
+<button class="secondary-button products-logout-button" id="workflowLogoutButton" type="button">
         Log Out
       </button>
-
-    </div>
-  </section>
-
-
-  <section id="qrScreen" class="screen" hidden>
-    <div class="app-container">
-      <header class="page-header app-page-header"><div>
-        <button id="qrBackButton" class="back-button" type="button">← Back</button>
-        <h1>QR Management</h1>
-        <p class="page-subtitle">Generate and manage product-specific QR inventory.</p>
-      </div></header>
-      <section class="qr-create-card">
-        <h2>Generate QR Series</h2>
-        <p class="qr-help">Generate a batch of reusable QR identities for a product.</p>
-        <form id="qrSeriesForm">
-          <div class="form-group"><label for="qrProduct">Product</label><select id="qrProduct" required><option value="">Select product</option></select></div>
-          <div class="form-group"><label for="qrSeriesName">Series Name</label><input id="qrSeriesName" type="text" maxlength="100" placeholder="e.g. MUG-2026" required></div>
-          <div class="form-group"><label for="qrQuantity">Quantity of QR pairs</label><input id="qrQuantity" type="number" min="1" max="5000" step="1" inputmode="numeric" required></div>
-          <button id="generateQrButton" type="submit">Generate QR Series</button>
-          <p id="qrMessage" class="form-message" role="alert"></p>
-        </form>
-      </section>
-      <section>
-        <div class="section-heading"><h2>QR Series</h2></div>
-        <div id="qrSeriesList" class="qr-series-list"></div>
-        <section id="emptyQrState" class="empty-state" hidden><h3>No QR Series Yet</h3><p>Generate a series for a product before printing or assigning QR codes.</p></section>
-
-        <section id="qrPrintPanel" class="qr-print-panel" hidden>
-          <div class="print-panel-heading">
-            <div>
-              <h2>Print QR Pairs</h2>
-              <p>Select available pairs from the selected series.</p>
-            </div>
-            <button id="closeQrPrintButton" class="secondary-button" type="button">Close</button>
-          </div>
-
-          <div class="print-controls">
-            <div>
-              <label for="qrPrintQuantity">Number of pairs</label>
-              <input id="qrPrintQuantity" type="number" min="1" step="1" inputmode="numeric">
-            </div>
-            <button id="prepareQrPrintButton" type="button">Prepare Preview</button>
-          </div>
-
-          <p id="qrPrintMessage" class="form-message" role="alert"></p>
-          <div id="qrPrintPreview" class="qr-print-preview"></div>
-
-          <div class="print-preview-actions">
-            <button id="printQrPairsButton" type="button">Print QR Pairs</button>
-          </div>
-        </section>
-      </section>
-      <button id="qrLogoutButton" class="secondary-button products-logout-button" type="button">Log Out</button>
-    </div>
-  </section>
-
-</main>
-
-<script src="./js/boot.js" defer></script>
-
-
-<script src="./js/register-sw.js" defer></script>
-
+</div>
+</section>
+<section class="screen" hidden="" id="qrScreen">
+<div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header"><div>
+<button class="back-button" id="qrBackButton" type="button">← Back</button>
+<h1>QR Management</h1>
+<p class="page-subtitle">Generate and manage product-specific QR inventory.</p>
+</div></header>
+<section class="qr-create-card">
+<h2>Generate QR Series</h2>
+<p class="qr-help">Generate a batch of reusable QR identities for a product.</p>
+<form id="qrSeriesForm">
+<div class="form-group"><label for="qrProduct">Product</label><select id="qrProduct" required=""><option value="">Select product</option></select></div>
+<div class="form-group"><label for="qrSeriesName">Series Name</label><input id="qrSeriesName" maxlength="100" placeholder="e.g. MUG-2026" required="" type="text"/></div>
+<div class="form-group"><label for="qrQuantity">Quantity of QR pairs</label><input id="qrQuantity" inputmode="numeric" max="5000" min="1" required="" step="1" type="number"/></div>
+<button id="generateQrButton" type="submit">Generate QR Series</button>
+<p class="form-message" id="qrMessage" role="alert"></p>
+</form>
+</section>
+<section>
+<div class="section-heading"><h2>QR Series</h2></div>
+<div class="qr-series-list" id="qrSeriesList"></div>
+<section class="empty-state" hidden="" id="emptyQrState"><h3>No QR Series Yet</h3><p>Generate a series for a product before printing or assigning QR codes.</p></section>
+<section class="qr-print-panel" hidden="" id="qrPrintPanel">
+<div class="print-panel-heading">
+<div>
+<h2>Print QR Pairs</h2>
+<p>Select available pairs from the selected series.</p>
+</div>
+<button class="secondary-button" id="closeQrPrintButton" type="button">Close</button>
+</div>
+<div class="print-controls">
+<div>
+<label for="qrPrintQuantity">Number of pairs</label>
+<input id="qrPrintQuantity" inputmode="numeric" min="1" step="1" type="number"/>
+</div>
+<button id="prepareQrPrintButton" type="button">Prepare Preview</button>
+</div>
+<p class="form-message" id="qrPrintMessage" role="alert"></p>
+<div class="qr-print-preview" id="qrPrintPreview"></div>
+<div class="print-preview-actions">
+<button id="printQrPairsButton" type="button">Print QR Pairs</button>
+</div>
+</section>
+</section>
+<button class="secondary-button products-logout-button" id="qrLogoutButton" type="button">Log Out</button>
+</div>
+</section>
+<aside aria-label="Seller menu" class="home-menu" hidden="" id="homeMenu">
+<div class="home-menu-header">
+<div>
+<span class="home-menu-eyebrow">SELLER MENU</span>
+<h2>More</h2>
+</div>
+<button aria-label="Close menu" class="home-menu-close" id="homeMenuCloseButton" type="button">×</button>
+</div>
+<nav aria-label="More navigation" class="home-menu-list">
+<button class="home-menu-item" data-home-menu-route="products" type="button"><span class="home-menu-icon">🛍️</span><span><strong>Products</strong><small>Manage products and workflows</small></span></button>
+<button class="home-menu-item" data-home-menu-route="qr" type="button"><span class="home-menu-icon">▣</span><span><strong>QR Management</strong><small>Generate, print, and manage QR codes</small></span></button>
+<button class="home-menu-item" data-home-menu-route="reviews" type="button"><span class="home-menu-icon">⭐</span><span><strong>Reviews</strong><small>Read customer feedback</small></span></button>
+<button class="home-menu-item" data-home-menu-route="updates" type="button"><span class="home-menu-icon">✉️</span><span><strong>Updates</strong><small>Customer messages waiting to send</small></span></button>
+<button class="home-menu-item" data-home-menu-route="team" type="button"><span class="home-menu-icon">👥</span><span><strong>Production Team</strong><small>Manage team members and permissions</small></span></button>
+<button class="home-menu-item" id="homeMenuShopProfileButton" type="button"><span class="home-menu-icon">🏪</span><span><strong>Shop Profile</strong><small>Update your shop information</small></span></button>
+<button class="home-menu-item home-menu-item-danger" id="homeMenuLogoutButton" type="button"><span class="home-menu-icon">↪</span><span><strong>Log Out</strong><small>Sign out of this device</small></span></button>
+</nav>
+</aside><div class="home-menu-backdrop" hidden="" id="homeMenuBackdrop"></div></main>
+<script defer="" src="./js/boot.js"></script>
+<script defer="" src="./js/register-sw.js"></script>
 </body>
 </html>
