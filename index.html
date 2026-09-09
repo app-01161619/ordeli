@@ -15,6 +15,8 @@
 <div aria-live="polite" class="boot-fallback" id="bootFallback"><strong>Ordeli</strong><span>Restoring your shop…</span></div>
 <main id="app">
 <section class="screen" hidden="" id="loginScreen">
+<div class="app-container shop-profile-container">
+<header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <div class="auth-container"><div class="auth-card">
 <div class="brand-block"><h1>Ordeli</h1><p>Seller account</p></div>
 <h2>Log In</h2>
@@ -117,8 +119,8 @@
 <button id="saveShopButton" type="submit">Save &amp; Continue</button>
 <p class="form-message" id="shopSetupMessage" role="alert"></p>
 </form>
-<button class="secondary-button" id="shopSetupLogoutButton" type="button">Log Out</button>
 </div></div>
+</div>
 </section>
 <section class="screen" hidden="" id="homeScreen">
 <div class="app-container">
@@ -165,7 +167,6 @@
 <div class="app-container scanner-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="scannerBackButton" type="button">← Back</button>
 <h1>Scan Product QR</h1>
 <p class="page-subtitle">Scan a product QR to create or open its order.</p>
 </div>
@@ -183,7 +184,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="orderCreateBackButton" type="button">← Back</button>
 <h1>Create Order</h1>
 <p class="page-subtitle">The scanned QR has already identified the product.</p>
 </div>
@@ -264,7 +264,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="orderDetailBackButton" type="button">← Back</button>
 <h1 id="orderDetailTitle">Order</h1>
 <p class="page-subtitle" id="orderDetailCustomer"></p>
 </div>
@@ -355,7 +354,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="ordersBackButton" type="button">← Back</button>
 <h1>Orders</h1>
 <p class="page-subtitle">Your customer orders, organized around the work that needs action.</p>
 </div>
@@ -385,7 +383,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="eventsBackButton" type="button">← Back</button>
 <h1>Events</h1>
 <p class="page-subtitle">Pickup locations and the orders customers are bringing together.</p>
 </div>
@@ -421,7 +418,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="updatesBackButton" type="button">← Back</button>
 <h1>Updates</h1>
 <p class="page-subtitle">Customer updates waiting for you to send from your phone.</p>
 </div>
@@ -446,7 +442,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="reviewsBackButton" type="button">← Back</button>
 <h1>Reviews</h1>
 <p class="page-subtitle">Private customer feedback for your orders.</p>
 </div>
@@ -473,7 +468,6 @@
 <h1>Production Work</h1>
 <p class="page-subtitle" id="productionMemberSubtitle">Complete the next available production stage.</p>
 </div>
-<button class="secondary-button" id="productionLogoutButton" type="button">Log Out</button>
 </header>
 <section class="production-work-toolbar">
 <div><strong id="productionWorkCount">0</strong><span>available tasks</span></div>
@@ -504,7 +498,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="teamBackButton" type="button">← Back</button>
 <h1>Production Team</h1>
 <p class="page-subtitle">Invite optional production members and control what they can do.</p>
 </div>
@@ -538,7 +531,6 @@
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="productsBackButton" type="button">← Back</button>
 <h1>Products</h1>
 <p class="page-subtitle">Manage products and their production workflows.</p>
 </div>
@@ -590,14 +582,12 @@
 </form>
 </div>
 </section>
-<button class="secondary-button products-logout-button" id="productsLogoutButton" type="button">Log Out</button>
 </div>
 </section>
 <section class="screen" hidden="" id="workflowScreen">
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
 <div>
-<button class="back-button" id="workflowBackButton" type="button">← Back to Products</button>
 <h1>Production Workflow</h1>
 <p class="page-subtitle">
 <span id="workflowProductName"></span>
@@ -632,15 +622,11 @@
 </div>
 <p class="form-message" id="workflowMessage" role="alert"></p>
 </section>
-<button class="secondary-button products-logout-button" id="workflowLogoutButton" type="button">
-        Log Out
-      </button>
 </div>
 </section>
 <section class="screen" hidden="" id="qrScreen">
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header"><div>
-<button class="back-button" id="qrBackButton" type="button">← Back</button>
 <h1>QR Management</h1>
 <p class="page-subtitle">Generate and manage product-specific QR inventory.</p>
 </div></header>
@@ -681,7 +667,6 @@
 </div>
 </section>
 </section>
-<button class="secondary-button products-logout-button" id="qrLogoutButton" type="button">Log Out</button>
 </div>
 </section>
 <aside aria-label="Seller menu" class="home-menu" hidden="" id="homeMenu">
@@ -693,13 +678,13 @@
 <button aria-label="Close menu" class="home-menu-close" id="homeMenuCloseButton" type="button">×</button>
 </div>
 <nav aria-label="More navigation" class="home-menu-list">
-<button class="home-menu-item" data-home-menu-route="products" type="button"><span class="home-menu-icon">🛍️</span><span><strong>Products</strong><small>Manage products and workflows</small></span></button>
-<button class="home-menu-item" data-home-menu-route="qr" type="button"><span class="home-menu-icon">▣</span><span><strong>QR Management</strong><small>Generate, print, and manage QR codes</small></span></button>
-<button class="home-menu-item" data-home-menu-route="reviews" type="button"><span class="home-menu-icon">⭐</span><span><strong>Reviews</strong><small>Read customer feedback</small></span></button>
-<button class="home-menu-item" data-home-menu-route="updates" type="button"><span class="home-menu-icon">✉️</span><span><strong>Updates</strong><small>Customer messages waiting to send</small></span></button>
-<button class="home-menu-item" data-home-menu-route="team" type="button"><span class="home-menu-icon">👥</span><span><strong>Production Team</strong><small>Manage team members and permissions</small></span></button>
-<button class="home-menu-item" id="homeMenuShopProfileButton" type="button"><span class="home-menu-icon">🏪</span><span><strong>Shop Profile</strong><small>Update your shop information</small></span></button>
-<button class="home-menu-item home-menu-item-danger" id="homeMenuLogoutButton" type="button"><span class="home-menu-icon">↪</span><span><strong>Log Out</strong><small>Sign out of this device</small></span></button>
+<button class="home-menu-item" data-home-menu-route="products" type="button"><span aria-hidden="true" class="home-menu-icon">▦</span><span><strong>Products</strong><small>Manage products and workflows</small></span></button>
+<button class="home-menu-item" data-home-menu-route="qr" type="button"><span aria-hidden="true" class="home-menu-icon">▣</span><span><strong>QR Management</strong><small>Generate, print, and manage QR codes</small></span></button>
+<button class="home-menu-item" data-home-menu-route="reviews" type="button"><span aria-hidden="true" class="home-menu-icon">★</span><span><strong>Reviews</strong><small>Read customer feedback</small></span></button>
+<button class="home-menu-item" data-home-menu-route="updates" type="button"><span aria-hidden="true" class="home-menu-icon">✉</span><span><strong>Updates</strong><small>Customer messages waiting to send</small></span></button>
+<button class="home-menu-item" data-home-menu-route="team" type="button"><span aria-hidden="true" class="home-menu-icon">♙</span><span><strong>Production Team</strong><small>Manage team members and permissions</small></span></button>
+<button class="home-menu-item" id="homeMenuShopProfileButton" type="button"><span aria-hidden="true" class="home-menu-icon">⌂</span><span><strong>Shop Profile</strong><small>Update your shop information</small></span></button>
+<button class="home-menu-item home-menu-item-danger" id="homeMenuLogoutButton" type="button"><span aria-hidden="true" class="home-menu-icon">↪</span><span><strong>Log Out</strong><small>Sign out of this device</small></span></button>
 </nav>
 </aside><div class="home-menu-backdrop" hidden="" id="homeMenuBackdrop"></div></main>
 <script defer="" src="./js/boot.js"></script>

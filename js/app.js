@@ -2826,13 +2826,6 @@ $("shopLogo")
   );
 
 
-$("shopSetupLogoutButton")
-  .addEventListener(
-    "click",
-    logout
-  );
-
-
 $("editShopButton")?.addEventListener(
     "click",
     async () => {
@@ -3174,7 +3167,6 @@ async function stopProductionQrScanner() {
 }
 
 $("teamButton")?.addEventListener("click", () => { navigate("team"); renderTeam(); });
-$("teamBackButton")?.addEventListener("click", () => navigate("home"));
 $("productionRefreshButton")?.addEventListener("click", async () => { try { await renderProductionWork(await getActorContext(true)); } catch (error) { $("productionMessage").textContent = error?.message || "Unable to refresh."; } });
 $("productionScanButton")?.addEventListener("click", () => startProductionQrScanner());
 $("productionScannerCloseButton")?.addEventListener("click", () => stopProductionQrScanner());
@@ -3184,7 +3176,6 @@ $("productionManualQrButton")?.addEventListener("click", async () => {
   try { await showProductionScannedItem(await resolveProductionQr(value)); }
   catch (error) { $("productionScannerMessage").textContent = error?.message || "Unable to resolve that QR."; }
 });
-$("productionLogoutButton")?.addEventListener("click", async () => { await supabase.auth.signOut(); location.hash = "login"; location.reload(); });
 
 async function loadTeamMembers() {
   const user = await getCurrentUser();
@@ -3393,12 +3384,8 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
 
 
 $("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
-$("updatesBackButton")?.addEventListener("click", () => navigate("home"));
 $("updatesRefreshButton")?.addEventListener("click", () => loadSmsUpdates());
-$("ordersBackButton")?.addEventListener("click", () => navigate("home"));
 $("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
-$("eventsBackButton")?.addEventListener("click", () => navigate("home"));
-$("reviewsBackButton")?.addEventListener("click", () => navigate("home"));
 
 function openHomeMenu() {
   const menu = $("homeMenu");
@@ -4042,21 +4029,6 @@ $("productsButton")?.addEventListener(
   );
 
 
-$("productsBackButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      closeProductEditor();
-
-      navigate(
-        "home"
-      );
-
-    }
-  );
-
-
 $("addProductButton")
   .addEventListener(
     "click",
@@ -4087,13 +4059,6 @@ $("cancelProductButton")
       closeProductEditor();
 
     }
-  );
-
-
-$("productsLogoutButton")
-  .addEventListener(
-    "click",
-    logout
   );
 
 
@@ -4808,29 +4773,6 @@ function clearWorkflowMessage() {
 }
 
 
-// Workflow navigation
-$("workflowBackButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      workflowProductId =
-        null;
-
-      workflowProductName =
-        "";
-
-      workflowStages =
-        [];
-
-      navigate(
-        "products"
-      );
-
-    }
-  );
-
-
 $("cancelWorkflowButton")
   .addEventListener(
     "click",
@@ -4850,13 +4792,6 @@ $("cancelWorkflowButton")
       );
 
     }
-  );
-
-
-$("workflowLogoutButton")
-  .addEventListener(
-    "click",
-    logout
   );
 
 
@@ -5162,8 +5097,6 @@ $("qrSeriesForm").addEventListener("submit",async event=>{
 });
 
 $("qrButton")?.addEventListener("click",()=>navigate("qr"));
-$("qrBackButton").addEventListener("click",()=>navigate("home"));
-$("qrLogoutButton").addEventListener("click",logout);
 
 function clearQrMessage(){ $("qrMessage").textContent=""; $("qrMessage").classList.remove("success-message"); }
 
@@ -5750,21 +5683,6 @@ $("homeScanButton")
 
       navigate(
         "scanner"
-      );
-
-    }
-  );
-
-
-$("scannerBackButton")
-  .addEventListener(
-    "click",
-    async () => {
-
-      await stopQrScanner();
-
-      navigate(
-        "home"
       );
 
     }
@@ -6694,21 +6612,6 @@ async function createOrder() {
   }
 }
 
-$("orderCreateBackButton").addEventListener("click", () => {
-  const orderId = pendingAddToOrderId;
-  pendingAddToOrderId = null;
-  pendingQrToken = null;
-  pendingProduct = null;
-  clearOrderDraftStorage();
-  if (orderId) {
-    currentOrderId = orderId;
-    currentOrderShowProduction = false;
-    navigate("order-detail");
-  } else {
-    navigate("scanner");
-  }
-});
-
 function clearOrderMessage() {
 
   $("orderCreateMessage")
@@ -6977,17 +6880,6 @@ function startNewTransaction() {
 // ============================================================
 // ORDER DETAIL ACTIONS
 // ============================================================
-
-const orderDetailBackButton = $("orderDetailBackButton");
-if (orderDetailBackButton) {
-  orderDetailBackButton.addEventListener("click", () => {
-    currentOrderId = null;
-    currentOrderShowProduction = false;
-    pendingQrToken = null;
-    pendingProduct = null;
-    navigate("home");
-  });
-}
 
 const orderDetailAddItemButton = $("orderDetailAddItemButton");
 if (orderDetailAddItemButton) {
