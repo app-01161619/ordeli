@@ -28,8 +28,8 @@ export default {
 
     const response = await env.ASSETS.fetch(request);
     const headers = new Headers(response.headers);
-    const pathname = new URL(request.url).pathname;
-    if (pathname === "/" || pathname === "/index.html" || pathname === "/sw.js" || pathname === "/js/register-sw.js") {
+    const requestPathname = new URL(request.url).pathname;
+    if (requestPathname === "/" || requestPathname === "/index.html" || requestPathname === "/sw.js" || requestPathname === "/js/register-sw.js") {
       headers.set("Cache-Control", "no-store");
     }
     return withSecurityHeaders(new Response(response.body, { status: response.status, statusText: response.statusText, headers }));
