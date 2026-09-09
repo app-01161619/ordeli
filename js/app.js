@@ -2570,43 +2570,12 @@ async function showProductionScannedItem(item) {
     await completeMemberProductionTask(item, note.value.trim() || null, photo.files?.[0] || null, finish);
   });
 
-  const sendBack = document.createElement("button");
-  sendBack.type = "button";
-  sendBack.className = "secondary-button";
-  sendBack.textContent = "Send Previous Stage Back";
-  sendBack.disabled = actor?.can_finish_stage === false;
-  sendBack.addEventListener("click", async () => {
-    const confirmed = window.confirm(
-      "Send the most recently finished production stage back for rework?"
-    );
-    if (!confirmed) return;
-
-    sendBack.disabled = true;
-    try {
-      const { data, error } = await supabase.rpc("send_back_production_stage_member_v2", {
-        p_order_item_id: item.order_item_id
-      });
-      if (error) throw error;
-
-      const label = data?.stage_name ? `“${data.stage_name}” sent back for rework.` : "Previous stage sent back for rework.";
-      showToast(label, "success");
-      await showProductionScannedItem(await resolveProductionQr(item.public_token));
-    } catch (error) {
-      showToast(error?.message || "Unable to send the previous stage back.", "error");
-    } finally {
-      sendBack.disabled = false;
-    }
-  });
-
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "secondary-button";
   cancel.textContent = "Close";
   cancel.addEventListener("click", () => { box.hidden = true; box.replaceChildren(); });
 
-  if (Number(item.stage_order || 0) > 1 || item.has_finished_stage) {
-    box.append(sendBack);
-  }
   box.append(title, meta, stage, document.createTextNode("Proof photo (optional)"), photo, note, finish, cancel);
 }
 
@@ -6466,28 +6435,6 @@ function createProductionStageRow(
 
   }
 
-  const latestFinishedStage =
-    stage.latest?.action === "finished";
-
-  if (
-    latestFinishedStage &&
-    !item.cancelled_at &&
-    stagesCanBeSentBack(stage, item, panel)
-  ) {
-
-    const sendBackButton =
-      document.createElement("button");
-
-    sendBackButton.type = "button";
-    sendBackButton.className = "secondary-button";
-    sendBackButton.textContent = "Send Back";
-    sendBackButton.addEventListener("click", () => {
-      sendBackProductionStage(item, stage, panel);
-    });
-
-    actions.appendChild(sendBackButton);
-
-  }
 
   if (stage.finished && stage.latest?.proof_photo_path) {
 
@@ -6510,31 +6457,6 @@ function createProductionStageRow(
 
 }
 
-
-function stagesCanBeSentBack(
-  targetStage,
-  item,
-  panel
-) {
-
-  const rows =
-    panel.querySelectorAll(".production-stage-row.is-finished");
-
-  if (!rows.length) {
-    return false;
-  }
-
-  const highestFinishedOrder =
-    Math.max(
-      ...Array.from(rows).map((row) => {
-        const marker = row.querySelector(".production-stage-marker");
-        return Number(marker?.textContent === "✓" ? row.dataset.stageOrder : row.dataset.stageOrder) || 0;
-      })
-    );
-
-  return Number(targetStage.stage_order) === Number(panel.dataset.latestFinishedStage);
-
-}
 
 
 function setStageRowDataset(panel, states) {
@@ -6778,65 +6700,6 @@ async function finishProductionStage(
   } finally {
     productionBusyItemId = null;
     resetButton(button, "Confirm Finished");
-  }
-
-}
-
-
-async function sendBackProductionStage(
-  item,
-  stage,
-  panel
-) {
-
-  if (productionBusyItemId) {
-    return;
-  }
-
-  const confirmed =
-    window.confirm(
-      `Send “${stage.name}” back for rework? This will make it the current production stage again.`
-    );
-
-  if (!confirmed) {
-    return;
-  }
-
-  productionBusyItemId = item.id;
-
-  try {
-
-    const { error } =
-      await supabase.rpc(
-        "send_back_production_stage",
-        {
-          p_order_item_id: item.id,
-          p_stage_order: stage.stage_order,
-          p_stage_name: stage.name
-        }
-      );
-
-    if (error) {
-      throw error;
-    }
-
-    showToast(`“${stage.name}” sent back for rework.`, "success");
-
-    // Refresh the production panel in place so the worker sees the
-    // reverted stage immediately without leaving Production Work.
-    if (panel) {
-      await renderProductionPanel(item, panel);
-    } else if (currentOrderId) {
-      await loadOrderDetail(currentOrderId);
-    }
-
-  } catch (error) {
-
-    console.error("Send back production stage failed:", error);
-    alert(error?.message || "Unable to send this stage back.");
-
-  } finally {
-    productionBusyItemId = null;
   }
 
 }
