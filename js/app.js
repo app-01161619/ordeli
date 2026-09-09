@@ -3261,8 +3261,29 @@ async function renderTeam() {
   }
 }
 
+function openTeamInvitePanel() {
+  const panel = $("teamInvitePanel");
+  if (!panel) return;
+  panel.hidden = false;
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeTeamInvitePanel() {
+  const panel = $("teamInvitePanel");
+  if (!panel) return;
+  if (editingProductionMemberId) cancelEditProductionMember();
+  panel.hidden = true;
+}
+
+$("openTeamInviteButton")?.addEventListener("click", () => {
+  if (editingProductionMemberId) cancelEditProductionMember();
+  openTeamInvitePanel();
+});
+$("closeTeamInviteButton")?.addEventListener("click", closeTeamInvitePanel);
+
 function startEditProductionMember(member) {
   editingProductionMemberId = member.id;
+  openTeamInvitePanel();
   $("teamMemberName").value = member.name || "";
   $("teamMemberEmail").value = member.email || "";
   $("teamMemberEmail").disabled = true;

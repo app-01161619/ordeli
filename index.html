@@ -84,6 +84,35 @@
 <p class="auth-link">Already have an account? <a href="#login">Log In</a></p>
 </div></div>
 </section>
+<section class="screen" hidden="" id="memberSignupScreen">
+<div class="auth-container"><div class="auth-card">
+<div class="brand-block"><h1>Ordeli</h1><p>Production team</p></div>
+<h2>Join the Production Team</h2>
+<p class="auth-subtitle" id="memberSignupSubtitle">Loading your invitation…</p>
+<form id="memberSignupForm" hidden>
+<div class="form-group">
+<label for="memberSignupName">Name</label>
+<input id="memberSignupName" type="text" disabled>
+</div>
+<div class="form-group">
+<label for="memberSignupEmail">Email</label>
+<input id="memberSignupEmail" type="email" autocomplete="email" disabled>
+</div>
+<p class="field-help" id="memberSignupSection"></p>
+<div class="form-group">
+<label for="memberSignupPassword">Password</label>
+<input id="memberSignupPassword" type="password" autocomplete="new-password" minlength="8" required>
+</div>
+<div class="form-group">
+<label for="memberSignupConfirmPassword">Confirm Password</label>
+<input id="memberSignupConfirmPassword" type="password" autocomplete="new-password" minlength="8" required>
+</div>
+<button id="memberSignupButton" type="submit">Create Production Account</button>
+<p class="form-message" id="memberSignupMessage" role="alert"></p>
+</form>
+<p class="auth-link"><a href="#login" id="memberSignupLoginLink">Already have an account? Log In</a></p>
+</div></div>
+</section>
 <section class="screen" hidden="" id="shopSetupScreen">
 <div class="auth-container"><div class="auth-card">
 <div class="brand-block"><h1>Ordeli</h1><p>Shop setup</p></div>
@@ -499,11 +528,12 @@
 <header class="page-header">
 <div>
 <h1>Production Team</h1>
-<p class="page-subtitle">Invite optional production members and control what they can do.</p>
+<p class="page-subtitle">Manage your production members and what they can do.</p>
 </div>
+<button id="openTeamInviteButton" type="button">Invite Team Member</button>
 </header>
-<section class="team-create-card">
-<div class="section-heading"><div><h2>Invite Team Member</h2><p>They can sign up with this email and will be linked to your shop automatically.</p></div></div>
+<section class="team-create-card" hidden id="teamInvitePanel">
+<div class="section-heading"><div><h2>Invite Team Member</h2><p>They can sign up with this email and will be linked to your shop automatically.</p></div><button id="closeTeamInviteButton" class="secondary-button" type="button">Close</button></div>
 <form id="teamMemberForm">
 <div class="form-grid">
 <div class="form-group"><label for="teamMemberName">Name</label><input id="teamMemberName" maxlength="150" required="" type="text"/></div>

@@ -1,14 +1,14 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-09-07";
+const CACHE_VERSION = "ordeli-v2026-09-10-02";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-09-07"
+  "/js/app.js?v=2026-09-10-02"
 ];
 
 self.addEventListener("install", (event) => {
@@ -83,7 +83,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 
-const CDN_CACHE = "ordeli-cdn-v2026-09-09-07";
+const CDN_CACHE = "ordeli-cdn-v2026-09-10-02";
 const CDN_HOSTS = new Set(["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]);
 
 self.addEventListener("fetch", (event) => {
