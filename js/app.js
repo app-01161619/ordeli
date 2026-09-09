@@ -563,6 +563,9 @@ const screens = {
   events:
     $("eventsScreen"),
 
+  updates:
+    $("updatesScreen"),
+
 };
 
 
@@ -623,6 +626,7 @@ const validRoutes = [
   "order-detail",
   "orders",
   "events",
+  "updates",
   "reviews"
 ];
 
@@ -1000,6 +1004,12 @@ async function renderApplication() {
       return;
     }
 
+    if (getRoute() === "updates") {
+      showScreen("updates");
+      await loadSmsUpdates();
+      return;
+    }
+
     if (
       getRoute() ===
       "order-detail"
@@ -1177,7 +1187,17 @@ async function loadHomeDashboard(sellerId) {
       if (ordersResult.error) throw ordersResult.error;
       if (paymentsResult.error) throw paymentsResult.error;
       if (eventsResult.error) throw eventsResult.error;
-      snapshot = { orders: ordersResult.data || [], payments: paymentsResult.data || [], events: eventsResult.data || [], cachedAt: Date.now() };
+      let updates = [];
+      try {
+        const updatesResult = await supabase.from("sms_update_drafts")
+          .select("id,order_id,triggered_by_user_id,message_text,status,created_at,sent_marked_at,orders(order_number,customers(name,phone))")
+          .eq("seller_id", sellerId)
+          .is("sent_marked_at", null)
+          .order("created_at", { ascending: false })
+          .limit(100);
+        if (!updatesResult.error) updates = updatesResult.data || [];
+      } catch (_) {}
+      snapshot = { orders: ordersResult.data || [], payments: paymentsResult.data || [], events: eventsResult.data || [], updates, cachedAt: Date.now() };
       await cacheNamed(cacheKey, snapshot);
     } catch (error) {
       snapshot = await getCachedSnapshot(cacheKey);
@@ -1186,7 +1206,7 @@ async function loadHomeDashboard(sellerId) {
   } else {
     snapshot = await getCachedSnapshot(cacheKey);
   }
-  snapshot = snapshot || { orders: [], payments: [], events: [] };
+  snapshot = snapshot || { orders: [], payments: [], events: [], updates: [] };
   const computed = computeOrderMetrics(snapshot.orders, snapshot.payments);
   $("attentionProduction").textContent = String(computed.production);
   $("attentionPayments").textContent = String(computed.paymentReviews);
@@ -2550,12 +2570,43 @@ async function showProductionScannedItem(item) {
     await completeMemberProductionTask(item, note.value.trim() || null, photo.files?.[0] || null, finish);
   });
 
+  const sendBack = document.createElement("button");
+  sendBack.type = "button";
+  sendBack.className = "secondary-button";
+  sendBack.textContent = "Send Previous Stage Back";
+  sendBack.disabled = actor?.can_finish_stage === false;
+  sendBack.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+      "Send the most recently finished production stage back for rework?"
+    );
+    if (!confirmed) return;
+
+    sendBack.disabled = true;
+    try {
+      const { data, error } = await supabase.rpc("send_back_production_stage_member_v2", {
+        p_order_item_id: item.order_item_id
+      });
+      if (error) throw error;
+
+      const label = data?.stage_name ? `“${data.stage_name}” sent back for rework.` : "Previous stage sent back for rework.";
+      showToast(label, "success");
+      await showProductionScannedItem(await resolveProductionQr(item.public_token));
+    } catch (error) {
+      showToast(error?.message || "Unable to send the previous stage back.", "error");
+    } finally {
+      sendBack.disabled = false;
+    }
+  });
+
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "secondary-button";
   cancel.textContent = "Close";
   cancel.addEventListener("click", () => { box.hidden = true; box.replaceChildren(); });
 
+  if (Number(item.stage_order || 0) > 1 || item.has_finished_stage) {
+    box.append(sendBack);
+  }
   box.append(title, meta, stage, document.createTextNode("Proof photo (optional)"), photo, note, finish, cancel);
 }
 
@@ -2793,6 +2844,10 @@ $("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeProductsButton")?.addEventListener("click", () => navigate("products"));
 $("homeQrButton")?.addEventListener("click", () => navigate("qr"));
 $("homeEventsButton")?.addEventListener("click", () => navigate("events"));
+$("homeUpdatesButton")?.addEventListener("click", () => navigate("updates"));
+$("updatesButton")?.addEventListener("click", () => navigate("updates"));
+$("updatesBackButton")?.addEventListener("click", () => navigate("home"));
+$("updatesRefreshButton")?.addEventListener("click", () => loadSmsUpdates());
 $("ordersBackButton")?.addEventListener("click", () => navigate("home"));
 $("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
 $("eventsBackButton")?.addEventListener("click", () => navigate("home"));
@@ -6411,6 +6466,29 @@ function createProductionStageRow(
 
   }
 
+  const latestFinishedStage =
+    stage.latest?.action === "finished";
+
+  if (
+    latestFinishedStage &&
+    !item.cancelled_at &&
+    stagesCanBeSentBack(stage, item, panel)
+  ) {
+
+    const sendBackButton =
+      document.createElement("button");
+
+    sendBackButton.type = "button";
+    sendBackButton.className = "secondary-button";
+    sendBackButton.textContent = "Send Back";
+    sendBackButton.addEventListener("click", () => {
+      sendBackProductionStage(item, stage, panel);
+    });
+
+    actions.appendChild(sendBackButton);
+
+  }
+
   if (stage.finished && stage.latest?.proof_photo_path) {
 
     const viewButton =
@@ -6429,6 +6507,32 @@ function createProductionStageRow(
 
   row.append(main, actions);
   return row;
+
+}
+
+
+function stagesCanBeSentBack(
+  targetStage,
+  item,
+  panel
+) {
+
+  const rows =
+    panel.querySelectorAll(".production-stage-row.is-finished");
+
+  if (!rows.length) {
+    return false;
+  }
+
+  const highestFinishedOrder =
+    Math.max(
+      ...Array.from(rows).map((row) => {
+        const marker = row.querySelector(".production-stage-marker");
+        return Number(marker?.textContent === "✓" ? row.dataset.stageOrder : row.dataset.stageOrder) || 0;
+      })
+    );
+
+  return Number(targetStage.stage_order) === Number(panel.dataset.latestFinishedStage);
 
 }
 
@@ -6679,6 +6783,64 @@ async function finishProductionStage(
 }
 
 
+async function sendBackProductionStage(
+  item,
+  stage,
+  panel
+) {
+
+  if (productionBusyItemId) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      `Send “${stage.name}” back for rework? This will make it the current production stage again.`
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  productionBusyItemId = item.id;
+
+  try {
+
+    const { error } =
+      await supabase.rpc(
+        "send_back_production_stage",
+        {
+          p_order_item_id: item.id,
+          p_stage_order: stage.stage_order,
+          p_stage_name: stage.name
+        }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    showToast(`“${stage.name}” sent back for rework.`, "success");
+
+    // Refresh the production panel in place so the worker sees the
+    // reverted stage immediately without leaving Production Work.
+    if (panel) {
+      await renderProductionPanel(item, panel);
+    } else if (currentOrderId) {
+      await loadOrderDetail(currentOrderId);
+    }
+
+  } catch (error) {
+
+    console.error("Send back production stage failed:", error);
+    alert(error?.message || "Unable to send this stage back.");
+
+  } finally {
+    productionBusyItemId = null;
+  }
+
+}
+
 
 async function viewProductionProof(path) {
 
@@ -6818,6 +6980,121 @@ async function reviewCustomerPayment(payment, decision) {
     console.error("Payment review failed:", error);
     alert(error?.message || "Unable to update payment proof.");
   }
+}
+
+
+async function loadSmsUpdates() {
+  const user = await getCurrentUser();
+  const list = $("updatesList");
+  if (!list) return;
+  list.replaceChildren();
+  $("updatesMessage").textContent = "";
+  $("updatesEmptyState").hidden = true;
+
+  try {
+    const result = await supabase
+      .from("sms_update_drafts")
+      .select("id,order_id,triggered_by_user_id,message_text,status,created_at,sent_marked_at,orders(order_number,customers(name,phone))")
+      .eq("seller_id", user.id)
+      .is("sent_marked_at", null)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (result.error) throw result.error;
+    const drafts = result.data || [];
+    $("updatesCount").textContent = `${drafts.length} update${drafts.length === 1 ? "" : "s"}`;
+
+    if (!drafts.length) {
+      $("updatesEmptyState").hidden = false;
+      return;
+    }
+
+    drafts.forEach(draft => list.appendChild(createSmsDraftCard(draft)));
+  } catch (error) {
+    $("updatesMessage").textContent = error?.message || "Unable to load seller updates.";
+  }
+}
+
+function createSmsDraftCard(draft) {
+  const card = document.createElement("article");
+  card.className = "sms-draft-card";
+
+  const head = document.createElement("div");
+  head.className = "sms-draft-head";
+  const info = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = draft.orders?.customers?.name || "Customer";
+  const meta = document.createElement("span");
+  meta.textContent = `Order #${draft.orders?.order_number ?? "—"} · ${formatDate(draft.created_at)}`;
+  info.append(title, meta);
+  const badge = document.createElement("span");
+  badge.className = "sms-draft-badge";
+  badge.textContent = "Needs sending";
+  head.append(info, badge);
+
+  const body = document.createElement("p");
+  body.className = "sms-draft-message";
+  body.textContent = draft.message_text || "";
+
+  const actions = document.createElement("div");
+  actions.className = "sms-draft-actions";
+
+  const phone = String(draft.orders?.customers?.phone || "").trim();
+  if (phone) {
+    const sms = document.createElement("button");
+    sms.type = "button";
+    sms.textContent = "Open SMS";
+    sms.addEventListener("click", () => {
+      const bodyText = draft.message_text || "";
+      window.location.href = `sms:${encodeURIComponent(phone)}?body=${encodeURIComponent(bodyText)}`;
+    });
+    actions.appendChild(sms);
+  } else {
+    const noPhone = document.createElement("span");
+    noPhone.className = "sms-draft-no-phone";
+    noPhone.textContent = "No phone number";
+    actions.appendChild(noPhone);
+  }
+
+  const mark = document.createElement("button");
+  mark.type = "button";
+  mark.className = "secondary-button";
+  mark.textContent = "Mark as Sent";
+  mark.addEventListener("click", async () => {
+    mark.disabled = true;
+    try {
+      const result = await supabase
+        .from("sms_update_drafts")
+        .update({ sent_marked_at: new Date().toISOString() })
+        .eq("id", draft.id)
+        .eq("seller_id", (await getCurrentUser()).id);
+      if (result.error) throw result.error;
+      card.remove();
+      const remaining = document.querySelectorAll(".sms-draft-card").length;
+      $("updatesCount").textContent = `${remaining} update${remaining === 1 ? "" : "s"}`;
+      if (remaining === 0) $("updatesEmptyState").hidden = false;
+    } catch (error) {
+      mark.disabled = false;
+      $("updatesMessage").textContent = error?.message || "Unable to mark the update as sent.";
+    }
+  });
+  actions.appendChild(mark);
+
+  if (draft.order_id) {
+    const openOrder = document.createElement("button");
+    openOrder.type = "button";
+    openOrder.className = "secondary-button";
+    openOrder.textContent = "Open Order";
+    openOrder.addEventListener("click", () => {
+      currentOrderId = draft.order_id;
+      currentOrderShowProduction = false;
+      navigate("order-detail");
+    });
+    actions.appendChild(openOrder);
+  }
+
+  card.append(head, body, actions);
+  return card;
 }
 
 
