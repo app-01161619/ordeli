@@ -2742,9 +2742,14 @@ $("shopSetupForm")
         }
 
 
-        // Shop onboarding is complete. Move the hash away from the setup
-        // route before rendering so renderApplication() shows the dashboard.
-        navigate("home");
+        // Keep the freshly saved seller profile in the local cache. The renderer
+        // intentionally boots from cache first, so without this update it can
+        // immediately read the pre-setup seller record and show Shop Setup again.
+        await cacheNamed(`seller:${user.id}`, data);
+
+        // Shop onboarding is complete. Move the hash away from the setup route
+        // before rendering so the seller lands on the dashboard.
+        if (getRoute() !== "home") navigate("home");
         await renderApplication();
 
 

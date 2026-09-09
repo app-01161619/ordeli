@@ -118,7 +118,27 @@ a:hover {
 
 .brand-block h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--primary);
+}
+
+.auth-card .brand-block h1 {
+  display: inline-block;
+  position: relative;
+}
+
+.auth-card .brand-block h1::after {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 3px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--primary);
+  opacity: .35;
 }
 
 .brand-block p {
