@@ -2550,43 +2550,12 @@ async function showProductionScannedItem(item) {
     await completeMemberProductionTask(item, note.value.trim() || null, photo.files?.[0] || null, finish);
   });
 
-  const sendBack = document.createElement("button");
-  sendBack.type = "button";
-  sendBack.className = "secondary-button";
-  sendBack.textContent = "Send Previous Stage Back";
-  sendBack.disabled = actor?.can_finish_stage === false;
-  sendBack.addEventListener("click", async () => {
-    const confirmed = window.confirm(
-      "Send the most recently finished production stage back for rework?"
-    );
-    if (!confirmed) return;
-
-    sendBack.disabled = true;
-    try {
-      const { data, error } = await supabase.rpc("send_back_production_stage_member_v2", {
-        p_order_item_id: item.order_item_id
-      });
-      if (error) throw error;
-
-      const label = data?.stage_name ? `“${data.stage_name}”  for rework.` : "Previous stage  for rework.";
-      showToast(label, "success");
-      await showProductionScannedItem(await resolveProductionQr(item.public_token));
-    } catch (error) {
-      showToast(error?.message || "Unable to send the previous stage back.", "error");
-    } finally {
-      sendBack.disabled = false;
-    }
-  });
-
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "secondary-button";
   cancel.textContent = "Close";
   cancel.addEventListener("click", () => { box.hidden = true; box.replaceChildren(); });
 
-  if (Number(item.stage_order || 0) > 1 || item.has_finished_stage) {
-    box.append(sendBack);
-  }
   box.append(title, meta, stage, document.createTextNode("Proof photo (optional)"), photo, note, finish, cancel);
 }
 
@@ -6460,32 +6429,6 @@ function createProductionStageRow(
 
   row.append(main, actions);
   return row;
-
-}
-
-
-function stagesCanBeSentBack(
-  targetStage,
-  item,
-  panel
-) {
-
-  const rows =
-    panel.querySelectorAll(".production-stage-row.is-finished");
-
-  if (!rows.length) {
-    return false;
-  }
-
-  const highestFinishedOrder =
-    Math.max(
-      ...Array.from(rows).map((row) => {
-        const marker = row.querySelector(".production-stage-marker");
-        return Number(marker?.textContent === "✓" ? row.dataset.stageOrder : row.dataset.stageOrder) || 0;
-      })
-    );
-
-  return Number(targetStage.stage_order) === Number(panel.dataset.latestFinishedStage);
 
 }
 
