@@ -2871,7 +2871,7 @@ $("shopSetupLogoutButton")
   );
 
 
-$("editShopButton")
+$("editShopButton")?
   .addEventListener(
     "click",
     async () => {
@@ -3467,7 +3467,7 @@ $("homeMenuButton")?.addEventListener("click", openHomeMenu);
 $("homeMenuCloseButton")?.addEventListener("click", closeHomeMenu);
 $("homeMenuBackdrop")?.addEventListener("click", closeHomeMenu);
 $("homeMenuLogoutButton")?.addEventListener("click", async () => { closeHomeMenu(); await logout(); });
-$("homeMenuShopProfileButton")?.addEventListener("click", async () => { closeHomeMenu(); $("editShopButton")?.click(); });
+$("homeMenuShopProfileButton")?.addEventListener("click", () => { closeHomeMenu(); navigate("shop-setup"); });
 document.querySelectorAll("[data-home-menu-route]").forEach(button => {
   button.addEventListener("click", () => {
     const route = button.dataset.homeMenuRoute;
@@ -4063,7 +4063,7 @@ async function saveProduct() {
 }
 
 
-$("productsButton")
+$("productsButton")?
   .addEventListener(
     "click",
     () => {
