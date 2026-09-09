@@ -476,7 +476,7 @@
             <div class="form-group"><label for="eventEndTime">End Time</label><input id="eventEndTime" type="time"></div>
           </div>
           <div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" rows="3" maxlength="1000"></textarea></div>
-          <div class="form-group"><label for="eventChangeReason">Change Reason</label><input id="eventChangeReason" type="text" maxlength="300" placeholder="Optional reason when rescheduling an existing event"></div>
+          <div id="eventChangeReasonGroup" class="form-group" hidden><label for="eventChangeReason">Change Reason</label><input id="eventChangeReason" type="text" maxlength="300" placeholder="Optional reason for changing an existing event"></div>
           <div class="editor-actions"><button id="cancelEventButton" class="secondary-button" type="button">Cancel</button><button id="saveEventButton" type="submit">Save Event</button></div>
           <p id="eventEditorMessage" class="form-message" role="alert"></p>
         </form>

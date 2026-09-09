@@ -1456,6 +1456,7 @@ function openEventEditor(event = null) {
   $("eventEndTime").value = event?.end_time?.slice(0,5) || "";
   $("eventNotes").value = event?.notes || "";
   if ($("eventChangeReason")) $("eventChangeReason").value = "";
+  if ($("eventChangeReasonGroup")) $("eventChangeReasonGroup").hidden = !event;
   $("eventEditorMessage").textContent = "";
   $("newEventButton").textContent = event ? "Close Editor" : "Cancel";
 }
@@ -1464,6 +1465,8 @@ function closeEventEditor() {
   editingEventId = null;
   $("eventForm").hidden = true;
   $("eventEditorMessage").textContent = "";
+  if ($("eventChangeReasonGroup")) $("eventChangeReasonGroup").hidden = true;
+  if ($("eventChangeReason")) $("eventChangeReason").value = "";
   $("newEventButton").textContent = "New Event";
 }
 
