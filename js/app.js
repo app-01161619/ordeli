@@ -2228,7 +2228,7 @@ $("loginForm")
         }
 
 
-        navigate("home");
+        window.location.hash = "#home";
         await renderApplication();
 
 
@@ -2765,7 +2765,7 @@ $("shopSetupForm")
 
         resetButton(
           $("saveShopButton"),
-          "Save Shop"
+          "Save & Continue"
         );
 
       }
@@ -2790,11 +2790,19 @@ $("shopLogo")
           .hidden =
             true;
 
+        $("shopLogoUploader")
+          ?.classList
+          .remove("has-preview");
+
 
         $("shopLogoPreview")
           .removeAttribute(
             "src"
           );
+
+        $("shopLogoUploader")
+          ?.classList
+          .remove("has-preview");
 
 
         return;
@@ -2820,6 +2828,10 @@ $("shopLogo")
           .hidden =
             false;
 
+        $("shopLogoUploader")
+          ?.classList
+          .add("has-preview");
+
 
       } catch (error) {
 
@@ -2831,6 +2843,10 @@ $("shopLogo")
         $("shopLogoPreviewContainer")
           .hidden =
             true;
+
+        $("shopLogoUploader")
+          ?.classList
+          .remove("has-preview");
 
 
         $("shopSetupMessage")
