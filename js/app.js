@@ -3492,6 +3492,8 @@ async function loadProducts() {
   }
 
   data = data || [];
+  const countEl = $("productCount");
+  if (countEl) countEl.textContent = String(data.length);
   if (getRoute() !== "products") return;
   if (!data.length) { $("emptyProductsState").hidden = false; return; }
   const fragment = document.createDocumentFragment();
@@ -3715,9 +3717,10 @@ function setProductCancellationUi(enabled) {
   const checkbox = $("productCancellationEnabled");
   const group = $("productCancellationStageGroup");
   const select = $("productCancellationCutoff");
+  const active = Boolean(enabled) && !checkbox?.disabled;
   if (checkbox) checkbox.checked = Boolean(enabled);
-  if (group) group.hidden = !enabled;
-  if (select) select.disabled = !enabled;
+  if (group) group.hidden = !active;
+  if (select) select.disabled = !active;
 }
 
 $("productCancellationEnabled")?.addEventListener("change", event => {
