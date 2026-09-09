@@ -27,11 +27,6 @@ export default {
     }
 
     const response = await env.ASSETS.fetch(request);
-    const headers = new Headers(response.headers);
-    const requestPathname = new URL(request.url).pathname;
-    if (requestPathname === "/" || requestPathname === "/index.html" || requestPathname === "/sw.js" || requestPathname === "/js/register-sw.js") {
-      headers.set("Cache-Control", "no-store");
-    }
-    return withSecurityHeaders(new Response(response.body, { status: response.status, statusText: response.statusText, headers }));
+    return withSecurityHeaders(response);
   }
 };

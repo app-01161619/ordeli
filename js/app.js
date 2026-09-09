@@ -3434,50 +3434,15 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
 $("homeOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeEventsButton")?.addEventListener("click", () => navigate("events"));
+$("homeUpdatesButton")?.addEventListener("click", () => navigate("updates"));
+$("updatesButton")?.addEventListener("click", () => navigate("updates"));
 $("updatesBackButton")?.addEventListener("click", () => navigate("home"));
 $("updatesRefreshButton")?.addEventListener("click", () => loadSmsUpdates());
 $("ordersBackButton")?.addEventListener("click", () => navigate("home"));
 $("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
 $("eventsBackButton")?.addEventListener("click", () => navigate("home"));
+$("reviewsButton")?.addEventListener("click", () => { navigate("reviews"); });
 $("reviewsBackButton")?.addEventListener("click", () => navigate("home"));
-
-function closeHomeMenu() {
-  const menu = $("homeMenu");
-  const backdrop = $("homeMenuBackdrop");
-  const button = $("homeMenuButton");
-  if (!menu) return;
-  menu.hidden = true;
-  if (backdrop) backdrop.hidden = true;
-  if (button) button.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("home-menu-open");
-}
-
-function openHomeMenu() {
-  const menu = $("homeMenu");
-  const backdrop = $("homeMenuBackdrop");
-  const button = $("homeMenuButton");
-  if (!menu) return;
-  menu.hidden = false;
-  if (backdrop) backdrop.hidden = false;
-  if (button) button.setAttribute("aria-expanded", "true");
-  document.body.classList.add("home-menu-open");
-}
-
-$("homeMenuButton")?.addEventListener("click", openHomeMenu);
-$("homeMenuCloseButton")?.addEventListener("click", closeHomeMenu);
-$("homeMenuBackdrop")?.addEventListener("click", closeHomeMenu);
-$("homeMenuLogoutButton")?.addEventListener("click", async () => { closeHomeMenu(); await logout(); });
-$("homeMenuShopProfileButton")?.addEventListener("click", async () => { closeHomeMenu(); $("editShopButton")?.click(); });
-document.querySelectorAll("[data-home-menu-route]").forEach(button => {
-  button.addEventListener("click", () => {
-    const route = button.dataset.homeMenuRoute;
-    closeHomeMenu();
-    navigate(route);
-  });
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && $("homeMenu") && !$("homeMenu").hidden) closeHomeMenu();
-});
 
 $("newEventButton")?.addEventListener("click", () => { if ($("eventForm").hidden) openEventEditor(); else closeEventEditor(); });
 
@@ -4061,6 +4026,13 @@ async function saveProduct() {
   }
 
 }
+
+
+$("homeLogoutButton")
+  .addEventListener(
+    "click",
+    logout
+  );
 
 
 $("productsButton")
@@ -5195,7 +5167,7 @@ $("qrSeriesForm").addEventListener("submit",async event=>{
   finally { resetButton($("generateQrButton"),"Generate QR Series"); }
 });
 
-$("qrButton")?.addEventListener("click",()=>navigate("qr"));
+$("qrButton").addEventListener("click",()=>navigate("qr"));
 $("qrBackButton").addEventListener("click",()=>navigate("home"));
 $("qrLogoutButton").addEventListener("click",logout);
 
