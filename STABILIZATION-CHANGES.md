@@ -37,3 +37,6 @@ Those items remain on the production-readiness checklist until the live Supabase
 - Fixed shop onboarding completion: saving the shop profile now navigates to `#home` before re-rendering the application.
 - Worker now attaches the authoritative CSP/security headers to asset responses, including `cdn.jsdelivr.net` in `connect-src`.
 - Bumped service-worker cache namespaces again to force replacement of the earlier cached app shell.
+
+
+Boot reliability patch: added a startup watchdog, prevented the service worker from serving index.html as a JavaScript/CSS fallback, bumped cache versions, and disabled browser caching for the HTML/service-worker entry assets.

@@ -1,14 +1,14 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token>) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-09-03";
+const CACHE_VERSION = "ordeli-v2026-09-09-04";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-09-02"
+  "/js/app.js?v=2026-09-09-04"
 ];
 
 self.addEventListener("install", (event) => {
@@ -66,7 +66,13 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
+        .catch(() => caches.match(request).then((cached) => {
+          if (cached) return cached;
+          return new Response("Offline asset unavailable", {
+            status: 503,
+            headers: { "Content-Type": "text/plain; charset=utf-8" }
+          });
+        }))
     );
     return;
   }
@@ -77,7 +83,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 
-const CDN_CACHE = "ordeli-cdn-v2026-09-09-03";
+const CDN_CACHE = "ordeli-cdn-v2026-09-09-04";
 const CDN_HOSTS = new Set(["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]);
 
 self.addEventListener("fetch", (event) => {
