@@ -3431,6 +3431,24 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
 });
 
 
+$("homeMenuButton")?.addEventListener("click", () => {
+  const menu = $("homeMenu");
+  const button = $("homeMenuButton");
+  const isOpen = button.getAttribute("aria-expanded") === "true";
+  menu.hidden = isOpen;
+  button.setAttribute("aria-expanded", String(!isOpen));
+  button.setAttribute("aria-label", isOpen ? "Open navigation menu" : "Close navigation menu");
+});
+
+document.addEventListener("click", event => {
+  const menu = $("homeMenu");
+  const button = $("homeMenuButton");
+  if (!menu || menu.hidden || menu.parentElement.contains(event.target)) return;
+  menu.hidden = true;
+  button.setAttribute("aria-expanded", "false");
+  button.setAttribute("aria-label", "Open navigation menu");
+});
+
 $("homeOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeEventsButton")?.addEventListener("click", () => navigate("events"));

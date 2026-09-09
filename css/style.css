@@ -477,6 +477,55 @@ a:hover {
   width: auto;
 }
 
+.home-menu {
+  position: relative;
+}
+
+.home-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 210px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e2e6eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(32, 33, 36, .16);
+}
+
+.home-menu-panel button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: #fff;
+  color: var(--text);
+}
+
+.home-menu-panel button:hover {
+  background: #f1f4f7;
+}
+
+.home-menu-icon {
+  width: 24px;
+  text-align: center;
+  font-size: 17px;
+}
+
+#homeScreen .app-container {
+  padding-bottom: 96px;
+}
+
 .home-empty {
   display: flex;
   flex-direction: column;
@@ -793,6 +842,21 @@ a:hover {
 
   .header-actions button {
     flex: 1;
+  }
+
+  .home-menu {
+    flex: 1;
+  }
+
+  .home-menu-button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .home-menu-panel {
+    left: 0;
+    right: auto;
+    width: min(260px, calc(100vw - 32px));
   }
 
   .page-header > button {
@@ -1989,6 +2053,13 @@ a:hover {
   .orders-filter { flex: 0 0 auto; }
   .orders-search { width: 100%; }
   .seller-order-card-footer { align-items: flex-start; flex-direction: column; }
+  .dashboard-panel .section-heading > button {
+    flex: 0 0 auto;
+    max-width: 82px;
+    padding: 9px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
 }
 
 .add-to-order-context {
