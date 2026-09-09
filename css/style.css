@@ -1151,24 +1151,59 @@ a:hover {
 
 
 /* HOME MENU + FIXED QR ACTION */
+.home-app-header {
+  align-items: center;
+}
+
 .home-header-actions {
   margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .home-menu-button {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border, #e5e7eb);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--surface, #fff);
   color: var(--text, #202124);
-  font-size: 23px;
-  line-height: 1;
-  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.home-menu-button:hover {
+  background: #f8fafc;
+  border-color: #cbd3dc;
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+
+.home-menu-button:active {
+  transform: scale(.96);
+}
+
+.home-menu-button:focus-visible {
+  outline: 3px solid rgba(32,138,239,.18);
+  outline-offset: 2px;
+}
+
+.home-menu-glyph {
+  width: 20px;
+  height: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.home-menu-glyph i {
+  display: block;
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .home-menu-backdrop {
@@ -1181,179 +1216,155 @@ a:hover {
 
 .home-menu {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: 16px;
+  right: 16px;
   z-index: 250;
-  width: min(360px, calc(100vw - 28px));
-  padding: 22px 18px;
-  overflow-y: auto;
+  width: min(370px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 18px;
   background: var(--surface, #fff);
-  border-left: 1px solid var(--border, #e5e7eb);
-  box-shadow: -14px 0 40px rgba(15, 23, 42, .12);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(15,23,42,.18);
+  animation: home-menu-in .18s ease-out;
 }
 
-.home-menu[hidden],
-.home-menu-backdrop[hidden] {
+.home-menu[hidden] {
   display: none;
 }
 
-.home-menu-open {
-  overflow: hidden;
+@keyframes home-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .home-menu-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border, #e5e7eb);
-}
-
-.home-menu-eyebrow {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--text-muted, #68727d);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .09em;
-}
-
-.home-menu-header h2 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.home-menu-close {
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 12px;
-  background: var(--surface-muted, #f8fafc);
-  color: var(--text, #202124);
-  font-size: 26px;
+  margin-bottom: 12px;
 }
 
 .home-menu-list {
   display: grid;
-  gap: 7px;
+  gap: 8px;
 }
 
 .home-menu-item {
   width: 100%;
-  padding: 12px;
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  gap: 11px;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background: transparent;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
   color: var(--text, #202124);
   text-align: left;
+  border: 1px solid transparent;
+  border-radius: 12px;
 }
 
-.home-menu-item:hover,
-.home-menu-item:focus-visible {
-  background: var(--surface-muted, #f8fafc);
-  border-color: var(--border, #e5e7eb);
+.home-menu-item:hover {
+  background: #f8fafc;
+  border-color: var(--border);
 }
 
 .home-menu-icon {
-  width: 42px;
-  height: 42px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: #eef5ff;
-  color: var(--primary, #208aef);
-  font-size: 20px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  font-size: 19px;
 }
 
-.home-menu-item strong,
-.home-menu-item small {
-  display: block;
+.home-menu-item > span:last-child {
+  min-width: 0;
 }
 
 .home-menu-item strong {
+  display: block;
+  margin-bottom: 2px;
   font-size: 14px;
 }
 
 .home-menu-item small {
-  margin-top: 3px;
-  color: var(--text-muted, #68727d);
+  display: block;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.35;
 }
 
-.home-menu-item-danger .home-menu-icon {
-  background: #fff1f2;
-  color: #dc2626;
-}
-
 .home-menu-item-danger {
-  margin-top: 8px;
-  border-top: 1px solid var(--border, #e5e7eb);
-  border-radius: 0;
-  padding-top: 16px;
+  color: var(--danger);
 }
 
 .home-fixed-scan-button {
-  position: fixed !important;
+  position: fixed;
   left: 50%;
   bottom: max(18px, env(safe-area-inset-bottom));
-  z-index: 210;
+  z-index: 220;
   transform: translateX(-50%);
-  min-width: 144px;
-  min-height: 56px;
-  padding: 11px 20px;
-  border-radius: 999px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.20);
+  min-width: 148px;
+  box-shadow: 0 8px 24px rgba(32,138,239,.25);
 }
 
-.home-screen-spacer {
-  height: 90px;
-}
-
-.dashboard-panel .section-heading > div {
-  min-width: 0;
-}
-
-#homeViewOrdersButton {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  font-size: 13px;
-  padding: 10px 12px;
+.home-fixed-scan-button:hover {
+  transform: translateX(-50%) translateY(-1px);
 }
 
 @media (max-width: 640px) {
+  .home-app-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .home-app-header .shop-heading {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .home-app-header .shop-heading > div:last-child {
+    min-width: 0;
+  }
+
+  .home-app-header .shop-heading h1,
+  .home-app-header .shop-heading p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .home-header-actions {
     width: auto;
   }
 
+  .home-header-actions button {
+    flex: 0 0 auto;
+  }
+
   .home-menu {
-    width: min(360px, calc(100vw - 16px));
+    top: 12px;
+    right: 12px;
+    width: min(370px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
   }
 
   .home-fixed-scan-button {
-    min-width: 132px;
+    min-width: 136px;
     bottom: max(14px, env(safe-area-inset-bottom));
   }
-
-  .dashboard-panel .section-heading {
-    align-items: center;
-    gap: 10px;
-  }
-
-  #homeViewOrdersButton {
-    flex-shrink: 0;
-  }
 }
-
 
 /* ==========================================================
    SCANNER
