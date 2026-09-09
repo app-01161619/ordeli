@@ -1163,7 +1163,7 @@ a:hover {
 .home-menu-button {
   width: 46px;
   height: 46px;
-  padding: 0;
+  padding: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
