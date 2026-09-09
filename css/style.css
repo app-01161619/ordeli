@@ -538,31 +538,6 @@ a:hover {
   color: #666;
 }
 
-.page-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.page-title-row h1 {
-  margin: 0 0 6px;
-}
-
-.product-count {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #eef1f4;
-  color: #4b5563;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .page-header > button {
   width: auto;
   white-space: nowrap;

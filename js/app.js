@@ -3492,8 +3492,6 @@ async function loadProducts() {
   }
 
   data = data || [];
-  const countEl = $("productCount");
-  if (countEl) countEl.textContent = String(data.length);
   if (getRoute() !== "products") return;
   if (!data.length) { $("emptyProductsState").hidden = false; return; }
   const fragment = document.createDocumentFragment();
@@ -3717,16 +3715,21 @@ function setProductCancellationUi(enabled) {
   const checkbox = $("productCancellationEnabled");
   const group = $("productCancellationStageGroup");
   const select = $("productCancellationCutoff");
-  const active = Boolean(enabled) && !checkbox?.disabled;
+  const hasStages = checkbox?.dataset.cancellationStagesAvailable === "true";
   if (checkbox) checkbox.checked = Boolean(enabled);
-  if (group) group.hidden = !active;
-  if (select) select.disabled = !active;
+  if (group) group.hidden = !enabled;
+  if (select) select.disabled = !enabled || !hasStages;
 }
 
 $("productCancellationEnabled")?.addEventListener("change", event => {
   const enabled = Boolean(event.target.checked);
+  const checkbox = event.target;
+  const select = $("productCancellationCutoff");
   setProductCancellationUi(enabled);
-  if (!enabled && $("productCancellationCutoff")) $("productCancellationCutoff").value = "";
+  if (!enabled && select) select.value = "";
+  if (enabled && checkbox.dataset.cancellationStagesAvailable !== "true" && select) {
+    select.value = "";
+  }
 });
 
 function closeProductEditor() {
@@ -3779,10 +3782,16 @@ async function populateProductCancellationOptions(productId, selectedValue = "")
   if (!productId) {
     select.appendChild(new Option("Add production stages first", ""));
     select.disabled = true;
-    if (checkbox) checkbox.disabled = true;
+    if (checkbox) {
+      checkbox.disabled = false;
+      checkbox.dataset.cancellationStagesAvailable = "false";
+    }
     return;
   }
-  if (checkbox) checkbox.disabled = false;
+  if (checkbox) {
+    checkbox.disabled = false;
+    checkbox.dataset.cancellationStagesAvailable = "false";
+  }
   try {
     const user = await getCurrentUser();
     const result = await supabase
@@ -3795,14 +3804,18 @@ async function populateProductCancellationOptions(productId, selectedValue = "")
     if (!stages.length) {
       select.appendChild(new Option("Add production stages first", ""));
       select.disabled = true;
-      if (checkbox) checkbox.checked = false;
+      if (checkbox) {
+        checkbox.checked = false;
+        checkbox.dataset.cancellationStagesAvailable = "false";
+      }
       return;
     }
+    if (checkbox) checkbox.dataset.cancellationStagesAvailable = "true";
     stages.forEach(stage => {
       select.appendChild(new Option(`${stage.stage_order}. ${stage.name}`, String(stage.stage_order)));
     });
     select.value = selectedValue === null || selectedValue === undefined ? "" : String(selectedValue);
-    select.disabled = false;
+    select.disabled = !checkbox?.checked;
   } catch (error) {
     console.warn("Unable to load cancellation stages:", error);
   }
@@ -3875,6 +3888,15 @@ async function saveProduct() {
 
   }
 
+
+  const cancellationEnabled = Boolean($("productCancellationEnabled")?.checked);
+  const cancellationCutoff = $("productCancellationCutoff")?.value || "";
+  if (cancellationEnabled && !cancellationCutoff) {
+    $("productMessage").textContent =
+      "Select the production stage before enabling customer cancellation.";
+    setProductCancellationUi(true);
+    return;
+  }
 
   setLoading(
     $("saveProductButton"),
