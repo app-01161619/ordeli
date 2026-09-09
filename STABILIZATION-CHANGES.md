@@ -40,3 +40,9 @@ Those items remain on the production-readiness checklist until the live Supabase
 
 
 Boot reliability patch: added a startup watchdog, prevented the service worker from serving index.html as a JavaScript/CSS fallback, bumped cache versions, and disabled browser caching for the HTML/service-worker entry assets.
+
+
+## UI update — universal seller menu
+- The hamburger menu is now available on seller app page headers, not only Home.
+- Menu buttons share the same visual treatment and open the existing global menu.
+- Home retains its header position; other seller pages receive the same top-right control.

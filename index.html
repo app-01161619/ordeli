@@ -125,7 +125,7 @@
 
   <section id="homeScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="app-header">
+      <header class="app-header home-app-header">
         <div class="shop-heading">
           <div id="homeLogoContainer" class="home-logo-container" hidden>
             <img id="homeLogo" class="home-logo" alt="Shop logo">
@@ -136,8 +136,8 @@
           </div>
         </div>
         <div class="header-actions home-header-actions">
-          <button id="homeMenuButton" class="home-menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="homeMenu">
-            <span aria-hidden="true">☰</span>
+          <button id="homeMenuButton" class="home-menu-button app-menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="homeMenu">
+            <span class="home-menu-glyph" aria-hidden="true"><i></i><i></i><i></i></span>
           </button>
         </div>
       </header>
@@ -175,6 +175,16 @@
         </div>
       </section>
 
+
+      <button id="homeScanButton" class="scan-button home-fixed-scan-button" type="button">
+        <span class="scan-button-icon">▣</span>
+        <span>Scan QR</span>
+      </button>
+    </div>
+  </section>
+
+  
+
       <aside id="homeMenu" class="home-menu" hidden aria-label="Seller menu">
         <div class="home-menu-header">
           <div>
@@ -195,17 +205,10 @@
       </aside>
       <div id="homeMenuBackdrop" class="home-menu-backdrop" hidden></div>
 
-      <button id="homeScanButton" class="scan-button home-fixed-scan-button" type="button">
-        <span class="scan-button-icon">▣</span>
-        <span>Scan QR</span>
-      </button>
-    </div>
-  </section>
 
-  
   <section id="scannerScreen" class="screen" hidden>
     <div class="app-container scanner-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="scannerBackButton" class="back-button" type="button">← Back</button>
           <h1>Scan Product QR</h1>
@@ -224,7 +227,7 @@
 
   <section id="orderCreateScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="orderCreateBackButton" class="back-button" type="button">← Back</button>
           <h1>Create Order</h1>
@@ -318,7 +321,7 @@
   <section id="orderDetailScreen" class="screen" hidden>
     <div class="app-container">
 
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="orderDetailBackButton" class="back-button" type="button">← Back</button>
           <h1 id="orderDetailTitle">Order</h1>
@@ -460,7 +463,7 @@
   </section>
   <section id="ordersScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="ordersBackButton" class="back-button" type="button">← Back</button>
           <h1>Orders</h1>
@@ -493,7 +496,7 @@
 
   <section id="eventsScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="eventsBackButton" class="back-button" type="button">← Back</button>
           <h1>Events</h1>
@@ -530,7 +533,7 @@
 
   <section id="updatesScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="updatesBackButton" class="back-button" type="button">← Back</button>
           <h1>Updates</h1>
@@ -556,7 +559,7 @@
 
   <section id="reviewsScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="reviewsBackButton" class="back-button" type="button">← Back</button>
           <h1>Reviews</h1>
@@ -581,7 +584,7 @@
 
   <section id="productionScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <h1>Production Work</h1>
           <p id="productionMemberSubtitle" class="page-subtitle">Complete the next available production stage.</p>
@@ -616,7 +619,7 @@
 
   <section id="teamScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="teamBackButton" class="back-button" type="button">← Back</button>
           <h1>Production Team</h1>
@@ -651,7 +654,7 @@
 
   <section id="productsScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="productsBackButton" class="back-button" type="button">← Back</button>
           <h1>Products</h1>
@@ -721,7 +724,7 @@
   <section id="workflowScreen" class="screen" hidden>
     <div class="app-container">
 
-      <header class="page-header">
+      <header class="page-header app-page-header">
         <div>
           <button id="workflowBackButton" class="back-button" type="button">← Back to Products</button>
           <h1>Production Workflow</h1>
@@ -806,7 +809,7 @@
 
   <section id="qrScreen" class="screen" hidden>
     <div class="app-container">
-      <header class="page-header"><div>
+      <header class="page-header app-page-header"><div>
         <button id="qrBackButton" class="back-button" type="button">← Back</button>
         <h1>QR Management</h1>
         <p class="page-subtitle">Generate and manage product-specific QR inventory.</p>

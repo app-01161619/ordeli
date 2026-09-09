@@ -3439,29 +3439,43 @@ $("ordersScanButton")?.addEventListener("click", () => navigate("scanner"));
 $("eventsBackButton")?.addEventListener("click", () => navigate("home"));
 $("reviewsBackButton")?.addEventListener("click", () => navigate("home"));
 
+function setupGlobalMenuButtons() {
+  document.querySelectorAll(".app-page-header, .app-header").forEach((header) => {
+    if (header.querySelector(".app-menu-button")) return;
+    if (header.closest("#loginScreen, #registerScreen, #shopSetupScreen")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "home-menu-button app-menu-button";
+    button.setAttribute("aria-label", "Open menu");
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-controls", "homeMenu");
+    button.innerHTML = '<span class="home-menu-glyph" aria-hidden="true"><i></i><i></i><i></i></span>';
+    header.appendChild(button);
+  });
+}
+
 function closeHomeMenu() {
   const menu = $("homeMenu");
   const backdrop = $("homeMenuBackdrop");
-  const button = $("homeMenuButton");
   if (!menu) return;
   menu.hidden = true;
   if (backdrop) backdrop.hidden = true;
-  if (button) button.setAttribute("aria-expanded", "false");
+  document.querySelectorAll(".app-menu-button").forEach((button) => button.setAttribute("aria-expanded", "false"));
   document.body.classList.remove("home-menu-open");
 }
 
 function openHomeMenu() {
   const menu = $("homeMenu");
   const backdrop = $("homeMenuBackdrop");
-  const button = $("homeMenuButton");
   if (!menu) return;
   menu.hidden = false;
   if (backdrop) backdrop.hidden = false;
-  if (button) button.setAttribute("aria-expanded", "true");
+  document.querySelectorAll(".app-menu-button").forEach((button) => button.setAttribute("aria-expanded", "true"));
   document.body.classList.add("home-menu-open");
 }
 
-$("homeMenuButton")?.addEventListener("click", openHomeMenu);
+setupGlobalMenuButtons();
 $("homeMenuCloseButton")?.addEventListener("click", closeHomeMenu);
 $("homeMenuBackdrop")?.addEventListener("click", closeHomeMenu);
 $("homeMenuLogoutButton")?.addEventListener("click", async () => { closeHomeMenu(); await logout(); });
@@ -3472,6 +3486,13 @@ document.querySelectorAll("[data-home-menu-route]").forEach(button => {
     closeHomeMenu();
     navigate(route);
   });
+});
+document.addEventListener("click", (event) => {
+  const button = event.target.closest?.(".app-menu-button");
+  if (button) {
+    if ($("homeMenu")?.hidden) openHomeMenu();
+    else closeHomeMenu();
+  }
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && $("homeMenu") && !$("homeMenu").hidden) closeHomeMenu();

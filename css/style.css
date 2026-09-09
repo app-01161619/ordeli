@@ -1370,6 +1370,60 @@ a:hover {
   }
 }
 
+
+/* UNIVERSAL SELLER MENU BUTTON */
+.app-page-header,
+.app-header {
+  position: relative;
+}
+
+.app-page-header {
+  padding-right: 62px;
+}
+
+.app-menu-button {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: var(--text, #202124);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.app-page-header > .app-menu-button {
+  position: absolute;
+  top: 12px;
+  right: 0;
+}
+
+.app-menu-button:hover {
+  background: #f8fafc;
+  border-color: #cbd3dc;
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+
+.app-menu-button:active {
+  transform: scale(.96);
+}
+
+@media (max-width: 640px) {
+  .app-page-header {
+    padding-right: 58px;
+  }
+
+  .app-page-header > .app-menu-button {
+    top: 10px;
+    right: 0;
+  }
+
+}
+
 /* ==========================================================
    SCANNER
 ========================================================== */
