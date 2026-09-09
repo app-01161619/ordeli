@@ -2568,7 +2568,7 @@ async function showProductionScannedItem(item) {
       });
       if (error) throw error;
 
-      const label = data?.stage_name ? `“${data.stage_name}” sent back for rework.` : "Previous stage sent back for rework.";
+      const label = data?.stage_name ? `“${data.stage_name}”  for rework.` : "Previous stage  for rework.";
       showToast(label, "success");
       await showProductionScannedItem(await resolveProductionQr(item.public_token));
     } catch (error) {
@@ -6442,29 +6442,6 @@ function createProductionStageRow(
 
   }
 
-  const latestFinishedStage =
-    stage.latest?.action === "finished";
-
-  if (
-    latestFinishedStage &&
-    !item.cancelled_at &&
-    stagesCanBeSentBack(stage, item, panel)
-  ) {
-
-    const sendBackButton =
-      document.createElement("button");
-
-    sendBackButton.type = "button";
-    sendBackButton.className = "secondary-button";
-    sendBackButton.textContent = "Send Back";
-    sendBackButton.addEventListener("click", () => {
-      sendBackProductionStage(item, stage, panel);
-    });
-
-    actions.appendChild(sendBackButton);
-
-  }
-
   if (stage.finished && stage.latest?.proof_photo_path) {
 
     const viewButton =
@@ -6758,66 +6735,6 @@ async function finishProductionStage(
 
 }
 
-
-async function sendBackProductionStage(
-  item,
-  stage,
-  panel
-) {
-
-  if (productionBusyItemId) {
-    return;
-  }
-
-  const confirmed =
-    window.confirm(
-      `Send “${stage.name}” back for rework? This will make it the current production stage again.`
-    );
-
-  if (!confirmed) {
-    return;
-  }
-
-  productionBusyItemId = item.id;
-
-  try {
-
-    const { error } =
-      await supabase.rpc(
-        "send_back_production_stage",
-        {
-          p_order_item_id: item.id,
-          p_stage_order: stage.stage_order,
-          p_stage_name: stage.name
-        }
-      );
-
-    if (error) {
-      throw error;
-    }
-
-    // The RPC has already succeeded. Do not call an optional toast helper here;
-    // an undefined helper would abort the UI update after the database mutation.
-    if (panel) {
-      await renderProductionPanel(item, panel);
-      const notice = document.createElement("p");
-      notice.className = "production-success";
-      notice.textContent = `“${stage.name}” was sent back for rework.`;
-      panel.prepend(notice);
-    } else if (currentOrderId) {
-      await loadOrderDetail(currentOrderId);
-    }
-
-  } catch (error) {
-
-    console.error("Send back production stage failed:", error);
-    alert(error?.message || "Unable to send this stage back.");
-
-  } finally {
-    productionBusyItemId = null;
-  }
-
-}
 
 
 async function viewProductionProof(path) {
