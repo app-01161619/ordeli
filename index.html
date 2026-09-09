@@ -137,7 +137,7 @@
         </div>
         <div class="header-actions home-header-actions">
           <button id="homeMenuButton" class="home-menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="homeMenu">
-            <span aria-hidden="true">☰</span>
+            <span class="home-menu-hamburger" aria-hidden="true"><i></i><i></i><i></i></span>
           </button>
         </div>
       </header>
@@ -148,6 +148,12 @@
           <h2>What needs your attention?</h2>
           <p id="homeDashboardSubtitle">Your shop is ready. Your operational work will appear here.</p>
         </div>
+      </section>
+
+      <section class="quick-actions quick-actions-compact" aria-label="Quick actions">
+        <button id="homeOrdersButton" type="button"><span class="quick-action-icon" aria-hidden="true">▤</span><span>Orders</span></button>
+        <button id="homeEventsButton" type="button"><span class="quick-action-icon" aria-hidden="true">◫</span><span>Events</span></button>
+        <button id="homeUpdatesButton" type="button"><span class="quick-action-icon" aria-hidden="true">✉</span><span>Updates</span></button>
       </section>
 
       <section class="attention-grid" aria-label="Needs attention">
@@ -169,17 +175,9 @@
       </section>
 
       <section class="dashboard-panels">
-        <div class="dashboard-panel">
+        <div class="dashboard-panel dashboard-panel-recent-orders">
           <div class="section-heading"><div><h2>Recent Orders</h2><p>Jump back into the latest customer work.</p></div><button id="homeViewOrdersButton" class="secondary-button" type="button">View all</button></div>
           <div id="homeRecentOrders" class="dashboard-order-list"></div>
-        </div>
-        <div class="dashboard-panel">
-          <div class="section-heading"><div><h2>Quick Actions</h2><p>Common seller operations.</p></div></div>
-          <div class="quick-actions">
-            <button id="homeOrdersButton" type="button">Orders</button>
-            <button id="homeEventsButton" type="button">Events</button>
-            <button id="homeUpdatesButton" type="button">Updates</button>
-          </div>
         </div>
       </section>
 

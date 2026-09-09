@@ -3445,10 +3445,17 @@ function closeHomeMenu() {
   const backdrop = $("homeMenuBackdrop");
   const button = $("homeMenuButton");
   if (!menu) return;
-  menu.hidden = true;
-  if (backdrop) backdrop.hidden = true;
-  if (button) button.setAttribute("aria-expanded", "false");
+  menu.classList.remove("is-open");
+  if (backdrop) backdrop.classList.remove("is-open");
+  if (button) {
+    button.classList.remove("is-open");
+    button.setAttribute("aria-expanded", "false");
+  }
   document.body.classList.remove("home-menu-open");
+  window.setTimeout(() => {
+    if (!menu.classList.contains("is-open")) menu.hidden = true;
+    if (backdrop && !backdrop.classList.contains("is-open")) backdrop.hidden = true;
+  }, 250);
 }
 
 function openHomeMenu() {
@@ -3458,7 +3465,14 @@ function openHomeMenu() {
   if (!menu) return;
   menu.hidden = false;
   if (backdrop) backdrop.hidden = false;
-  if (button) button.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => {
+    menu.classList.add("is-open");
+    if (backdrop) backdrop.classList.add("is-open");
+    if (button) {
+      button.classList.add("is-open");
+      button.setAttribute("aria-expanded", "true");
+    }
+  });
   document.body.classList.add("home-menu-open");
 }
 
