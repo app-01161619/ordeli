@@ -1149,6 +1149,12 @@ async function renderApplication() {
       return;
     }
 
+    if (getRoute() === "reviews") {
+      showScreen("reviews");
+      await loadReviews();
+      return;
+    }
+
     if (
       getRoute() ===
       "order-detail"
@@ -1593,6 +1599,30 @@ async function loadEvents() {
 
 let editingEventId = null;
 
+function updateEventChangeReasonVisibility() {
+  const group = $("eventChangeReasonGroup");
+  const input = $("eventChangeReason");
+  if (!group || !input) return;
+
+  if (!editingEventId) {
+    group.hidden = true;
+    input.required = false;
+    input.value = "";
+    return;
+  }
+
+  const originalDate = group.dataset.originalDate || "";
+  const originalStart = group.dataset.originalStart || "";
+  const originalEnd = group.dataset.originalEnd || "";
+  const changed = $("eventDate")?.value !== originalDate
+    || ($("eventStartTime")?.value || "") !== originalStart
+    || ($("eventEndTime")?.value || "") !== originalEnd;
+
+  group.hidden = !changed;
+  input.required = changed;
+  if (!changed) input.value = "";
+}
+
 function openEventEditor(event = null) {
   editingEventId = event?.id || null;
   const form = $("eventForm");
@@ -1603,7 +1633,17 @@ function openEventEditor(event = null) {
   $("eventStartTime").value = event?.start_time?.slice(0,5) || "";
   $("eventEndTime").value = event?.end_time?.slice(0,5) || "";
   $("eventNotes").value = event?.notes || "";
-  if ($("eventChangeReason")) $("eventChangeReason").value = "";
+  if ($("eventChangeReason")) {
+    $("eventChangeReason").value = "";
+    $("eventChangeReason").required = false;
+  }
+  const reasonGroup = $("eventChangeReasonGroup");
+  if (reasonGroup) {
+    reasonGroup.dataset.originalDate = event?.event_date || $("eventDate").value || "";
+    reasonGroup.dataset.originalStart = event?.start_time?.slice(0,5) || "";
+    reasonGroup.dataset.originalEnd = event?.end_time?.slice(0,5) || "";
+  }
+  updateEventChangeReasonVisibility();
   $("eventEditorMessage").textContent = "";
   $("newEventButton").textContent = event ? "Close Editor" : "Cancel";
 }
@@ -1628,6 +1668,8 @@ async function saveEventForm(event) {
     notes: $("eventNotes").value.trim() || null
   };
   const changeReason = $("eventChangeReason")?.value.trim() || null;
+  // A new event does not require a change reason. An existing event only
+  // requires one when its schedule (date/start/end) is changed.
   // The existing Supabase schema uses lowercase event status values.
   // Only new events receive the initial status; editing an event must not
   // accidentally reset an existing Ready/Active/Completed/Cancelled state.
@@ -1646,6 +1688,10 @@ async function saveEventForm(event) {
       if (result.error) throw result.error;
       const before = beforeResult.data;
       const scheduleChanged = before.event_date !== payload.event_date || before.start_time !== payload.start_time || before.end_time !== payload.end_time;
+      if (scheduleChanged && !changeReason) {
+        $("eventEditorMessage").textContent = "Please provide a reason when changing the event schedule.";
+        return;
+      }
       if (scheduleChanged) {
         const logResult = await supabase.from("event_change_logs").insert({
           event_id: editingEventId,
@@ -1752,7 +1798,7 @@ async function openEventReschedulePicker(event, card) {
   select.className = 'tracking-select';
   select.innerHTML = '<option value="">Choose a new event</option>';
   const reason = document.createElement('input');
-  reason.type = 'text'; reason.maxLength = 300; reason.placeholder = 'Reason (optional)';
+  reason.type = 'text'; reason.maxLength = 300; reason.required = true; reason.setAttribute('aria-required', 'true'); reason.placeholder = 'Reason for rescheduling';
   const actions = document.createElement('div');
   actions.className = 'event-card-actions';
   const save = document.createElement('button');
@@ -1792,6 +1838,10 @@ async function openEventReschedulePicker(event, card) {
     select.addEventListener('change', () => { save.disabled = !select.value; });
     save.addEventListener('click', async () => {
       if (!select.value) return;
+      if (!reason.value.trim()) {
+        reason.focus();
+        return;
+      }
       save.disabled = true;
       save.textContent = 'Rescheduling…';
       try {
@@ -3272,10 +3322,6 @@ function cancelEditProductionMember() {
 }
 
 
-$("teamButton")?.addEventListener("click", () => { navigate("team"); renderTeam(); });
-$("teamBackButton")?.addEventListener("click", () => navigate("home"));
-$("productionRefreshButton")?.addEventListener("click", async () => { try { await renderProductionWork(await getActorContext(true)); } catch (error) { $("productionMessage").textContent = error?.message || "Unable to refresh."; } });
-$("productionLogoutButton")?.addEventListener("click", async () => { await supabase.auth.signOut(); location.hash = "login"; location.reload(); });
 $("teamMemberForm")?.addEventListener("submit", async event => {
   event.preventDefault();
   const message = $("teamMemberMessage");
@@ -3354,8 +3400,6 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
 
 $("homeOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
-$("homeProductsButton")?.addEventListener("click", () => navigate("products"));
-$("homeQrButton")?.addEventListener("click", () => navigate("qr"));
 $("homeEventsButton")?.addEventListener("click", () => navigate("events"));
 $("homeUpdatesButton")?.addEventListener("click", () => navigate("updates"));
 $("updatesButton")?.addEventListener("click", () => navigate("updates"));
@@ -3368,6 +3412,12 @@ $("reviewsButton")?.addEventListener("click", () => { navigate("reviews"); });
 $("reviewsBackButton")?.addEventListener("click", () => navigate("home"));
 
 $("newEventButton")?.addEventListener("click", () => { if ($("eventForm").hidden) openEventEditor(); else closeEventEditor(); });
+
+["eventDate", "eventStartTime", "eventEndTime"].forEach((id) => {
+  ["input", "change"].forEach((eventName) => {
+    $(id)?.addEventListener(eventName, updateEventChangeReasonVisibility);
+  });
+});
 $("cancelEventButton")?.addEventListener("click", closeEventEditor);
 $("eventForm")?.addEventListener("submit", saveEventForm);
 document.querySelectorAll("[data-dashboard-route]").forEach(button => {

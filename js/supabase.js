@@ -30,7 +30,7 @@ async function ensureSupabase() {
   if (clientPromise) return clientPromise;
   clientPromise = (async () => {
     try {
-      const mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+      const mod = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm");
       client = mod.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
       });

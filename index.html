@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli seller application">
   <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="./css/style.css">
   <title>Ordeli</title>
 </head>
@@ -154,8 +155,6 @@
             <button id="homeOrdersButton" type="button">Orders</button>
             <button id="homeEventsButton" type="button">Events</button>
             <button id="homeUpdatesButton" type="button">Updates</button>
-            <button id="homeProductsButton" class="secondary-button" type="button">Products</button>
-            <button id="homeQrButton" class="secondary-button" type="button">QR Management</button>
           </div>
         </div>
       </section>
@@ -810,15 +809,9 @@
 
 </main>
 
-<script type="module" src="./js/app.js?v=2026-09-04-13"></script>
+<script type="module" src="./js/app.js?v=2026-09-09-01"></script>
 
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(console.error);
-  });
-}
-</script>
+<script src="./js/register-sw.js" defer></script>
 
 </body>
 </html>
