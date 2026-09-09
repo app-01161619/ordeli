@@ -2570,17 +2570,7 @@ async function showProductionScannedItem(item) {
 
       const label = data?.stage_name ? `“${data.stage_name}” sent back for rework.` : "Previous stage sent back for rework.";
       showToast(label, "success");
-
-      // Do not resolve the QR again after a successful mutation. Production
-      // task payloads do not always carry public_token, and the database
-      // operation has already confirmed exactly which stage was reverted.
-      // Update the scanned item in place using that authoritative response.
-      await showProductionScannedItem({
-        ...item,
-        stage_order: data?.stage_order ?? item.stage_order,
-        stage_name: data?.stage_name ?? item.stage_name,
-        has_finished_stage: true
-      });
+      await showProductionScannedItem(await resolveProductionQr(item.public_token));
     } catch (error) {
       showToast(error?.message || "Unable to send the previous stage back.", "error");
     } finally {
@@ -6806,7 +6796,8 @@ async function sendBackProductionStage(
       throw error;
     }
 
-    showToast(`“${stage.name}” sent back for rework.`, "success");
+    // The database mutation succeeded. Refresh the production panel
+    // in place so the worker sees the reverted stage immediately.
 
     // Refresh the production panel in place so the worker sees the
     // reverted stage immediately without leaving Production Work.
