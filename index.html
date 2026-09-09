@@ -107,6 +107,7 @@
           <button id="productsButton" type="button">Products</button>
           <button id="qrButton" type="button">QR Management</button>
           <button id="reviewsButton" type="button">Reviews</button>
+          <button id="updatesButton" type="button">Updates</button>
           <button id="teamButton" type="button">Production Team</button>
           <button id="editShopButton" class="secondary-button" type="button">Shop Profile</button>
         </div>
@@ -137,24 +138,22 @@
         <button class="attention-card" data-dashboard-route="events" type="button">
           <span class="attention-icon">⌁</span><span><strong id="attentionEvents">0</strong><small>Upcoming event orders</small></span>
         </button>
+        <button class="attention-card" data-dashboard-route="updates" type="button">
+          <span class="attention-icon">✉</span><span><strong id="attentionUpdates">0</strong><small>SMS updates to send</small></span>
+        </button>
       </section>
 
       <section class="dashboard-panels">
         <div class="dashboard-panel">
           <div class="section-heading"><div><h2>Recent Orders</h2><p>Jump back into the latest customer work.</p></div><button id="homeViewOrdersButton" class="secondary-button" type="button">View all</button></div>
           <div id="homeRecentOrders" class="dashboard-order-list"></div>
-<div class="seller-updates-dashboard-link">
-  <button id="openSellerUpdatesButton" class="secondary-button" type="button">
-    Customer Updates <span id="attentionSms">0</span>
-  </button>
-</div>
-
         </div>
         <div class="dashboard-panel">
           <div class="section-heading"><div><h2>Quick Actions</h2><p>Common seller operations.</p></div></div>
           <div class="quick-actions">
             <button id="homeOrdersButton" type="button">Orders</button>
             <button id="homeEventsButton" type="button">Events</button>
+            <button id="homeUpdatesButton" type="button">Updates</button>
             <button id="homeProductsButton" class="secondary-button" type="button">Products</button>
             <button id="homeQrButton" class="secondary-button" type="button">QR Management</button>
           </div>
@@ -454,21 +453,7 @@
     </div>
   </section>
 
-  <section id="sellerUpdatesScreen" class="app-screen" hidden>
-  <div class="screen-header">
-    <button id="sellerUpdatesBackButton" class="icon-button" type="button" aria-label="Back">←</button>
-    <div>
-      <p class="eyebrow">SELLER</p>
-      <h1>Updates</h1>
-      <p>Customer messages waiting for your attention.</p>
-    </div>
-    <span id="sellerUpdatesCount" class="count-badge">0</span>
-  </div>
-  <div id="sellerUpdatesList" class="seller-updates-list"></div>
-  <p id="sellerUpdatesEmpty" class="empty-state">No customer updates are waiting.</p>
-</section>
-
-<section id="eventsScreen" class="screen" hidden>
+  <section id="eventsScreen" class="screen" hidden>
     <div class="app-container">
       <header class="page-header">
         <div>
@@ -502,6 +487,32 @@
         <p>Create a pickup event when customers need a location.</p>
       </section>
       <p id="eventsMessage" class="form-message" role="alert"></p>
+    </div>
+  </section>
+
+  <section id="updatesScreen" class="screen" hidden>
+    <div class="app-container">
+      <header class="page-header">
+        <div>
+          <button id="updatesBackButton" class="back-button" type="button">← Back</button>
+          <h1>Updates</h1>
+          <p class="page-subtitle">Customer updates waiting for you to send from your phone.</p>
+        </div>
+        <button id="updatesRefreshButton" class="secondary-button" type="button">Refresh</button>
+      </header>
+      <section class="updates-summary-card">
+        <div>
+          <span class="eyebrow">SELLER ACTION</span>
+          <strong id="updatesCount">0 updates</strong>
+          <p>Ordeli prepares the message. You decide whether to send it.</p>
+        </div>
+      </section>
+      <section id="updatesList" class="sms-draft-list"></section>
+      <section id="updatesEmptyState" class="empty-state" hidden>
+        <h2>No Updates Waiting</h2>
+        <p>New customer updates will appear here when an order needs a message.</p>
+      </section>
+      <p id="updatesMessage" class="form-message" role="alert"></p>
     </div>
   </section>
 
