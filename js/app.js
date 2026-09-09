@@ -4062,8 +4062,7 @@ async function saveProduct() {
 }
 
 
-$("productsButton")?
-  .addEventListener(
+$("productsButton")?.addEventListener(
     "click",
     () => {
 
