@@ -626,13 +626,21 @@
 </section>
 <section class="screen" hidden="" id="qrScreen">
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
-<header class="page-header"><div>
+<header class="page-header">
+<div>
 <h1>QR Management</h1>
-<p class="page-subtitle">Generate and manage product-specific QR inventory.</p>
-</div></header>
-<section class="qr-create-card">
+<p class="page-subtitle">Manage your product-specific QR inventory.</p>
+</div>
+<button id="showQrSeriesFormButton" type="button">Generate QR Series</button>
+</header>
+<section class="qr-create-card" hidden id="qrCreatePanel">
+<div class="qr-create-heading">
+<div>
 <h2>Generate QR Series</h2>
 <p class="qr-help">Generate a batch of reusable QR identities for a product.</p>
+</div>
+<button class="secondary-button" id="cancelQrSeriesFormButton" type="button">Cancel</button>
+</div>
 <form id="qrSeriesForm">
 <div class="form-group"><label for="qrProduct">Product</label><select id="qrProduct" required=""><option value="">Select product</option></select></div>
 <div class="form-group"><label for="qrSeriesName">Series Name</label><input id="qrSeriesName" maxlength="100" placeholder="e.g. MUG-2026" required="" type="text"/></div>
@@ -658,13 +666,10 @@
 <label for="qrPrintQuantity">Number of pairs</label>
 <input id="qrPrintQuantity" inputmode="numeric" min="1" step="1" type="number"/>
 </div>
-<button id="prepareQrPrintButton" type="button">Prepare Preview</button>
+<button id="prepareQrPrintButton" type="button">Prepare QRs &amp; Print</button>
 </div>
 <p class="form-message" id="qrPrintMessage" role="alert"></p>
-<div class="qr-print-preview" id="qrPrintPreview"></div>
-<div class="print-preview-actions">
-<button id="printQrPairsButton" type="button">Print QR Pairs</button>
-</div>
+<div class="qr-print-area" id="qrPrintArea" aria-hidden="true"></div>
 </section>
 </section>
 </div>

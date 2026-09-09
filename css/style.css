@@ -749,11 +749,6 @@ a:hover {
   padding: 9px 10px;
 }
 
-.stage-action-button.danger-button {
-  font-size: 20px;
-  line-height: 1;
-}
-
 .workflow-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -824,33 +819,16 @@ a:hover {
   }
 
   .stage-item {
-    grid-template-columns: 38px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-
-  .stage-name-input {
-    min-width: 0;
-    width: 100%;
-    padding: 10px 9px;
+    grid-template-columns: 38px minmax(0, 1fr);
   }
 
   .stage-actions {
-    grid-column: auto;
+    grid-column: 1 / -1;
     justify-content: flex-end;
-    flex: 0 0 auto;
-    gap: 5px;
   }
 
   .stage-action-button {
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    min-width: 44px;
   }
 
 }
@@ -2632,5 +2610,75 @@ a:hover {
     min-height: 44px;
     max-height: 44px;
     flex-basis: 44px;
+  }
+}
+
+/* QR MANAGEMENT REFINEMENTS */
+.qr-create-card[hidden] {
+  display: none !important;
+}
+
+.qr-create-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.qr-create-heading h2 {
+  margin: 0 0 6px;
+}
+
+.qr-create-heading .qr-help {
+  margin-bottom: 0;
+}
+
+.qr-create-heading .secondary-button {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.qr-print-area {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  width: max-content;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .qr-create-heading {
+    flex-direction: column;
+  }
+
+  .qr-create-heading .secondary-button {
+    align-self: flex-start;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #qrPrintArea,
+  #qrPrintArea * {
+    visibility: visible;
+  }
+
+  #qrPrintArea {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: max-content;
+    margin: 0;
+    pointer-events: auto;
+  }
+
+  .qr-print-pair {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0;
   }
 }

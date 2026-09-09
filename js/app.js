@@ -3715,21 +3715,15 @@ function setProductCancellationUi(enabled) {
   const checkbox = $("productCancellationEnabled");
   const group = $("productCancellationStageGroup");
   const select = $("productCancellationCutoff");
-  const hasStages = checkbox?.dataset.cancellationStagesAvailable === "true";
   if (checkbox) checkbox.checked = Boolean(enabled);
   if (group) group.hidden = !enabled;
-  if (select) select.disabled = !enabled || !hasStages;
+  if (select) select.disabled = !enabled;
 }
 
 $("productCancellationEnabled")?.addEventListener("change", event => {
   const enabled = Boolean(event.target.checked);
-  const checkbox = event.target;
-  const select = $("productCancellationCutoff");
   setProductCancellationUi(enabled);
-  if (!enabled && select) select.value = "";
-  if (enabled && checkbox.dataset.cancellationStagesAvailable !== "true" && select) {
-    select.value = "";
-  }
+  if (!enabled && $("productCancellationCutoff")) $("productCancellationCutoff").value = "";
 });
 
 function closeProductEditor() {
@@ -3782,16 +3776,10 @@ async function populateProductCancellationOptions(productId, selectedValue = "")
   if (!productId) {
     select.appendChild(new Option("Add production stages first", ""));
     select.disabled = true;
-    if (checkbox) {
-      checkbox.disabled = false;
-      checkbox.dataset.cancellationStagesAvailable = "false";
-    }
+    if (checkbox) checkbox.disabled = true;
     return;
   }
-  if (checkbox) {
-    checkbox.disabled = false;
-    checkbox.dataset.cancellationStagesAvailable = "false";
-  }
+  if (checkbox) checkbox.disabled = false;
   try {
     const user = await getCurrentUser();
     const result = await supabase
@@ -3804,18 +3792,14 @@ async function populateProductCancellationOptions(productId, selectedValue = "")
     if (!stages.length) {
       select.appendChild(new Option("Add production stages first", ""));
       select.disabled = true;
-      if (checkbox) {
-        checkbox.checked = false;
-        checkbox.dataset.cancellationStagesAvailable = "false";
-      }
+      if (checkbox) checkbox.checked = false;
       return;
     }
-    if (checkbox) checkbox.dataset.cancellationStagesAvailable = "true";
     stages.forEach(stage => {
       select.appendChild(new Option(`${stage.stage_order}. ${stage.name}`, String(stage.stage_order)));
     });
     select.value = selectedValue === null || selectedValue === undefined ? "" : String(selectedValue);
-    select.disabled = !checkbox?.checked;
+    select.disabled = false;
   } catch (error) {
     console.warn("Unable to load cancellation stages:", error);
   }
@@ -3888,15 +3872,6 @@ async function saveProduct() {
 
   }
 
-
-  const cancellationEnabled = Boolean($("productCancellationEnabled")?.checked);
-  const cancellationCutoff = $("productCancellationCutoff")?.value || "";
-  if (cancellationEnabled && !cancellationCutoff) {
-    $("productMessage").textContent =
-      "Select the production stage before enabling customer cancellation.";
-    setProductCancellationUi(true);
-    return;
-  }
 
   setLoading(
     $("saveProductButton"),
@@ -4402,7 +4377,7 @@ function createStageElement(
 
 
   remove.textContent =
-    "×";
+    "Remove";
 
 
   remove.addEventListener(
@@ -5106,7 +5081,7 @@ async function releaseOfflineQrReservations(productId, seriesName) {
 }
 
 
-$("qrSeriesForm").addEventListener("submit",async event=>{
+$("qrSeriesForm").addEventListener("submit", async event => {
   event.preventDefault(); clearQrMessage();
   const productId=$("qrProduct").value, seriesName=$("qrSeriesName").value.trim(), quantity=Number($("qrQuantity").value);
   if(!productId){$("qrMessage").textContent="Select a product.";return;}
@@ -5116,14 +5091,42 @@ $("qrSeriesForm").addEventListener("submit",async event=>{
   try {
     const {data,error}=await supabase.rpc("generate_qr_series",{requested_product_id:productId,requested_series_name:seriesName,requested_quantity:quantity});
     if(error) throw error;
-    console.log("Generated QR series:",data); $("qrSeriesForm").reset(); $("qrMessage").textContent=`Generated ${quantity} QR pairs successfully.`; $("qrMessage").classList.add("success-message"); await loadQrSeries();
-  } catch(error){ console.error("QR generation failed:",error); $("qrMessage").textContent=error?.message||"Unable to generate QR series."; }
-  finally { resetButton($("generateQrButton"),"Generate QR Series"); }
+    console.log("Generated QR series:",data);
+    $("qrSeriesForm").reset();
+    $("qrMessage").textContent=`Generated ${quantity} QR pairs successfully.`;
+    $("qrMessage").classList.add("success-message");
+    await loadQrSeries();
+    $("qrCreatePanel").hidden = true;
+  } catch(error){
+    console.error("QR generation failed:",error);
+    $("qrMessage").textContent=error?.message||"Unable to generate QR series.";
+  } finally { resetButton($("generateQrButton"),"Generate QR Series"); }
 });
 
 $("qrButton")?.addEventListener("click",()=>navigate("qr"));
 
-function clearQrMessage(){ $("qrMessage").textContent=""; $("qrMessage").classList.remove("success-message"); }
+function clearQrMessage(){
+  $("qrMessage").textContent="";
+  $("qrMessage").classList.remove("success-message");
+}
+
+$("showQrSeriesFormButton")?.addEventListener("click", async () => {
+  const panel = $("qrCreatePanel");
+  if (!panel) return;
+  panel.hidden = false;
+  clearQrMessage();
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  await loadQrProducts();
+  $("qrProduct")?.focus();
+});
+
+$("cancelQrSeriesFormButton")?.addEventListener("click", () => {
+  const panel = $("qrCreatePanel");
+  if (!panel) return;
+  panel.hidden = true;
+  $("qrSeriesForm")?.reset();
+  clearQrMessage();
+});
 
 
 // ============================================================
@@ -5132,560 +5135,145 @@ function clearQrMessage(){ $("qrMessage").textContent=""; $("qrMessage").classLi
 
 let activePrintSeries = null;
 
-
-function openQrPrintPanel(
-  group
-) {
-
-  activePrintSeries =
-    group;
-
-  $("qrPrintPanel")
-    .hidden =
-      false;
-
-  $("qrPrintQuantity")
-    .value =
-      Math.min(
-        10,
-        Number(group.available) || 1
-      );
-
+function openQrPrintPanel(group) {
+  activePrintSeries = group;
+  $("qrPrintPanel").hidden = false;
+  $("qrPrintQuantity").value = Math.min(10, Number(group.available) || 1);
   clearQrPrintMessage();
-
-  $("qrPrintPreview")
-    .replaceChildren();
-
-  $("qrPrintPanel")
-    .scrollIntoView({
-      behavior:
-        "smooth",
-      block:
-        "start"
-    });
-
+  $("qrPrintArea").replaceChildren();
+  $("qrPrintPanel").scrollIntoView({ behavior: "smooth", block: "start" });
 }
-
 
 function closeQrPrintPanel() {
-
-  activePrintSeries =
-    null;
-
-  $("qrPrintPanel")
-    .hidden =
-      true;
-
-  $("qrPrintPreview")
-    .replaceChildren();
-
+  activePrintSeries = null;
+  $("qrPrintPanel").hidden = true;
+  $("qrPrintArea").replaceChildren();
   clearQrPrintMessage();
-
 }
 
-
-async function prepareQrPrintPreview() {
-
+async function prepareQrPrintAndPrint() {
   clearQrPrintMessage();
-
-
   if (!activePrintSeries) {
-
-    $("qrPrintMessage")
-      .textContent =
-        "No QR series selected.";
-
+    $("qrPrintMessage").textContent = "No QR series selected.";
     return;
-
   }
 
-
-  const quantity =
-    Number(
-      $("qrPrintQuantity")
-        .value
-    );
-
-
-  if (
-    !Number.isInteger(
-      quantity
-    ) ||
-    quantity < 1
-  ) {
-
-    $("qrPrintMessage")
-      .textContent =
-        "Enter a valid number of pairs.";
-
+  const quantity = Number($("qrPrintQuantity").value);
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    $("qrPrintMessage").textContent = "Enter a valid number of pairs.";
     return;
-
+  }
+  if (quantity > Number(activePrintSeries.available || 0)) {
+    $("qrPrintMessage").textContent = `Only ${Number(activePrintSeries.available || 0)} QR pair${Number(activePrintSeries.available || 0) === 1 ? "" : "s"} are available.`;
+    return;
   }
 
-
-  setLoading(
-    $("prepareQrPrintButton"),
-    "Preparing..."
-  );
-
-
+  setLoading($("prepareQrPrintButton"), "Preparing...");
   try {
     await ensureExternalScript("qrcode");
+    const user = await getCurrentUser();
 
-    const user =
-      await getCurrentUser();
-
-
-    const {
-      data:
-        seller,
-      error:
-        sellerError
-    } =
-    await supabase
-      .from(
-        "sellers"
-      )
-      .select(
-        "shop_name"
-      )
-      .eq(
-        "id",
-        user.id
-      )
+    const {data:seller,error:sellerError} = await supabase
+      .from("sellers")
+      .select("shop_name")
+      .eq("id",user.id)
       .single();
+    if (sellerError) throw sellerError;
 
-
-    if (sellerError) {
-
-      throw sellerError;
-
-    }
-
-
-    const {
-      data:
-        product,
-      error:
-        productError
-    } =
-    await supabase
-      .from(
-        "products"
-      )
-      .select(
-        "id,name"
-      )
-      .eq(
-        "id",
-        activePrintSeries.productId
-      )
-      .eq(
-        "seller_id",
-        user.id
-      )
+    const {data:product,error:productError} = await supabase
+      .from("products")
+      .select("id,name")
+      .eq("id",activePrintSeries.productId)
+      .eq("seller_id",user.id)
       .single();
+    if (productError) throw productError;
 
-
-    if (productError) {
-
-      throw productError;
-
+    const {data:qrRows,error:qrError} = await supabase
+      .from("qr_codes")
+      .select(`id,code,public_token,series_name,series_sequence`)
+      .eq("seller_id",user.id)
+      .eq("product_id",activePrintSeries.productId)
+      .eq("series_name",activePrintSeries.seriesName)
+      .eq("status","available")
+      .order("series_sequence",{ascending:true})
+      .limit(quantity);
+    if (qrError) throw qrError;
+    if (!qrRows || qrRows.length < quantity) {
+      throw new Error(`Only ${qrRows?.length || 0} available QR pair${(qrRows?.length || 0) === 1 ? "" : "s"} remain in this series.`);
     }
 
+    const printArea = $("qrPrintArea");
+    printArea.replaceChildren();
+    qrRows.forEach((qr,index) => {
+      printArea.appendChild(createQrPair(seller.shop_name,product.name,qr,index+1));
+    });
 
-    const {
-      data:
-        qrRows,
-      error:
-        qrError
-    } =
-    await supabase
-      .from(
-        "qr_codes"
-      )
-      .select(`
-        id,
-        code,
-        public_token,
-        series_name,
-        series_sequence
-      `)
-      .eq(
-        "seller_id",
-        user.id
-      )
-      .eq(
-        "product_id",
-        activePrintSeries.productId
-      )
-      .eq(
-        "series_name",
-        activePrintSeries.seriesName
-      )
-      .eq(
-        "status",
-        "available"
-      )
-      .order(
-        "series_sequence",
-        {
-          ascending:
-            true
-        }
-      )
-      .limit(
-        quantity
-      );
-
-
-    if (qrError) {
-
-      throw qrError;
-
-    }
-
-
-    if (
-      !qrRows ||
-      qrRows.length <
-        quantity
-    ) {
-
-      throw new Error(
-        `Only ${qrRows?.length || 0} available QR pair${(qrRows?.length || 0) === 1 ? "" : "s"} remain in this series.`
-      );
-
-    }
-
-
-    $("qrPrintPreview")
-      .replaceChildren();
-
-
-    qrRows.forEach(
-      (
-        qr,
-        index
-      ) => {
-
-        $("qrPrintPreview")
-          .appendChild(
-            createQrPair(
-              seller.shop_name,
-              product.name,
-              qr,
-              index + 1
-            )
-          );
-
-      }
-    );
-
-
-    $("qrPrintMessage")
-      .classList
-      .add(
-        "success-message"
-      );
-
-
-    $("qrPrintMessage")
-      .textContent =
-        `${qrRows.length} QR pair${qrRows.length === 1 ? "" : "s"} ready to print.`;
-
-
+    $("qrPrintMessage").classList.add("success-message");
+    $("qrPrintMessage").textContent = `${qrRows.length} QR pair${qrRows.length === 1 ? "" : "s"} prepared. Opening print dialog…`;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    window.print();
   } catch (error) {
-
-    console.error(
-      "QR print preparation failed:",
-      error
-    );
-
-
-    $("qrPrintPreview")
-      .replaceChildren();
-
-
-    $("qrPrintMessage")
-      .textContent =
-        error?.message ||
-        "Unable to prepare print preview.";
-
+    console.error("QR printing failed:",error);
+    $("qrPrintArea").replaceChildren();
+    $("qrPrintMessage").textContent = error?.message || "Unable to prepare QR cards for printing.";
   } finally {
-
-    resetButton(
-      $("prepareQrPrintButton"),
-      "Prepare Preview"
-    );
-
+    resetButton($("prepareQrPrintButton"),"Prepare QRs & Print");
   }
-
 }
 
-
-function createQrPair(
-  shopName,
-  productName,
-  qr,
-  pairNumber
-) {
-
-  const pair =
-    document.createElement(
-      "section"
-    );
-
-  pair.className =
-    "qr-print-pair";
-
-
-  pair.append(
-    createQrCard(
-      "SELLER COPY",
-      shopName,
-      productName,
-      qr,
-      false
-    )
-  );
-
-
-  const connector =
-    document.createElement(
-      "div"
-    );
-
-  connector.className =
-    "qr-pair-cut-guide";
-
-  connector.innerHTML =
-    `<span class="cut-scissors">✂</span><span>Cut here</span>`;
-
-
-  pair.appendChild(
-    connector
-  );
-
-
-  pair.append(
-    createQrCard(
-      "CUSTOMER COPY",
-      shopName,
-      productName,
-      qr,
-      true
-    )
-  );
-
-
+function createQrPair(shopName,productName,qr,pairNumber) {
+  const pair=document.createElement("section");
+  pair.className="qr-print-pair";
+  pair.append(createQrCard("SELLER COPY",shopName,productName,qr,false));
+  const connector=document.createElement("div");
+  connector.className="qr-pair-cut-guide";
+  connector.innerHTML=`<span class="cut-scissors">✂</span><span>Cut here</span>`;
+  pair.appendChild(connector);
+  pair.append(createQrCard("CUSTOMER COPY",shopName,productName,qr,true));
   return pair;
-
 }
 
-
-function createQrCard(
-  copyLabel,
-  shopName,
-  productName,
-  qr,
-  customerCopy
-) {
-
-  const card =
-    document.createElement(
-      "div"
-    );
-
-  card.className =
-    "qr-print-card";
-
-
-  const label =
-    document.createElement(
-      "div"
-    );
-
-  label.className =
-    "qr-card-copy-label";
-
-  label.textContent =
-    copyLabel;
-
-
-  const shop =
-    document.createElement(
-      "div"
-    );
-
-  shop.className =
-    "qr-card-shop";
-
-  shop.textContent =
-    shopName;
-
-
-  const product =
-    document.createElement(
-      "div"
-    );
-
-  product.className =
-    "qr-card-product";
-
-  product.textContent =
-    productName;
-
-
-  const qrHolder =
-    document.createElement(
-      "div"
-    );
-
-  qrHolder.className =
-    "qr-code-holder";
-
-
-  const qrUrl =
-    `${window.location.origin}/t/${qr.public_token}`;
-
-
-  new QRCode(
-    qrHolder,
-    {
-      text:
-        qrUrl,
-      width:
-        108,
-      height:
-        108,
-      correctLevel:
-        QRCode.CorrectLevel.M
-    }
-  );
-
-
-  card.append(
-    label,
-    shop,
-    product,
-    qrHolder
-  );
-
-
-  if (
-    customerCopy
-  ) {
-
-    const instruction =
-      document.createElement(
-        "div"
-      );
-
-    instruction.className =
-      "qr-card-instruction";
-
-    instruction.textContent =
-      "Scan to track your order";
-
-
-    const url =
-      document.createElement(
-        "div"
-      );
-
-    url.className =
-      "qr-card-url";
-
-    url.textContent =
-      qrUrl;
-
-
-    card.append(
-      instruction,
-      url
-    );
-
+function createQrCard(copyLabel,shopName,productName,qr,customerCopy) {
+  const card=document.createElement("div");
+  card.className="qr-print-card";
+  const label=document.createElement("div");
+  label.className="qr-card-copy-label";
+  label.textContent=copyLabel;
+  const shop=document.createElement("div");
+  shop.className="qr-card-shop";
+  shop.textContent=shopName;
+  const product=document.createElement("div");
+  product.className="qr-card-product";
+  product.textContent=productName;
+  const qrHolder=document.createElement("div");
+  qrHolder.className="qr-code-holder";
+  const qrUrl=`${window.location.origin}/t/${qr.public_token}`;
+  new QRCode(qrHolder,{text:qrUrl,width:108,height:108,correctLevel:QRCode.CorrectLevel.M});
+  card.append(label,shop,product,qrHolder);
+  if(customerCopy){
+    const instruction=document.createElement("div");
+    instruction.className="qr-card-instruction";
+    instruction.textContent="Scan to track your order";
+    const url=document.createElement("div");
+    url.className="qr-card-url";
+    url.textContent=qrUrl;
+    card.append(instruction,url);
   } else {
-
-    const code =
-      document.createElement(
-        "div"
-      );
-
-    code.className =
-      "qr-card-code";
-
-    code.textContent =
-      qr.code;
-
-
-    card.appendChild(
-      code
-    );
-
+    const code=document.createElement("div");
+    code.className="qr-card-code";
+    code.textContent=qr.code;
+    card.appendChild(code);
   }
-
-
   return card;
-
 }
-
 
 function clearQrPrintMessage() {
-
-  $("qrPrintMessage")
-    .textContent =
-      "";
-
-  $("qrPrintMessage")
-    .classList
-    .remove(
-      "success-message"
-    );
-
+  $("qrPrintMessage").textContent="";
+  $("qrPrintMessage").classList.remove("success-message");
 }
 
-
-$("closeQrPrintButton")
-  .addEventListener(
-    "click",
-    closeQrPrintPanel
-  );
-
-
-$("prepareQrPrintButton")
-  .addEventListener(
-    "click",
-    prepareQrPrintPreview
-  );
-
-
-$("printQrPairsButton")
-  .addEventListener(
-    "click",
-    () => {
-
-      if (
-        !$("qrPrintPreview")
-          .children
-          .length
-      ) {
-
-        $("qrPrintMessage")
-          .textContent =
-            "Prepare the preview first.";
-
-        return;
-
-      }
-
-
-      window.print();
-
-    }
-  );
-
+$("closeQrPrintButton").addEventListener("click",closeQrPrintPanel);
+$("prepareQrPrintButton").addEventListener("click",prepareQrPrintAndPrint);
 
 
 // ============================================================
