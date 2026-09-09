@@ -2871,8 +2871,7 @@ $("shopSetupLogoutButton")
   );
 
 
-$("editShopButton")?
-  .addEventListener(
+$("editShopButton")?.addEventListener(
     "click",
     async () => {
 
