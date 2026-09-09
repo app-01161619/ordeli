@@ -1328,7 +1328,7 @@ async function loadHomeDashboard(sellerId) {
   if (!runtimeOffline && navigator.onLine) {
     try {
       const [ordersResult, paymentsResult, eventsResult] = await Promise.all([
-        supabase.from("orders").select(`id,order_number,created_at,cancelled_at,event_id,fulfillment_type,pickup_status,customers(id,name,phone),order_items(id,product_name,quantity,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at),qr_code_id)` ).eq("seller_id", sellerId).order("created_at", { ascending: false }).limit(40),
+        supabase.from("orders").select(`id,order_number,created_at,cancelled_at,handed_over_at,event_id,fulfillment_type,pickup_status,customers(id,name,phone),order_items(id,product_name,quantity,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at),qr_code_id)` ).eq("seller_id", sellerId).order("created_at", { ascending: false }).limit(40),
         supabase.from("payments").select("id,order_id,amount,payment_type,proof_status,created_at").eq("seller_id", sellerId).order("created_at", { ascending: false }).limit(200),
         supabase.from("events").select("id,name,location,event_date,start_time,end_time,status").eq("seller_id", sellerId).gte("event_date", new Date().toISOString().slice(0,10)).order("event_date", { ascending: true }).order("start_time", { ascending: true }).limit(20)
       ]);
@@ -1362,6 +1362,7 @@ async function loadHomeDashboard(sellerId) {
   const upcomingEventIds = new Set(snapshot.events.filter(e => e.event_date).map(e => e.id));
   const eventOrders = snapshot.orders.filter(o => o.event_id && upcomingEventIds.has(o.event_id) && !o.cancelled_at).length;
   $("attentionEvents").textContent = String(eventOrders);
+  $("attentionUpdates").textContent = String(snapshot.updates.length);
   $("homeDashboardSubtitle").textContent = `${computed.active} active order${computed.active === 1 ? "" : "s"} · ${computed.ready} ready for handover`;
   renderRecentOrders(snapshot.orders.slice(0, 8), snapshot.payments);
 }
@@ -3430,9 +3431,7 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
 });
 
 
-$("homeOrdersButton")?.addEventListener("click", () => navigate("orders"));
 $("homeViewOrdersButton")?.addEventListener("click", () => navigate("orders"));
-$("homeEventsButton")?.addEventListener("click", () => navigate("events"));
 $("updatesBackButton")?.addEventListener("click", () => navigate("home"));
 $("updatesRefreshButton")?.addEventListener("click", () => loadSmsUpdates());
 $("ordersBackButton")?.addEventListener("click", () => navigate("home"));
@@ -3445,17 +3444,10 @@ function closeHomeMenu() {
   const backdrop = $("homeMenuBackdrop");
   const button = $("homeMenuButton");
   if (!menu) return;
-  menu.classList.remove("is-open");
-  if (backdrop) backdrop.classList.remove("is-open");
-  if (button) {
-    button.classList.remove("is-open");
-    button.setAttribute("aria-expanded", "false");
-  }
+  menu.hidden = true;
+  if (backdrop) backdrop.hidden = true;
+  if (button) button.setAttribute("aria-expanded", "false");
   document.body.classList.remove("home-menu-open");
-  window.setTimeout(() => {
-    if (!menu.classList.contains("is-open")) menu.hidden = true;
-    if (backdrop && !backdrop.classList.contains("is-open")) backdrop.hidden = true;
-  }, 250);
 }
 
 function openHomeMenu() {
@@ -3465,14 +3457,7 @@ function openHomeMenu() {
   if (!menu) return;
   menu.hidden = false;
   if (backdrop) backdrop.hidden = false;
-  requestAnimationFrame(() => {
-    menu.classList.add("is-open");
-    if (backdrop) backdrop.classList.add("is-open");
-    if (button) {
-      button.classList.add("is-open");
-      button.setAttribute("aria-expanded", "true");
-    }
-  });
+  if (button) button.setAttribute("aria-expanded", "true");
   document.body.classList.add("home-menu-open");
 }
 
