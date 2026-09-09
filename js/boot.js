@@ -1,17 +1,30 @@
 (() => {
   const fallback = document.getElementById("bootFallback");
-  const clearFallback = () => fallback?.classList.add("is-hidden");
-  const hasVisibleScreen = () => Array.from(document.querySelectorAll(".screen")).some((screen) => !screen.hidden);
-
-  // app.js normally hides the boot screen immediately. This watchdog only
-  // prevents a broken module/service-worker response from leaving the PWA
-  // permanently stuck on the boot screen.
-  window.setTimeout(() => {
-    if (hasVisibleScreen()) return;
-    clearFallback();
-    const login = document.getElementById("loginScreen");
-    if (login) login.hidden = false;
+  const showLoginError = (error) => {
+    fallback?.classList.add("is-hidden");
+    const screens = document.querySelectorAll(".screen");
+    screens.forEach((screen) => { screen.hidden = screen.id !== "loginScreen"; });
     const message = document.getElementById("loginMessage");
-    if (message) message.textContent = "The app could not finish loading. Please reload the page.";
-  }, 8000);
+    if (message) {
+      const detail = error?.message ? ` ${error.message}` : "";
+      message.textContent = `The app could not finish loading.${detail}`;
+    }
+    console.error("Ordeli application boot failed:", error);
+  };
+
+  const timeoutId = window.setTimeout(() => {
+    const hasVisibleScreen = Array.from(document.querySelectorAll(".screen")).some((screen) => !screen.hidden);
+    if (!hasVisibleScreen) {
+      showLoginError(new Error("Startup timed out. Please reload the page."));
+    }
+  }, 10000);
+
+  import("./app.js?v=2026-09-09-07")
+    .then(() => {
+      window.clearTimeout(timeoutId);
+    })
+    .catch((error) => {
+      window.clearTimeout(timeoutId);
+      showLoginError(error);
+    });
 })();
