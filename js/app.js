@@ -4402,7 +4402,7 @@ function createStageElement(
 
 
   remove.textContent =
-    "Remove";
+    "×";
 
 
   remove.addEventListener(

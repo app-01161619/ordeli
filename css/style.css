@@ -749,6 +749,11 @@ a:hover {
   padding: 9px 10px;
 }
 
+.stage-action-button.danger-button {
+  font-size: 20px;
+  line-height: 1;
+}
+
 .workflow-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -819,16 +824,33 @@ a:hover {
   }
 
   .stage-item {
-    grid-template-columns: 38px minmax(0, 1fr);
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .stage-name-input {
+    min-width: 0;
+    width: 100%;
+    padding: 10px 9px;
   }
 
   .stage-actions {
-    grid-column: 1 / -1;
+    grid-column: auto;
     justify-content: flex-end;
+    flex: 0 0 auto;
+    gap: 5px;
   }
 
   .stage-action-button {
-    min-width: 44px;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
 }
