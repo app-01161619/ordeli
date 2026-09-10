@@ -6403,9 +6403,11 @@ async function loadOrderDetail(
   const paymentSection = $("orderDetailCard")?.querySelector(".payment-section");
   const fulfillmentSection = $("orderDetailFulfillmentSummary");
   const detailActions = $("orderDetailAddItemButton")?.parentElement;
+  const newTransactionButton = $("orderDetailNewTransactionButton");
   if (paymentSection) paymentSection.hidden = isFreshOrder;
   if (fulfillmentSection) fulfillmentSection.hidden = isFreshOrder;
   if (detailActions) detailActions.hidden = false;
+  if (newTransactionButton) newTransactionButton.hidden = !isFreshOrder;
   if ($("orderDetailCancellationActions")) $("orderDetailCancellationActions").hidden = isFreshOrder;
   if ($("orderDetailMessage")) $("orderDetailMessage").hidden = isFreshOrder;
   if ($("orderDetailAddItemButton")) $("orderDetailAddItemButton").textContent = isFreshOrder ? "Add to This Order" : "Add Another Item";
@@ -6447,7 +6449,13 @@ async function loadOrderDetail(
     if ($("orderDetailFulfillmentSummary")) $("orderDetailFulfillmentSummary").hidden = true;
     if ($("orderDetailCancellationActions")) $("orderDetailCancellationActions").remove();
   } else {
-    renderOrderFulfillmentSummary(order, items, total, paid);
+    const productionComplete = getOrderProductionComplete(items);
+    if ($("orderDetailFulfillmentSummary")) {
+      $("orderDetailFulfillmentSummary").hidden = !productionComplete;
+    }
+    if (productionComplete) {
+      renderOrderFulfillmentSummary(order, items, total, paid);
+    }
     renderSellerCancellationActions(order, items);
     await loadPayments(orderId);
   }
@@ -6862,11 +6870,13 @@ async function renderProductionPanel(item, panel) {
       document.createElement("div");
     list.className = "production-stage-list";
 
-    states.forEach((stage) => {
-      const row = createProductionStageRow(item, stage, panel);
-      row.dataset.stageOrder = String(stage.stage_order);
+    const currentStage = states.find((stage) => stage.available);
+    const stageToShow = currentStage || states.find((stage) => !stage.finished) || states[states.length - 1];
+    if (stageToShow) {
+      const row = createProductionStageRow(item, stageToShow, panel);
+      row.dataset.stageOrder = String(stageToShow.stage_order);
       list.appendChild(row);
-    });
+    }
 
     panel.appendChild(list);
 
