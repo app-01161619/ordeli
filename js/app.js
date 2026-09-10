@@ -393,6 +393,15 @@ async function syncOfflineOrders() {
           });
           if (error) throw error;
           if (!data?.order_item_id) throw new Error("The item was not added to the order.");
+          if (Number(p.downpayment || 0) > 0) {
+            const paymentResult = await supabase.rpc("seller_record_payment", {
+              p_order_id: serverOrderId,
+              p_amount: Number(Number(p.downpayment).toFixed(2)),
+              p_payment_type: "additional"
+            });
+            if (paymentResult.error) throw paymentResult.error;
+            if (!paymentResult.data?.payment_id) throw new Error("The item was synced, but the additional downpayment was not recorded.");
+          }
           row.serverResult = { ...(data || {}), order_id: serverOrderId };
           try { await reconcileOrderCacheFromServer(serverOrderId); } catch (refreshError) { console.warn("Order reconciliation after item sync failed; local state retained.", refreshError); }
           if (currentOrderId === p.orderId && String(p.orderId).startsWith("offline:")) currentOrderId = serverOrderId;
@@ -6049,7 +6058,7 @@ if (orderCancelButton) {
 async function createOrderOfflineFallback() {
   const addingItem = Boolean(pendingAddToOrderId);
   const quantity = Number($('orderQuantity').value);
-  const downpayment = addingItem ? 0 : (Number($('orderDownpayment').value) || 0);
+  const downpayment = Number($('orderDownpayment').value) || 0;
   if (!pendingQrToken || !pendingProduct) throw new Error('No scanned product QR is selected.');
   if (!Number.isInteger(quantity) || quantity < 1) throw new Error('Quantity must be at least 1.');
 
@@ -6098,7 +6107,8 @@ async function createOrderOfflineFallback() {
       product: pendingProduct,
       productName: newItem.product_name,
       unitPrice: newItem.unit_price,
-      total
+      total,
+      downpayment
     });
     await cacheNamed(`order-items:${existingOrderId}`, [...existingItems, newItem]);
     await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
@@ -6215,8 +6225,6 @@ async function createOrder() {
         const paymentResult = await supabase.rpc("seller_record_payment", {
           p_order_id: serverOrderId,
           p_amount: Number(downpayment.toFixed(2)),
-          // A payment added to an already-created order is an additional
-          // payment, not the order's original downpayment.
           p_payment_type: "additional"
         });
         if (paymentResult.error) throw paymentResult.error;
