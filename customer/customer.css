@@ -56,13 +56,18 @@ button:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
+  width: 68px;
   height: 38px;
-  border-radius: 11px;
-  background: #208aef;
-  color: #fff;
+  padding: 0 8px;
+  border: 1px dashed #c9d1d9;
+  border-radius: 10px;
+  background: #f7f9fb;
+  color: #8a949e;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: .06em;
 }
 
 .tracking-brand strong,
@@ -269,6 +274,21 @@ button:focus-visible {
 
 .tracking-payment-card {
   padding-bottom: 18px;
+}
+
+.tracking-order-summary-cards {
+  display: grid;
+  gap: 0;
+  margin-top: 4px;
+}
+
+.tracking-order-summary-cards > .tracking-card {
+  max-width: none;
+  margin: 14px 0 0;
+}
+
+.tracking-order-summary-cards > .tracking-payment-card {
+  margin-top: 16px;
 }
 
 .tracking-payment-grid {

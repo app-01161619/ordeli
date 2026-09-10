@@ -136,14 +136,29 @@ async function viewCustomerProductionProof(stageOrder, button) {
   button.disabled = true;
   button.textContent = "Loading Photo…";
   try {
-    const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
-    const response = await fetch(endpoint, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      cache: "no-store"
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.error || "Unable to open the proof photo.");
+    let data = null;
+    let workerResponse = null;
+    try {
+      const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
+      workerResponse = await fetch(endpoint, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store"
+      });
+      data = await workerResponse.json().catch(() => null);
+    } catch (workerError) {
+      console.warn("Customer proof Worker unavailable; trying direct hardened proof RPC.", workerError);
+    }
+
+    if (!workerResponse?.ok || !data?.available || !data?.url) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc("get_customer_stage_proof", {
+        p_public_token: token,
+        p_stage_order: Number(stageOrder)
+      });
+      if (rpcError) throw new Error(rpcError.message || "Unable to open the proof photo.");
+      data = rpcData;
+    }
+
     if (!data?.available || !data?.url) {
       throw new Error("No proof photo is available for this stage.");
     }
@@ -202,15 +217,50 @@ function fulfillmentLabel(value) {
   return value === "shop" ? "Pickup at Shop" : value === "location" ? "Pickup at Location" : value === "courier" ? "Courier Delivery" : "Not Selected";
 }
 
+function moveWholeOrderCards(orderItemCount) {
+  const orderCard = $("trackingOrderCard");
+  const summaryCards = $("trackingOrderSummaryCards");
+  const fulfillmentCard = $("trackingFulfillmentCard");
+  const paymentCard = $("trackingPaymentCard");
+  if (!orderCard || !summaryCards || !fulfillmentCard || !paymentCard) return;
+
+  if (orderItemCount > 1) {
+    if (fulfillmentCard.parentElement !== summaryCards) summaryCards.appendChild(fulfillmentCard);
+    if (paymentCard.parentElement !== summaryCards) summaryCards.appendChild(paymentCard);
+  } else {
+    const content = $("trackingContent");
+    const noticeCard = $("trackingFulfillmentNoticeCard");
+    const rescheduleBox = $("customerRescheduleBox");
+    const reviewBox = $("customerReviewBox");
+    const cancellationBox = $("customerCancellationBox");
+    const viewButton = $("trackingViewOrderButton");
+    if (content) {
+      const anchor = viewButton || noticeCard || rescheduleBox || reviewBox || cancellationBox;
+      if (anchor) {
+        content.insertBefore(fulfillmentCard, anchor);
+        content.insertBefore(paymentCard, anchor);
+      } else {
+        content.append(fulfillmentCard, paymentCard);
+      }
+    }
+    summaryCards.replaceChildren();
+  }
+}
+
 function renderFulfillment() {
   const card = $("trackingFulfillmentCard");
   if (!card) return;
   const state = fulfillmentState || {};
+  const orderItemCount = Array.isArray(trackingPayload?.order_items) ? trackingPayload.order_items.length : 1;
+  moveWholeOrderCards(orderItemCount);
   renderCustomerReschedule();
-  const ready = Boolean(state.production_completed && state.fully_paid && !state.handed_over_at);
+
+  const productionReady = Boolean(state.production_completed && !state.handed_over_at);
+  const readyForSelection = Boolean(productionReady && state.fully_paid);
   const statusCard = $("trackingFulfillmentNoticeCard");
   const statusTitle = $("trackingFulfillmentNoticeTitle");
   const statusText = $("trackingFulfillmentNoticeText");
+
   if (statusCard && statusTitle && statusText) {
     if (state.handed_over_at) {
       statusCard.hidden = false;
@@ -228,29 +278,46 @@ function renderFulfillment() {
       statusCard.hidden = true;
     }
   }
-  card.hidden = false;
-  $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
-  $("fulfillmentRequirement").textContent = ready
-    ? "Your order is ready for fulfillment selection."
-    : state.handed_over_at
+
+  card.hidden = !productionReady;
+  if (!productionReady) {
+    $("fulfillmentCurrent").textContent = "Not available yet";
+    $("fulfillmentRequirement").textContent = state.handed_over_at
       ? "This order has already been handed over."
-      : !state.production_completed
-        ? "Fulfillment options will appear after production is completed."
-        : "Fulfillment options will appear after payment is fully confirmed.";
+      : "Fulfillment options will appear after all production stages are finished.";
+    $("fulfillmentOptions").hidden = true;
+    $("fulfillmentEventPicker").hidden = true;
+    $("saveFulfillmentButton").hidden = true;
+    $("fulfillmentNotice").textContent = "";
+    return;
+  }
+
+  $("saveFulfillmentButton").hidden = false;
+  $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
+  $("fulfillmentRequirement").textContent = readyForSelection
+    ? "Your order is ready for fulfillment selection."
+    : "Production is complete. Fulfillment options will unlock after payment is fully confirmed.";
 
   const options = $("fulfillmentOptions");
   const notice = $("fulfillmentNotice");
   const eventPicker = $("fulfillmentEventPicker");
-  if (!ready) {
-    options.hidden = true; eventPicker.hidden = true; notice.textContent = ""; return;
+  if (!readyForSelection) {
+    options.hidden = true;
+    eventPicker.hidden = true;
+    notice.textContent = "";
+    return;
   }
+
   options.hidden = false;
   const selected = state.fulfillment_type || "";
   document.querySelectorAll("input[name='fulfillmentType']").forEach(r => r.checked = r.value === selected);
   eventPicker.hidden = selected !== "location";
   const select = $("fulfillmentEventSelect");
   select.replaceChildren();
-  const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = "Choose an event"; select.appendChild(placeholder);
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose an event";
+  select.appendChild(placeholder);
   (state.events || []).forEach((event) => {
     const option = document.createElement("option");
     option.value = event.id;
@@ -358,7 +425,7 @@ function renderPaymentProof() {
   } else if (state.rejected) {
     if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
   } else if (hint) {
-    hint.textContent = `Upload a clear photo of your payment proof for ${formatPrice(state.remaining)}. The seller will verify it.`;
+    hint.textContent = `Upload a clear screenshot or photo of your payment transaction for ${formatPrice(state.remaining)}. The seller will verify it.`;
   }
   if (submit) submit.hidden = state.pending_verification;
   if (choose) choose.disabled = state.pending_verification;
@@ -568,6 +635,8 @@ function renderCustomerTracking(payload) {
   const order = payload?.order || {};
   const item = payload?.item || {};
   const payment = payload?.payment || {};
+  const orderItems = Array.isArray(payload?.order_items) ? payload.order_items : [];
+  const multipleItems = orderItems.length > 1;
 
   $("trackingShopName").textContent = shop.name || "Shop";
   $("trackingOrderNumber").textContent = `#${order.order_number ?? "—"}`;
@@ -597,14 +666,17 @@ function renderCustomerTracking(payload) {
   $("trackingPaymentPaid").textContent = formatPrice(payment.paid);
   $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
   $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
-  renderTrackingOrderItems(payload?.order_items || []);
-  $("trackingOrderCard").hidden = !trackingOrderVisible;
+  renderTrackingOrderItems(orderItems);
+  $("trackingViewOrderButton").hidden = !multipleItems;
+  $("trackingOrderCard").hidden = !multipleItems || !trackingOrderVisible;
   $("trackingViewOrderButton").textContent = trackingOrderVisible ? "Hide My Order" : "View My Order";
+  moveWholeOrderCards(orderItems.length || 1);
 }
 
 async function loadCustomerTracking(publicToken) {
   trackingPayload = null;
   trackingOrderVisible = false;
+  paymentProofState = null;
   $("trackingLoadingState").hidden = false;
   $("trackingErrorState").hidden = true;
   $("trackingContent").hidden = true;
