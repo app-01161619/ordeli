@@ -6211,6 +6211,15 @@ async function createOrder() {
       const { data, error } = await supabase.rpc("add_order_item_online", { p_order_id: serverOrderId, p_qr_public_token: pendingQrToken, p_quantity: quantity, p_device_id: getOfflineDeviceId() });
       if (error) throw error;
       if (!data?.order_item_id) throw new Error("The item was not added to the order.");
+      if (downpayment > 0) {
+        const paymentResult = await supabase.rpc("seller_record_payment", {
+          p_order_id: serverOrderId,
+          p_amount: Number(downpayment.toFixed(2)),
+          p_payment_type: "downpayment"
+        });
+        if (paymentResult.error) throw paymentResult.error;
+        if (!paymentResult.data?.payment_id) throw new Error("The item was added, but the downpayment was not recorded.");
+      }
       currentOrderId = serverOrderId;
     } else {
       const { data, error } = await supabase.rpc("create_order_from_qr", { p_qr_public_token: pendingQrToken, p_customer_id: customerId, p_customer_name: customerName, p_customer_phone: customerPhone, p_quantity: quantity, p_downpayment: downpayment, p_device_id: getOfflineDeviceId() });

@@ -1527,6 +1527,18 @@ a:hover {
   margin-bottom: 18px;
 }
 
+.order-detail-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.order-detail-actions button {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
 .order-detail-item {
   display: flex;
   justify-content: space-between;
@@ -1569,6 +1581,15 @@ a:hover {
 
   .order-detail-heading {
     grid-template-columns: 1fr;
+  }
+
+  .order-detail-actions {
+    flex-direction: column;
+  }
+
+  .order-detail-actions button {
+    width: 100%;
+    flex-basis: auto;
   }
 
   .order-detail-item {
