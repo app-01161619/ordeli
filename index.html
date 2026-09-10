@@ -297,7 +297,7 @@
 <p class="page-subtitle" id="orderDetailCustomer"></p>
 </div>
 </header>
-<section class="order-detail-card">
+<section class="order-detail-card" id="orderDetailCard">
 <div class="order-detail-heading">
 <div>
 <span class="detail-label">ORDER</span>
@@ -307,11 +307,15 @@
 <span class="detail-label">Customer</span>
 <strong id="orderDetailCustomerName">—</strong>
 </div>
+<div id="orderDetailPhoneBlock">
+<span class="detail-label">Phone</span>
+<strong id="orderDetailCustomerPhone">—</strong>
+</div>
 </div>
 <div class="order-detail-items" id="orderDetailItems"></div>
 <div class="order-total-box">
 <div><span>Total</span><strong id="orderDetailTotal">₱0.00</strong></div>
-<div><span>Paid</span><strong id="orderDetailPaid">₱0.00</strong></div>
+<div><span id="orderDetailPaidLabel">Paid</span><strong id="orderDetailPaid">₱0.00</strong></div>
 <div><span>Remaining Balance</span><strong id="orderDetailBalance">₱0.00</strong></div>
 </div>
 <section class="payment-section">

@@ -6368,10 +6368,28 @@ async function loadOrderDetail(
   }
   items = items || [];
   payments = payments || [];
+  const isFreshOrder = currentOrderShowProduction === false && (() => {
+    try { return sessionStorage.getItem(`ordeli-order-detail-mode:${orderId}`) === "fresh"; }
+    catch (_) { return false; }
+  })();
+
   $("orderDetailTitle").textContent = `Order #${order.order_number}`;
   $("orderDetailNumber").textContent = `#${order.order_number}`;
   $("orderDetailCustomerName").textContent = order.customers?.name || "Customer";
-  $("orderDetailCustomer").textContent = order.customers?.phone || "";
+  $("orderDetailCustomer").textContent = isFreshOrder ? "" : (order.customers?.phone || "");
+  if ($("orderDetailCustomerPhone")) $("orderDetailCustomerPhone").textContent = order.customers?.phone || "—";
+  if ($("orderDetailPaidLabel")) $("orderDetailPaidLabel").textContent = isFreshOrder ? "Downpayment" : "Paid";
+  if ($("orderDetailPhoneBlock")) $("orderDetailPhoneBlock").hidden = !isFreshOrder && !order.customers?.phone;
+
+  const paymentSection = $("orderDetailCard")?.querySelector(".payment-section");
+  const fulfillmentSection = $("orderDetailFulfillmentSummary");
+  const detailActions = $("orderDetailAddItemButton")?.parentElement;
+  if (paymentSection) paymentSection.hidden = isFreshOrder;
+  if (fulfillmentSection) fulfillmentSection.hidden = isFreshOrder;
+  if (detailActions) detailActions.hidden = false;
+  if ($("orderDetailCancellationActions")) $("orderDetailCancellationActions").hidden = isFreshOrder;
+  if ($("orderDetailMessage")) $("orderDetailMessage").hidden = isFreshOrder;
+  if ($("orderDetailAddItemButton")) $("orderDetailAddItemButton").textContent = isFreshOrder ? "Add to This Order" : "Add Another Item";
 
   let total = 0;
   items.forEach(item => {
@@ -6382,8 +6400,13 @@ async function loadOrderDetail(
     const name = document.createElement("strong"); name.textContent = item.product_name;
     const qty = document.createElement("span"); qty.textContent = ` × ${item.quantity}`;
     left.append(name, qty);
-    const price = document.createElement("strong"); price.textContent = formatPrice(item.total_price);
-    row.append(left, price);
+    if (!isFreshOrder) {
+      const price = document.createElement("strong");
+      price.textContent = formatPrice(item.total_price);
+      row.append(left, price);
+    } else {
+      row.append(left);
+    }
     if (item.cancelled_at) row.classList.add("is-cancelled");
     if (currentOrderShowProduction) {
       const productionPanel = document.createElement("section");
@@ -6401,9 +6424,14 @@ async function loadOrderDetail(
   currentOrderTotal = total;
   currentOrderPaid = paid;
   $("orderDetailBalance").textContent = formatPrice(Math.max(0, total - paid));
-  renderOrderFulfillmentSummary(order, items, total, paid);
-  renderSellerCancellationActions(order, items);
-  await loadPayments(orderId);
+  if (isFreshOrder) {
+    if ($("orderDetailFulfillmentSummary")) $("orderDetailFulfillmentSummary").hidden = true;
+    if ($("orderDetailCancellationActions")) $("orderDetailCancellationActions").remove();
+  } else {
+    renderOrderFulfillmentSummary(order, items, total, paid);
+    renderSellerCancellationActions(order, items);
+    await loadPayments(orderId);
+  }
 }
 
 
