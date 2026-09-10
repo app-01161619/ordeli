@@ -6215,7 +6215,9 @@ async function createOrder() {
         const paymentResult = await supabase.rpc("seller_record_payment", {
           p_order_id: serverOrderId,
           p_amount: Number(downpayment.toFixed(2)),
-          p_payment_type: "downpayment"
+          // A payment added to an already-created order is an additional
+          // payment, not the order's original downpayment.
+          p_payment_type: "additional"
         });
         if (paymentResult.error) throw paymentResult.error;
         if (!paymentResult.data?.payment_id) throw new Error("The item was added, but the downpayment was not recorded.");
