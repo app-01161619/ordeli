@@ -7430,9 +7430,11 @@ async function recordSellerPayment() {
     });
     if (error) throw error;
     if (!data?.payment_id) throw new Error("The payment was not recorded.");
-    try {
-      await supabase.from("payments").update({ payment_method: paymentMethod }).eq("id", data.payment_id).eq("seller_id", (await getCurrentUser()).id);
-    } catch (_) {}
+    const { error: paymentMethodError } = await supabase.rpc("set_seller_payment_method", {
+      p_payment_id: data.payment_id,
+      p_payment_method: paymentMethod
+    });
+    if (paymentMethodError) throw paymentMethodError;
 
     closePaymentEditor();
     await loadOrderDetail(currentOrderId);
