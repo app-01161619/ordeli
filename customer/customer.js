@@ -348,6 +348,7 @@ function renderPaymentProof() {
   const productionComplete = Boolean(trackingPayload?.order?.production_completed || trackingPayload?.item?.production_completed);
   const fallbackEligible = productionComplete && Number(payment.remaining) > 0 && payment.status !== "pending_verification";
   const eligible = state.eligible === true || (state.eligible == null && fallbackEligible);
+  const remaining = Number(state.remaining ?? payment.remaining) || 0;
   box.hidden = !eligible;
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
@@ -359,7 +360,7 @@ function renderPaymentProof() {
   } else if (state.rejected) {
     if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
   } else if (hint) {
-    hint.textContent = `Upload a clear photo of your payment proof for ${formatPrice(state.remaining)}. The seller will verify it.`;
+    hint.textContent = `Upload a clear photo of your payment proof for ${formatPrice(remaining)}. The seller will verify it.`;
   }
   if (submit) submit.hidden = state.pending_verification;
   if (choose) choose.disabled = state.pending_verification;
@@ -372,8 +373,13 @@ async function submitCustomerPaymentProof() {
   const input = $("paymentProofFile");
   const file = input?.files?.[0];
   const state = paymentProofState || {};
+  const payment = trackingPayload?.payment || {};
+  const productionComplete = Boolean(trackingPayload?.order?.production_completed || trackingPayload?.item?.production_completed);
+  const fallbackEligible = productionComplete && Number(payment.remaining) > 0 && payment.status !== "pending_verification";
+  const eligible = state.eligible === true || (state.eligible == null && fallbackEligible);
+  const remaining = Number(state.remaining ?? payment.remaining) || 0;
   if (!token || !file) { $("paymentProofMessage").textContent = "Choose a proof photo first."; return; }
-  if (!state.eligible) { $("paymentProofMessage").textContent = "Payment proof is not available for this order yet."; return; }
+  if (!eligible || remaining <= 0) { $("paymentProofMessage").textContent = "Payment proof is not available for this order yet."; return; }
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image."; return; }
   if (file.size > 8 * 1024 * 1024) { $("paymentProofMessage").textContent = "Please choose an image smaller than 8 MB."; return; }
   paymentProofBusy = true;
@@ -385,7 +391,7 @@ async function submitCustomerPaymentProof() {
     const path = `incoming/${token}/${crypto.randomUUID()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(path, file, { contentType: file.type, upsert: false });
     if (uploadError) throw uploadError;
-    const { error } = await supabase.rpc("submit_customer_payment_proof", { p_public_token: token, p_amount: state.remaining, p_proof_path: path });
+    const { error } = await supabase.rpc("submit_customer_payment_proof", { p_public_token: token, p_amount: remaining, p_proof_path: path });
     if (error) {
       await supabase.storage.from("payment-proofs").remove([path]).catch(() => {});
       throw error;
