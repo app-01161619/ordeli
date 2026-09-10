@@ -746,6 +746,7 @@ let pendingProduct = null;
 let pendingAddToOrderId = null;
 let currentOrderId = null;
 let currentOrderShowProduction = false;
+let activeScannedQrCodeId = null;
 
 let currentOrderTotal = 0;
 let currentOrderPaid = 0;
@@ -5697,6 +5698,7 @@ async function handleScannedQr(
         await getOrderIdFromItem(
           qr.order_item_id
         );
+      activeScannedQrCodeId = qr.id;
       currentOrderShowProduction = true;
       try {
         sessionStorage.setItem(`ordeli-order-detail-mode:${currentOrderId}`, "assigned");
@@ -6360,9 +6362,24 @@ async function loadOrderDetail(
       const orderResult = await supabase.from("orders").select(`id,order_number,customer_id,created_at,fulfillment_type,event_id,pickup_status,handed_over_at,cancelled_at,customers(id,name,phone),events(id,name,location,event_date,start_time,end_time,status)`).eq("id", orderId).eq("seller_id", user.id).single();
       if (orderResult.error) throw orderResult.error;
       order = orderResult.data;
-      const itemsResult = await supabase.from("order_items").select(`id,product_name,quantity,unit_price,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at)`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
+      const itemsResult = await supabase.from("order_items").select(`id,product_name,quantity,unit_price,total_price,workflow_snapshot,cancelled_at,stage_logs(id,stage_order,action,occurred_at),qr_code_id`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
       if (itemsResult.error) throw itemsResult.error;
       items = itemsResult.data || [];
+      const qrIds = [...new Set(items.map(item => item.qr_code_id).filter(Boolean))];
+      let qrCodesById = {};
+      if (qrIds.length) {
+        const qrResult = await supabase.from("qr_codes").select("id,code").in("id", qrIds).eq("seller_id", user.id);
+        if (qrResult.error) throw qrResult.error;
+        qrCodesById = Object.fromEntries((qrResult.data || []).map(row => [row.id, row.code]));
+      }
+      items = items.map(item => ({ ...item, qr_code: qrCodesById[item.qr_code_id] || "" }));
+      if (activeScannedQrCodeId) {
+        items.sort((a, b) => {
+          const aMatch = String(a.qr_code_id || "") === String(activeScannedQrCodeId) ? 0 : 1;
+          const bMatch = String(b.qr_code_id || "") === String(activeScannedQrCodeId) ? 0 : 1;
+          return aMatch - bMatch;
+        });
+      }
       const paymentsResult = await supabase.from("payments").select("amount,proof_status").eq("order_id", orderId).eq("seller_id", user.id);
       if (paymentsResult.error) throw paymentsResult.error;
       payments = paymentsResult.data || [];
@@ -6421,6 +6438,12 @@ async function loadOrderDetail(
     const name = document.createElement("strong"); name.textContent = item.product_name;
     const qty = document.createElement("span"); qty.textContent = ` × ${item.quantity}`;
     left.append(name, qty);
+    if (!isFreshOrder && item.qr_code) {
+      const qrCode = document.createElement("span");
+      qrCode.className = "order-detail-qr-code";
+      qrCode.textContent = item.qr_code;
+      left.appendChild(qrCode);
+    }
     if (!isFreshOrder) {
       const price = document.createElement("strong");
       price.textContent = formatPrice(item.total_price);
@@ -6557,6 +6580,7 @@ function clearOrderDetailScreen() {
 function startNewTransaction() {
   clearOrderDetailScreen();
   currentOrderId = null;
+  activeScannedQrCodeId = null;
   currentOrderShowProduction = false;
   pendingAddToOrderId = null;
   pendingQrToken = null;

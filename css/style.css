@@ -2782,3 +2782,130 @@ a:hover {
     width: 100%;
   }
 }
+
+/* ==========================================================
+   COMPACT ORDER DETAILS
+========================================================== */
+.order-detail-card {
+  max-width: 760px;
+  padding: 18px;
+}
+
+.order-detail-heading {
+  grid-template-columns: 0.8fr 1.4fr 1.1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef0f2;
+}
+
+.order-detail-heading > div {
+  gap: 3px;
+  min-width: 0;
+}
+
+.order-detail-heading strong {
+  overflow-wrap: anywhere;
+}
+
+.order-detail-items {
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.order-detail-item {
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+}
+
+.order-detail-item > div:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px 7px;
+  flex-wrap: wrap;
+}
+
+.order-detail-qr-code {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid #e1e4e8;
+  border-radius: 999px;
+  background: #f7f8fa;
+  color: #666;
+  font: 600 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.order-total-box {
+  gap: 5px;
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.order-total-box > div {
+  gap: 10px;
+}
+
+.order-detail-actions {
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.order-detail-actions button,
+.payment-section-heading > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.action-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.production-panel {
+  margin: -1px 0 8px;
+  padding: 11px;
+  border-radius: 10px;
+}
+
+.production-panel-heading {
+  margin-bottom: 8px;
+}
+
+.production-panel-heading h3 {
+  font-size: 14px;
+}
+
+.payment-section {
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.payment-section-heading {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 640px) {
+  .order-detail-card { padding: 14px; }
+  .order-detail-heading {
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+  .order-detail-heading > div:last-child { grid-column: 1 / -1; }
+  .order-detail-item {
+    flex-direction: row;
+    align-items: center;
+  }
+  .order-detail-item > strong { flex: 0 0 auto; }
+}
