@@ -13,7 +13,7 @@
     <div class="tracking-page">
       <header class="tracking-header">
         <div class="tracking-brand">
-          <span class="tracking-brand-mark tracking-brand-placeholder" aria-label="Ordeli logo placeholder">O</span>
+          <span class="tracking-brand-mark">O</span>
           <div>
             <strong>Ordeli</strong>
             <span>Order Tracking</span>
@@ -64,7 +64,40 @@
           <div id="trackingStageList" class="tracking-stage-list"></div>
         </section>
 
-        <div id="trackingSingleWholeOrderCards" class="tracking-single-whole-order-cards"></div>
+        <section id="trackingFulfillmentCard" class="tracking-card tracking-fulfillment-card">
+          <div class="tracking-section-heading">
+            <div>
+              <h3>Fulfillment</h3>
+              <p id="fulfillmentRequirement">Fulfillment options will appear when your order is ready.</p>
+            </div>
+            <strong id="fulfillmentCurrent">Not selected yet</strong>
+          </div>
+          <div id="fulfillmentOptions" class="fulfillment-options" hidden>
+            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="shop"><span><strong>Pickup at Shop</strong><small>Pick up from the seller's shop.</small></span></label>
+            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="location"><span><strong>Pickup at Location</strong><small>Choose one of the seller's upcoming pickup events.</small></span></label>
+            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="courier"><span><strong>Courier Delivery</strong><small>The seller will contact you privately to arrange delivery.</small></span></label>
+          </div>
+          <div id="fulfillmentEventPicker" class="form-group fulfillment-event-picker" hidden>
+            <label for="fulfillmentEventSelect">Pickup Event</label>
+            <select id="fulfillmentEventSelect" class="tracking-select"></select>
+          </div>
+          <button id="saveFulfillmentButton" class="tracking-primary-button" type="button">Save Fulfillment</button>
+          <p id="fulfillmentNotice" class="tracking-inline-notice" role="status"></p>
+        </section>
+
+        <section class="tracking-card tracking-payment-card">
+          <div class="tracking-section-heading">
+            <div>
+              <h3>Payment</h3>
+              <p id="trackingPaymentStatusText">Payment status</p>
+            </div>
+          </div>
+          <div class="tracking-payment-grid">
+            <div><span>Total</span><strong id="trackingPaymentTotal">₱0.00</strong></div>
+            <div><span>Paid</span><strong id="trackingPaymentPaid">₱0.00</strong></div>
+            <div><span>Remaining</span><strong id="trackingPaymentRemaining">₱0.00</strong></div>
+          </div>
+        </section>
 
         <section id="paymentProofBox" class="tracking-card payment-proof-box" hidden>
           <div>
@@ -133,43 +166,6 @@
             </div>
           </div>
           <div id="trackingOrderItems" class="tracking-order-items"></div>
-          <div id="trackingOrderWholeOrderCards" class="tracking-order-whole-order-cards" hidden>
-        <section class="tracking-card tracking-payment-card">
-          <div class="tracking-section-heading">
-            <div>
-              <h3>Payment</h3>
-              <p id="trackingPaymentStatusText">Payment status</p>
-            </div>
-          </div>
-          <div class="tracking-payment-grid">
-            <div><span>Total</span><strong id="trackingPaymentTotal">₱0.00</strong></div>
-            <div><span>Paid</span><strong id="trackingPaymentPaid">₱0.00</strong></div>
-            <div><span>Remaining</span><strong id="trackingPaymentRemaining">₱0.00</strong></div>
-          </div>
-        </section>
-
-        <section id="trackingFulfillmentCard" class="tracking-card tracking-fulfillment-card">
-          <div class="tracking-section-heading">
-            <div>
-              <h3>Fulfillment</h3>
-              <p id="fulfillmentRequirement">Fulfillment options will appear when your order is ready.</p>
-            </div>
-            <strong id="fulfillmentCurrent">Not selected yet</strong>
-          </div>
-          <div id="fulfillmentOptions" class="fulfillment-options" hidden>
-            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="shop"><span><strong>Pickup at Shop</strong><small>Pick up from the seller's shop.</small></span></label>
-            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="location"><span><strong>Pickup at Location</strong><small>Choose one of the seller's upcoming pickup events.</small></span></label>
-            <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="courier"><span><strong>Courier Delivery</strong><small>The seller will contact you privately to arrange delivery.</small></span></label>
-          </div>
-          <div id="fulfillmentEventPicker" class="form-group fulfillment-event-picker" hidden>
-            <label for="fulfillmentEventSelect">Pickup Event</label>
-            <select id="fulfillmentEventSelect" class="tracking-select"></select>
-          </div>
-          <button id="saveFulfillmentButton" class="tracking-primary-button" type="button">Save Fulfillment</button>
-          <p id="fulfillmentNotice" class="tracking-inline-notice" role="status"></p>
-        </section>
-
-          </div>
         </section>
       </section>
     </div>

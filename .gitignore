@@ -1,1 +1,22 @@
-README.md
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+coverage/
+.wrangler/
+
+# Local/editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Keep documentation out of generated deployment bundles only when explicitly staged elsewhere

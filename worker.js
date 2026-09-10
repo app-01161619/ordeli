@@ -25,7 +25,10 @@ async function handleCustomerStageProof(request, env) {
     return new Response(JSON.stringify({ error: "Proof service is not configured." }), { status: 503, headers: { "Content-Type": "application/json" } });
   }
 
-  const base = "https://kbgdxhshxkhuelbxlggc.supabase.co";
+  const base = String(env.SUPABASE_URL || "").replace(/\/+$/, "");
+  if (!base) {
+    return new Response(JSON.stringify({ error: "Proof service is not configured." }), { status: 503, headers: { "Content-Type": "application/json" } });
+  }
   const rpcResponse = await fetch(`${base}/rest/v1/rpc/get_customer_stage_proof_v2`, {
     method: "POST",
     headers: {
@@ -38,7 +41,7 @@ async function handleCustomerStageProof(request, env) {
   });
   const proof = await rpcResponse.json().catch(() => null);
   if (!rpcResponse.ok || !proof?.available || !proof?.path) {
-    return new Response(JSON.stringify({ error: proof?.error || "No proof photo is available for this stage." }), { status: rpcResponse.ok ? 404 : 502, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "No proof photo is available for this stage." }), { status: rpcResponse.ok ? 404 : 502, headers: { "Content-Type": "application/json" } });
   }
 
   const encodedPath = proof.path.split("/").map(part => encodeURIComponent(part)).join("/");
@@ -53,7 +56,7 @@ async function handleCustomerStageProof(request, env) {
   });
   const signed = await signResponse.json().catch(() => null);
   if (!signResponse.ok || !signed?.signedURL) {
-    return new Response(JSON.stringify({ error: signed?.message || signed?.error || "Unable to create a proof photo URL." }), { status: 502, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "Unable to create a proof photo URL." }), { status: 502, headers: { "Content-Type": "application/json" } });
   }
 
   const signedUrl = signed.signedURL.startsWith("http") ? signed.signedURL : `${base}${signed.signedURL}`;
@@ -72,14 +75,21 @@ export default {
     if (match) {
       const token = decodeURIComponent(match[1]);
       const customerUrl = new URL("/customer/", url);
-      customerUrl.searchParams.set("token", token);
+      customerUrl.hash = `token=${encodeURIComponent(token)}`;
       return Response.redirect(customerUrl.toString(), 302);
     }
 
     if (pathname === "/api/customer-stage-proof") {
+      if (request.method !== "GET") {
+        return withSecurityHeaders(new Response(JSON.stringify({ error: "Method not allowed." }), {
+          status: 405,
+          headers: { "Content-Type": "application/json", "Allow": "GET" }
+        }));
+      }
       try { return withSecurityHeaders(await handleCustomerStageProof(request, env)); }
       catch (error) {
-        return withSecurityHeaders(new Response(JSON.stringify({ error: error?.message || "Unable to load proof photo." }), { status: 500, headers: { "Content-Type": "application/json" } }));
+        console.error("Customer proof endpoint failed:", error);
+        return withSecurityHeaders(new Response(JSON.stringify({ error: "Unable to load proof photo." }), { status: 500, headers: { "Content-Type": "application/json" } }));
       }
     }
 

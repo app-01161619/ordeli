@@ -460,28 +460,3 @@ button:focus-visible {
   object-fit: contain;
   border-radius: 12px;
 }
-
-
-.tracking-brand-placeholder {
-  background: #eef1f4;
-  color: #68727d;
-  border: 1px dashed #c9d0d7;
-  box-shadow: none;
-}
-
-.tracking-single-whole-order-cards,
-.tracking-order-whole-order-cards {
-  display: grid;
-  gap: 14px;
-}
-
-.tracking-order-whole-order-cards[hidden],
-.tracking-single-whole-order-cards[hidden] {
-  display: none;
-}
-
-.tracking-order-whole-order-cards .tracking-card,
-.tracking-single-whole-order-cards .tracking-card {
-  max-width: none;
-  margin: 0;
-}

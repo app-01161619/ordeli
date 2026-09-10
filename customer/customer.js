@@ -34,6 +34,10 @@ function getTrackingToken() {
   const queryToken = new URLSearchParams(window.location.search).get("token");
   if (queryToken) return queryToken;
 
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const hashToken = hashParams.get("token");
+  if (hashToken) return hashToken;
+
   const match = pathname.match(/^\/t\/([^/]+)$/i);
   if (match) {
     try { return decodeURIComponent(match[1]); }
@@ -80,10 +84,6 @@ function showTrackingError(message) {
   $("trackingErrorMessage").textContent = message || "This tracking link could not be loaded.";
 }
 
-function stageProofPath(stage) {
-  return stage?.proof_photo_path || stage?.latest?.proof_photo_path || stage?.proofPhotoPath || null;
-}
-
 function renderTrackingStages(stages) {
   const list = $("trackingStageList");
   list.replaceChildren();
@@ -114,7 +114,7 @@ function renderTrackingStages(stages) {
       proofButton.type = "button";
       proofButton.className = "tracking-photo-button";
       proofButton.textContent = "View Photo";
-      proofButton.addEventListener("click", () => viewCustomerProductionProof(stage, proofButton));
+      proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
       body.appendChild(proofButton);
     }
 
@@ -126,9 +126,8 @@ function renderTrackingStages(stages) {
 
 
 
-async function viewCustomerProductionProof(stage, button) {
+async function viewCustomerProductionProof(stageOrder, button) {
   const token = getTrackingToken();
-  const stageOrder = Number(stage?.stage_order);
   if (!token || !stageOrder || !button) return;
   if (button.dataset.loading === "1") return;
 
@@ -137,24 +136,19 @@ async function viewCustomerProductionProof(stage, button) {
   button.disabled = true;
   button.textContent = "Loading Photo…";
   try {
-    let url = null;
-    let stageName = stage?.name || `Stage ${stageOrder}`;
-    const proofResponse = await fetch(`/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(stageOrder)}`, {
-      headers: { "Accept": "application/json" }
+    const { data, error } = await supabase.rpc("get_customer_stage_proof", {
+      p_public_token: token,
+      p_stage_order: Number(stageOrder)
     });
-    let proofData = null;
-    try { proofData = await proofResponse.json(); } catch (_) {}
-    if (!proofResponse.ok || !proofData?.available || !proofData?.url) {
-      throw new Error(proofData?.error || "No proof photo is available for this stage.");
+    if (error) throw error;
+    if (!data?.available || !data?.url) {
+      throw new Error("No proof photo is available for this stage.");
     }
-    url = proofData.url;
-    stageName = proofData.stage_name || stageName;
-
     const viewer = $("customerPhotoViewer");
     const image = $("customerPhotoViewerImage");
     const caption = $("customerPhotoViewerCaption");
-    if (image) image.src = url;
-    if (caption) caption.textContent = `${stageName} · Production proof`;
+    if (image) image.src = data.url;
+    if (caption) caption.textContent = `${data.stage_name || `Stage ${stageOrder}`} · Production proof`;
     if (viewer?.showModal) viewer.showModal();
     else if (viewer) viewer.hidden = false;
   } catch (error) {
@@ -166,7 +160,6 @@ async function viewCustomerProductionProof(stage, button) {
     button.textContent = original;
   }
 }
-
 
 function renderTrackingOrderItems(items) {
   const list = $("trackingOrderItems");
@@ -232,13 +225,7 @@ function renderFulfillment() {
       statusCard.hidden = true;
     }
   }
-  card.hidden = !Boolean(state.production_completed);
-  if (card.hidden) {
-    $("fulfillmentOptions").hidden = true;
-    $("fulfillmentEventPicker").hidden = true;
-    $("fulfillmentNotice").textContent = "";
-    return;
-  }
+  card.hidden = false;
   $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
   $("fulfillmentRequirement").textContent = ready
     ? "Your order is ready for fulfillment selection."
@@ -572,31 +559,12 @@ async function saveCustomerFulfillment() {
   }
 }
 
-function renderWholeOrderCards(itemCount) {
-  const source = $("trackingOrderWholeOrderCards");
-  const singleTarget = $("trackingSingleWholeOrderCards");
-  if (!source || !singleTarget) return;
-  const isMulti = itemCount > 1;
-  const target = isMulti ? source : singleTarget;
-  if (target !== source) {
-    while (source.firstChild) target.appendChild(source.firstChild);
-  } else {
-    const current = [...singleTarget.children];
-    current.forEach(node => source.appendChild(node));
-  }
-  source.hidden = !isMulti || !trackingOrderVisible;
-  singleTarget.hidden = isMulti || Boolean(!trackingPayload);
-}
-
 function renderCustomerTracking(payload) {
   showTrackingContent();
   const shop = payload?.shop || {};
   const order = payload?.order || {};
   const item = payload?.item || {};
   const payment = payload?.payment || {};
-  const orderItems = Array.isArray(payload?.order_items) ? payload.order_items : [];
-  const itemCount = orderItems.length || 1;
-  const isMulti = itemCount > 1;
 
   $("trackingShopName").textContent = shop.name || "Shop";
   $("trackingOrderNumber").textContent = `#${order.order_number ?? "—"}`;
@@ -626,14 +594,10 @@ function renderCustomerTracking(payload) {
   $("trackingPaymentPaid").textContent = formatPrice(payment.paid);
   $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
   $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
-  renderTrackingOrderItems(orderItems);
-
-  $("trackingViewOrderButton").hidden = !isMulti;
-  $("trackingOrderCard").hidden = !isMulti || !trackingOrderVisible;
+  renderTrackingOrderItems(payload?.order_items || []);
+  $("trackingOrderCard").hidden = !trackingOrderVisible;
   $("trackingViewOrderButton").textContent = trackingOrderVisible ? "Hide My Order" : "View My Order";
-  renderWholeOrderCards(itemCount);
 }
-
 
 async function loadCustomerTracking(publicToken) {
   trackingPayload = null;
@@ -662,8 +626,6 @@ $("trackingRefreshButton").addEventListener("click", () => {
 });
 
 $("trackingViewOrderButton").addEventListener("click", () => {
-  const count = trackingPayload?.order_items?.length || 0;
-  if (count <= 1) return;
   trackingOrderVisible = !trackingOrderVisible;
   if (trackingPayload) renderCustomerTracking(trackingPayload);
 });
