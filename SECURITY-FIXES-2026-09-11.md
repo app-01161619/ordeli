@@ -23,3 +23,11 @@ The repository still relies on the live Supabase database for the full RPC/secur
 Payment-proof uploads should also be moved behind a server-validated upload flow with server-side file-size/type limits and rate limiting before production launch.
 
 External JavaScript libraries are still loaded from pinned CDNs. They should eventually be self-hosted/bundled (or protected with verified SRI hashes) for a stronger supply-chain boundary.
+
+## Second hardening pass
+
+- Customer payment-proof uploads now go through `POST /api/customer-payment-proof` instead of direct anonymous Storage INSERT.
+- The Worker validates token/payment eligibility, amount, size, MIME type, and image magic bytes before upload.
+- `supabase/migrations/033_payment_proof_upload_hardening.sql` removes the public Storage INSERT policy for payment proofs.
+- `supabase/migrations/034_rpc_privilege_hardening.sql` revokes PostgREST EXECUTE from all public-schema functions and restores only the known customer/authenticated application RPCs.
+- Worker payment-proof responses avoid returning raw Supabase error messages to the browser.

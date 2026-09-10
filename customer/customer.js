@@ -377,14 +377,14 @@ async function submitCustomerPaymentProof() {
   if (button) { button.disabled = true; button.textContent = "Submitting…"; }
   $("paymentProofMessage").textContent = "Uploading your payment proof…";
   try {
-    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const path = `incoming/${token}/${crypto.randomUUID()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(path, file, { contentType: file.type, upsert: false });
-    if (uploadError) throw uploadError;
-    const { error } = await supabase.rpc("submit_customer_payment_proof", { p_public_token: token, p_amount: state.remaining, p_proof_path: path });
-    if (error) {
-      await supabase.storage.from("payment-proofs").remove([path]).catch(() => {});
-      throw error;
+    const form = new FormData();
+    form.set("token", token);
+    form.set("amount", String(state.remaining));
+    form.set("file", file, file.name || "payment-proof");
+    const response = await fetch("/api/customer-payment-proof", { method: "POST", body: form });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || "Unable to submit payment proof.");
     }
     input.value = "";
     $("paymentProofMessage").textContent = "Payment proof submitted. The seller will verify it.";
