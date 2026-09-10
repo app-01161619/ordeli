@@ -2909,3 +2909,143 @@ a:hover {
   }
   .order-detail-item > strong { flex: 0 0 auto; }
 }
+
+
+/* ==========================================================
+   FINISH STAGE MODAL
+========================================================== */
+.has-modal-open {
+  overflow: hidden;
+}
+
+.finish-stage-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.finish-stage-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, .48);
+}
+
+.finish-stage-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 520px);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+}
+
+.finish-stage-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid #eef0f2;
+}
+
+.finish-stage-modal-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #68727d;
+}
+
+.finish-stage-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.finish-stage-modal-close {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #374151;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.finish-stage-modal-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px 6px;
+}
+
+.finish-stage-modal-description {
+  margin: 0;
+  color: #68727d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.finish-stage-modal-field {
+  display: grid;
+  gap: 7px;
+}
+
+.finish-stage-modal-field > label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.finish-stage-modal-field textarea,
+.finish-stage-modal-field input[type="file"] {
+  width: 100%;
+}
+
+.finish-stage-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px 20px;
+}
+
+.finish-stage-modal-actions button {
+  min-width: 140px;
+}
+
+@media (max-width: 640px) {
+  .finish-stage-modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .finish-stage-modal-dialog {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .finish-stage-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .finish-stage-modal-actions button {
+    width: 100%;
+  }
+}

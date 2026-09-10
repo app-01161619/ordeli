@@ -6424,7 +6424,12 @@ async function loadOrderDetail(
   if (paymentSection) paymentSection.hidden = isFreshOrder;
   if (fulfillmentSection) fulfillmentSection.hidden = isFreshOrder;
   if (detailActions) detailActions.hidden = false;
-  if (newTransactionButton) newTransactionButton.hidden = !isFreshOrder;
+  // New Transaction is only valid immediately after creating a fresh order.
+  // When an assigned QR opens an existing order, the seller should only have
+  // the Add Another Item action.
+  if (newTransactionButton) {
+    newTransactionButton.hidden = !isFreshOrder || currentOrderShowProduction;
+  }
   if ($("orderDetailCancellationActions")) $("orderDetailCancellationActions").hidden = isFreshOrder;
   if ($("orderDetailMessage")) $("orderDetailMessage").hidden = isFreshOrder;
   if ($("orderDetailAddItemButton")) $("orderDetailAddItemButton").textContent = isFreshOrder ? "Add to This Order" : "Add Another Item";
@@ -6926,47 +6931,95 @@ async function renderProductionPanel(item, panel) {
 }
 
 
+function closeFinishStageModal() {
+  const modal = document.getElementById("finishStageModal");
+  if (!modal) return;
+  modal.remove();
+  document.body.classList.remove("has-modal-open");
+}
+
 function openFinishStageEditor(item, stage, panel) {
+  if (productionBusyItemId) return;
 
-  if (productionBusyItemId) {
-    return;
-  }
+  closeFinishStageModal();
 
-  const existing =
-    panel.querySelector(".production-finish-editor");
+  const modal = document.createElement("div");
+  modal.id = "finishStageModal";
+  modal.className = "finish-stage-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-labelledby", "finishStageModalTitle");
 
-  if (existing) {
-    existing.remove();
-  }
+  const backdrop = document.createElement("div");
+  backdrop.className = "finish-stage-modal-backdrop";
 
-  const editor =
-    document.createElement("div");
-  editor.className = "production-finish-editor";
+  const dialog = document.createElement("section");
+  dialog.className = "finish-stage-modal-dialog";
 
-  const title = document.createElement("h4");
+  const header = document.createElement("div");
+  header.className = "finish-stage-modal-header";
+
+  const headingWrap = document.createElement("div");
+  const eyebrow = document.createElement("span");
+  eyebrow.className = "finish-stage-modal-eyebrow";
+  eyebrow.textContent = "PRODUCTION UPDATE";
+
+  const title = document.createElement("h3");
+  title.id = "finishStageModalTitle";
   title.textContent = `Finish: ${stage.name}`;
+  headingWrap.append(eyebrow, title);
 
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "finish-stage-modal-close";
+  close.setAttribute("aria-label", "Close");
+  close.textContent = "×";
+  close.addEventListener("click", closeFinishStageModal);
+
+  header.append(headingWrap, close);
+
+  const body = document.createElement("div");
+  body.className = "finish-stage-modal-body";
+
+  const description = document.createElement("p");
+  description.className = "finish-stage-modal-description";
+  description.textContent = "Confirm that this stage is finished. You can optionally attach a proof photo and note.";
+
+  const noteField = document.createElement("div");
+  noteField.className = "finish-stage-modal-field";
   const noteLabel = document.createElement("label");
-  noteLabel.textContent = "Note (optional)";
+  noteLabel.textContent = "Note";
+  noteLabel.htmlFor = "finishStageNote";
   const note = document.createElement("textarea");
-  note.rows = 3;
+  note.id = "finishStageNote";
+  note.rows = 4;
   note.maxLength = 500;
-  note.placeholder = "Add an optional note about this stage.";
+  note.placeholder = "Optional note about this finished stage";
+  noteField.append(noteLabel, note);
 
+  const photoField = document.createElement("div");
+  photoField.className = "finish-stage-modal-field";
   const photoLabel = document.createElement("label");
-  photoLabel.textContent = "Proof photo (optional)";
+  photoLabel.textContent = "Proof photo";
+  const optional = document.createElement("span");
+  optional.className = "optional";
+  optional.textContent = "Optional";
+  photoLabel.appendChild(optional);
   const photo = document.createElement("input");
   photo.type = "file";
   photo.accept = "image/jpeg,image/png,image/webp";
+  photoField.append(photoLabel, photo);
+
+  body.append(description, noteField, photoField);
 
   const actions = document.createElement("div");
-  actions.className = "production-editor-actions";
+  actions.className = "finish-stage-modal-actions";
 
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "secondary-button";
   cancel.textContent = "Cancel";
-  cancel.addEventListener("click", () => editor.remove());
+  cancel.addEventListener("click", closeFinishStageModal);
 
   const finish = document.createElement("button");
   finish.type = "button";
@@ -6976,18 +7029,24 @@ function openFinishStageEditor(item, stage, panel) {
   });
 
   actions.append(cancel, finish);
+  dialog.append(header, body, actions);
+  modal.append(backdrop, dialog);
+  document.body.appendChild(modal);
+  document.body.classList.add("has-modal-open");
 
-  editor.append(
-    title,
-    noteLabel,
-    note,
-    photoLabel,
-    photo,
-    actions
-  );
+  backdrop.addEventListener("click", closeFinishStageModal);
+  document.addEventListener("keydown", function onKeyDown(event) {
+    if (event.key !== "Escape") return;
+    if (!document.getElementById("finishStageModal")) {
+      document.removeEventListener("keydown", onKeyDown);
+      return;
+    }
+    event.preventDefault();
+    closeFinishStageModal();
+    document.removeEventListener("keydown", onKeyDown);
+  }, { once: false });
 
-  panel.appendChild(editor);
-
+  requestAnimationFrame(() => note.focus());
 }
 
 
@@ -7038,6 +7097,7 @@ async function finishProductionStage(
       });
       await cacheNamed(`order-items:${currentOrderId}`, nextItems);
       await loadOrderDetail(currentOrderId);
+      closeFinishStageModal();
       showToast("Stage saved offline — waiting to sync.", "success");
       return;
     }
@@ -7088,6 +7148,7 @@ async function finishProductionStage(
     }
 
     await loadOrderDetail(currentOrderId);
+    closeFinishStageModal();
 
   } catch (error) {
 
