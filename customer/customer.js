@@ -132,14 +132,8 @@ async function viewCustomerProductionProof(stageOrder, button) {
   button.disabled = true;
   button.textContent = "Loading Photo…";
   try {
-    const proofUrl = new URL("/api/customer-stage-proof", window.location.origin);
-    proofUrl.searchParams.set("token", token);
-    proofUrl.searchParams.set("stage_order", String(Number(stageOrder)));
-    const response = await fetch(proofUrl.toString(), {
-      method: "GET",
-      headers: { "Accept": "application/json" },
-      cache: "no-store"
-    });
+    const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
+    const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
       throw new Error(data?.error || "Unable to open the proof photo.");
@@ -228,7 +222,11 @@ function renderFulfillment() {
       statusCard.hidden = true;
     }
   }
-  card.hidden = false;
+  const productionComplete = Boolean(state.production_completed);
+  card.hidden = !productionComplete;
+  if (!productionComplete) {
+    return;
+  }
   $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
   $("fulfillmentRequirement").textContent = ready
     ? "Your order is ready for fulfillment selection."
@@ -568,6 +566,18 @@ function renderCustomerTracking(payload) {
   const order = payload?.order || {};
   const item = payload?.item || {};
   const payment = payload?.payment || {};
+  const orderItems = Array.isArray(payload?.order_items) ? payload.order_items : [];
+  const isMultiItemOrder = orderItems.length > 1;
+  const paymentCard = document.querySelector(".tracking-payment-card");
+  const fulfillmentCard = $("trackingFulfillmentCard");
+  const singleCards = $("trackingSingleWholeOrderCards");
+  const orderCards = $("trackingOrderWholeOrderCards");
+  if (paymentCard && singleCards && orderCards) {
+    (isMultiItemOrder ? orderCards : singleCards).appendChild(paymentCard);
+  }
+  if (fulfillmentCard && singleCards && orderCards) {
+    (isMultiItemOrder ? orderCards : singleCards).appendChild(fulfillmentCard);
+  }
 
   $("trackingShopName").textContent = shop.name || "Shop";
   $("trackingOrderNumber").textContent = `#${order.order_number ?? "—"}`;
@@ -597,9 +607,12 @@ function renderCustomerTracking(payload) {
   $("trackingPaymentPaid").textContent = formatPrice(payment.paid);
   $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
   $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
-  renderTrackingOrderItems(payload?.order_items || []);
-  $("trackingOrderCard").hidden = !trackingOrderVisible;
-  $("trackingViewOrderButton").textContent = trackingOrderVisible ? "Hide My Order" : "View My Order";
+  renderTrackingOrderItems(orderItems);
+  const viewOrderButton = $("trackingViewOrderButton");
+  viewOrderButton.hidden = !isMultiItemOrder;
+  $("trackingOrderCard").hidden = !isMultiItemOrder || !trackingOrderVisible;
+  if (orderCards) orderCards.hidden = !isMultiItemOrder || !trackingOrderVisible;
+  viewOrderButton.textContent = trackingOrderVisible ? "Hide My Order" : "View My Order";
 }
 
 async function loadCustomerTracking(publicToken) {

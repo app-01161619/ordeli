@@ -6,14 +6,14 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-08-09">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-10-02">
 </head>
 <body>
   <main id="customerApp">
     <div class="tracking-page">
       <header class="tracking-header">
         <div class="tracking-brand">
-          <span class="tracking-brand-mark">O</span>
+          <span class="tracking-brand-mark tracking-brand-mark-placeholder" aria-label="Ordeli logo placeholder">Logo</span>
           <div>
             <strong>Ordeli</strong>
             <span>Order Tracking</span>
@@ -64,7 +64,9 @@
           <div id="trackingStageList" class="tracking-stage-list"></div>
         </section>
 
-        <section id="trackingFulfillmentCard" class="tracking-card tracking-fulfillment-card">
+        <div id="trackingSingleWholeOrderCards" class="tracking-single-whole-order-cards"></div>
+
+        <section id="trackingFulfillmentCard" class="tracking-card tracking-fulfillment-card" hidden>
           <div class="tracking-section-heading">
             <div>
               <h3>Fulfillment</h3>
@@ -104,7 +106,7 @@
             <strong>Remaining Balance Payment</strong>
             <p id="paymentProofHint">Upload a clear photo of your payment proof. The seller will verify it.</p>
           </div>
-          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
+          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
           <button id="choosePaymentProofButton" class="secondary-button" type="button">Choose Payment Proof Photo</button>
           <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
           <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment Proof</button>
@@ -156,7 +158,7 @@
           <p id="customerCancellationMessage" class="tracking-inline-notice" role="status"></p>
         </section>
 
-        <button id="trackingViewOrderButton" class="tracking-order-toggle" type="button">View My Order</button>
+        <button id="trackingViewOrderButton" class="tracking-order-toggle" type="button" hidden>View My Order</button>
 
         <section id="trackingOrderCard" class="tracking-card tracking-order-card" hidden>
           <div class="tracking-section-heading">
@@ -166,6 +168,7 @@
             </div>
           </div>
           <div id="trackingOrderItems" class="tracking-order-items"></div>
+          <div id="trackingOrderWholeOrderCards" class="tracking-order-whole-order-cards" hidden></div>
         </section>
       </section>
     </div>
@@ -181,6 +184,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-10-20"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-10-02"></script>
 </body>
 </html>

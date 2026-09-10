@@ -460,3 +460,18 @@ button:focus-visible {
   object-fit: contain;
   border-radius: 12px;
 }
+
+
+.tracking-brand-mark-placeholder {
+  background: #f7f8fa;
+  color: #6b7280;
+  border: 1px dashed #cbd5e1;
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.tracking-single-whole-order-cards,
+.tracking-order-whole-order-cards {
+  display: contents;
+}
