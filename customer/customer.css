@@ -385,7 +385,7 @@ button:focus-visible {
 .tracking-inline-notice { min-height: 18px; margin: 10px 0 0; color: #666; font-size: 13px; }
 
 
-.payment-proof-box { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e8ebef; display: grid; gap: 10px; }
+.payment-proof-box { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e8ebef; display: grid; gap: 10px; }
 .payment-proof-box > div { display: grid; gap: 4px; }
 .payment-proof-box strong { font-size: 15px; }
 .payment-proof-box p { margin: 0; color: #666; line-height: 1.45; font-size: 13px; }
@@ -411,6 +411,7 @@ button:focus-visible {
 
 
 .tracking-photo-button {
+  display: inline-flex !important;
   align-self: flex-start;
   margin-top: 8px;
   padding: 7px 11px;
@@ -475,3 +476,38 @@ button:focus-visible {
 .tracking-order-whole-order-cards {
   display: contents;
 }
+
+
+/* Customer payment proof uploader */
+.tracking-payment-card .payment-proof-box {
+  margin-top: 16px;
+  padding: 16px 0 0;
+  border-top: 1px solid #e8ebef;
+  display: grid;
+  gap: 10px;
+}
+.payment-proof-upload-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 13px 14px;
+  border: 1px dashed #b9c4d0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #1f2937;
+  cursor: pointer;
+}
+.payment-proof-upload-button:hover { background: #f3f6f9; }
+.payment-proof-upload-button:disabled { opacity: .6; cursor: wait; }
+.payment-proof-upload-button .payment-proof-upload-icon {
+  width: 34px; height: 34px; flex: 0 0 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 9px; border: 1px solid #d8e0e8;
+  background: #fff; font-size: 18px; font-weight: 700;
+}
+.payment-proof-upload-button span:last-child { display: grid; gap: 2px; }
+.payment-proof-upload-button strong { font-size: 14px; }
+.payment-proof-upload-button small { color: #6b7280; font-size: 12px; }
+.payment-proof-box .tracking-primary-button { margin-top: 0; }

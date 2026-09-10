@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-10-02">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-10-03">
 </head>
 <body>
   <main id="customerApp">
@@ -103,11 +103,11 @@
 
         <section id="paymentProofBox" class="tracking-card payment-proof-box" hidden>
           <div>
-            <strong>Remaining Balance Payment</strong>
+            <strong>Upload Proof of Payment</strong>
             <p id="paymentProofHint">Upload a clear photo of your payment proof. The seller will verify it.</p>
           </div>
-          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-          <button id="choosePaymentProofButton" class="secondary-button" type="button">Choose Payment Proof Photo</button>
+          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
+          <button id="choosePaymentProofButton" class="payment-proof-upload-button" type="button"><span class="payment-proof-upload-icon" aria-hidden="true">↑</span><span><strong>Upload Proof of Payment</strong><small>Attach a screenshot or photo of your payment transaction.</small></span></button>
           <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
           <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment Proof</button>
         </section>
@@ -184,6 +184,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-10-02"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-10-03"></script>
 </body>
 </html>

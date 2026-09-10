@@ -22,10 +22,10 @@ async function handleCustomerStageProof(request, env) {
     return new Response(JSON.stringify({ error: "Invalid proof request." }), { status: 400, headers: { "Content-Type": "application/json" } });
   }
   if (!serviceKey) {
-    return new Response(JSON.stringify({ error: "Proof service is not configured." }), { status: 503, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "Proof service is not configured on this Worker. Add SUPABASE_SECRET_KEY as a Cloudflare Worker Secret in the deployed environment." }), { status: 503, headers: { "Content-Type": "application/json" } });
   }
 
-  const base = "https://kbgdxhshxkhuelbxlggc.supabase.co";
+  const base = env.SUPABASE_URL || "https://kbgdxhshxkhuelbxlggc.supabase.co";
   const rpcResponse = await fetch(`${base}/rest/v1/rpc/get_customer_stage_proof_v2`, {
     method: "POST",
     headers: {

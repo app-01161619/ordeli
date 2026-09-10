@@ -109,7 +109,7 @@ function renderTrackingStages(stages) {
     status.textContent = stage.status === "finished" ? "Finished" : stage.status === "in_progress" ? "In Progress" : "Upcoming";
     body.append(name, status);
 
-    if (stage.status === "finished") {
+    if (stage.status === "finished" || stage.status === "completed") {
       const proofButton = document.createElement("button");
       proofButton.type = "button";
       proofButton.className = "tracking-photo-button";
@@ -356,7 +356,10 @@ function renderPaymentProof() {
   const box = $("paymentProofBox");
   if (!box) return;
   const state = paymentProofState || {};
-  const eligible = Boolean(state.eligible);
+  const payment = trackingPayload?.payment || {};
+  const productionComplete = Boolean(trackingPayload?.order?.production_completed || trackingPayload?.item?.production_completed);
+  const fallbackEligible = productionComplete && Number(payment.remaining) > 0 && payment.status !== "pending_verification";
+  const eligible = state.eligible === true || (state.eligible == null && fallbackEligible);
   box.hidden = !eligible;
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
