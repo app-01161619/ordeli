@@ -344,10 +344,9 @@
                   Payment Type
                 </label>
 <select class="form-select" id="paymentType">
-<option value="additional">Additional Payment</option>
-<option value="final">Final Payment</option>
 <option value="cash">Cash</option>
-<option value="other">Other</option>
+<option value="bank_transfer">Bank Transfer</option>
+<option value="digital_wallet">Digital Wallet</option>
 </select>
 </div>
 <div class="editor-actions">
@@ -378,6 +377,20 @@
 </section>
 <div class="order-detail-actions"><button id="orderDetailAddItemButton" type="button"><span class="action-button-icon" aria-hidden="true">＋</span><span>Add Another Item</span></button><button class="secondary-button" id="orderDetailNewTransactionButton" type="button" hidden><span class="action-button-icon" aria-hidden="true">＋</span><span>New Transaction</span></button></div>
 <p class="form-message" id="orderDetailMessage" role="alert"></p>
+</section>
+</div>
+</section>
+<section class="screen" hidden="" id="itemProductionDetailScreen">
+<div class="app-container">
+<header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header">
+<div><h1 id="itemProductionDetailTitle">Production Details</h1><p class="page-subtitle" id="itemProductionDetailSubtitle"></p></div>
+<button class="secondary-button" id="itemProductionDetailBackButton" type="button">Back to Order</button>
+</header>
+<section class="item-production-detail-card" id="itemProductionDetailCard">
+<div class="item-production-detail-summary" id="itemProductionDetailSummary"></div>
+<div class="item-production-detail-stages" id="itemProductionDetailStages"></div>
+<p class="form-message" id="itemProductionDetailMessage" role="alert"></p>
 </section>
 </div>
 </section>

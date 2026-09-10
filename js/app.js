@@ -705,6 +705,9 @@ const screens = {
   orderDetail:
     $("orderDetailScreen"),
 
+  itemProductionDetail:
+    $("itemProductionDetailScreen"),
+
   orders:
     $("ordersScreen"),
 
@@ -747,6 +750,7 @@ let pendingAddToOrderId = null;
 let currentOrderId = null;
 let currentOrderShowProduction = false;
 let activeScannedQrCodeId = null;
+let productionDetailItemId = null;
 
 let currentOrderTotal = 0;
 let currentOrderPaid = 0;
@@ -776,6 +780,7 @@ const validRoutes = [
   "scanner",
   "order-create",
   "order-detail",
+  "item-production-detail",
   "orders",
   "events",
   "updates",
@@ -1006,6 +1011,14 @@ async function renderApplication() {
     if (route === "member-signup") {
       showScreen("memberSignup");
       await prepareMemberSignupScreen();
+      return;
+    }
+
+    if (route === "item-production-detail") {
+      const session = await getSession();
+      if (!session) { showScreen("login"); return; }
+      showScreen("itemProductionDetail");
+      await renderItemProductionDetail();
       return;
     }
 
@@ -6453,6 +6466,17 @@ async function loadOrderDetail(
       left.appendChild(qrCode);
     }
     if (!isFreshOrder) {
+      const stageLink = document.createElement("button");
+      stageLink.type = "button";
+      stageLink.className = "order-item-stage-link";
+      stageLink.textContent = "View stages";
+      stageLink.addEventListener("click", () => {
+        productionDetailItemId = item.id;
+        navigate("item-production-detail");
+      });
+      left.appendChild(stageLink);
+    }
+    if (!isFreshOrder) {
       const price = document.createElement("strong");
       price.textContent = formatPrice(item.total_price);
       row.append(left, price);
@@ -6493,6 +6517,61 @@ async function loadOrderDetail(
 }
 
 
+
+async function renderItemProductionDetail() {
+  const titleEl = $("itemProductionDetailTitle");
+  const subtitleEl = $("itemProductionDetailSubtitle");
+  const summary = $("itemProductionDetailSummary");
+  const stagesBox = $("itemProductionDetailStages");
+  const message = $("itemProductionDetailMessage");
+  if (!titleEl || !stagesBox || !productionDetailItemId) return;
+  summary.replaceChildren(); stagesBox.replaceChildren(); message.textContent = "";
+  try {
+    const user = await getCurrentUser();
+    let item = null;
+    const result = await supabase.from("order_items").select("id,order_id,product_name,quantity,workflow_snapshot,cancelled_at,qr_code_id").eq("id", productionDetailItemId).eq("seller_id", user.id).single();
+    if (result.error) throw result.error;
+    item = result.data;
+    const qr = item.qr_code_id ? await supabase.from("qr_codes").select("code").eq("id", item.qr_code_id).eq("seller_id", user.id).maybeSingle() : { data: null };
+    const logs = await getProductionStageLogs(item.id);
+    const workflow = normaliseWorkflowSnapshot(item.workflow_snapshot);
+    const states = getProductionStageStates(workflow, logs);
+    titleEl.textContent = item.product_name || "Production Details";
+    subtitleEl.textContent = `${item.quantity} × ${item.product_name || "Item"}${qr.data?.code ? ` · ${qr.data.code}` : ""}`;
+
+    const orderButton = $("itemProductionDetailBackButton");
+    orderButton.onclick = () => { currentOrderId = item.order_id; currentOrderShowProduction = true; navigate("order-detail"); };
+
+    const info = document.createElement("div");
+    info.className = "item-production-summary-row";
+    info.innerHTML = `<span>Order</span><strong>#${item.order_id}</strong>`;
+    summary.appendChild(info);
+
+    states.forEach((stage, index) => {
+      const row = document.createElement("article");
+      row.className = `item-production-stage-detail ${stage.status === "finished" ? "is-finished" : stage.available ? "is-current" : ""}`;
+      const head = document.createElement("div"); head.className = "item-production-stage-head";
+      const name = document.createElement("strong"); name.textContent = `${index + 1}. ${stage.name}`;
+      const badge = document.createElement("span"); badge.textContent = stage.status === "finished" ? "Finished" : stage.available ? "Current" : "Pending"; badge.className = "item-production-stage-badge";
+      head.append(name, badge); row.appendChild(head);
+      const log = getLatestStageLog(logs, stage.stage_order);
+      if (log?.action === "finished") {
+        const meta = document.createElement("p"); meta.className = "item-production-stage-meta"; meta.textContent = formatDate(log.occurred_at); row.appendChild(meta);
+        if (log.note) { const note = document.createElement("p"); note.className = "item-production-stage-note"; note.textContent = log.note; row.appendChild(note); }
+        if (log.proof_photo_path) {
+          const proof = document.createElement("button"); proof.type="button"; proof.className="secondary-button item-production-proof-button"; proof.textContent="View proof photo";
+          proof.addEventListener("click", async () => { try { const {data,error}=await supabase.storage.from("production-proofs").createSignedUrl(log.proof_photo_path,300); if(error) throw error; if(data?.signedUrl) window.open(data.signedUrl,"_blank","noopener,noreferrer"); } catch(e){ alert(e?.message||"Unable to open the proof photo."); } });
+          row.appendChild(proof);
+        }
+      } else {
+        const status = document.createElement("p"); status.className="item-production-stage-meta"; status.textContent = stage.available ? "This is the current stage." : "Not finished yet."; row.appendChild(status);
+      }
+      stagesBox.appendChild(row);
+    });
+  } catch (error) {
+    message.textContent = error?.message || "Unable to load production details.";
+  }
+}
 
 function renderSellerCancellationActions(order, items) {
   const container = $('orderDetailCancellationActions');
@@ -7250,7 +7329,7 @@ async function loadPayments(
   let payments = null;
   if (navigator.onLine && user?.id) {
     try {
-      const result = await supabase.from("payments").select(`id,amount,payment_type,proof_status,proof_path,rejection_reason,created_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
+      const result = await supabase.from("payments").select(`id,amount,payment_type,payment_method,proof_status,proof_path,rejection_reason,created_at`).eq("order_id", orderId).eq("seller_id", user.id).order("created_at", {ascending:true});
       if (result.error) throw result.error;
       payments = result.data || [];
       await cacheNamed(cacheKey, payments);
@@ -7274,7 +7353,7 @@ async function loadPayments(
   payments.forEach((payment, index) => {
     const row = document.createElement("div"); row.className = "payment-row";
     const left = document.createElement("div");
-    const title = document.createElement("strong"); title.textContent = paymentTypeLabel(payment.payment_type);
+    const title = document.createElement("strong"); title.textContent = paymentMethodLabel(payment.payment_method) !== "Payment" ? paymentMethodLabel(payment.payment_method) : paymentTypeLabel(payment.payment_type);
     const meta = document.createElement("span"); meta.textContent = formatDate(payment.created_at);
     left.append(title, meta);
     const right = document.createElement("div"); right.className = "payment-row-right";
@@ -7300,20 +7379,24 @@ async function loadPayments(
 }
 
 
+let paymentEditorOriginalParent = null;
+
 function openPaymentEditor() {
   const editor = $("paymentEditor");
   if (!editor) return;
   const remaining = Math.max(0, Number(currentOrderTotal || 0) - Number(currentOrderPaid || 0));
   if (remaining <= 0) {
     $("paymentMessage").textContent = "This order is already fully paid.";
-    editor.hidden = false;
-    $("paymentAmount").value = "";
     return;
   }
-  $("paymentAmount").value = remaining.toFixed(2);
-  $("paymentType").value = remaining > 0 ? "final" : "additional";
-  $("paymentMessage").textContent = `Remaining balance: ${formatPrice(remaining)}`;
+  paymentEditorOriginalParent = editor.parentElement;
+  document.body.appendChild(editor);
+  editor.classList.add("payment-modal");
   editor.hidden = false;
+  $("paymentAmount").value = remaining.toFixed(2);
+  $("paymentType").value = "cash";
+  $("paymentMessage").textContent = `Remaining balance: ${formatPrice(remaining)}`;
+  document.body.classList.add("has-modal-open");
   $("paymentAmount").focus();
 }
 
@@ -7321,21 +7404,26 @@ function closePaymentEditor() {
   const editor = $("paymentEditor");
   if (!editor) return;
   editor.hidden = true;
+  editor.classList.remove("payment-modal");
+  if (paymentEditorOriginalParent) paymentEditorOriginalParent.appendChild(editor);
+  paymentEditorOriginalParent = null;
   $("paymentAmount").value = "";
-  $("paymentType").value = "additional";
+  $("paymentType").value = "cash";
   $("paymentMessage").textContent = "";
+  document.body.classList.remove("has-modal-open");
 }
 
 async function recordSellerPayment() {
   const amount = Number($("paymentAmount")?.value || 0);
-  const paymentType = $("paymentType")?.value || "additional";
+  const paymentMethod = $("paymentType")?.value || "cash";
+  const paymentType = "additional";
   const remaining = Math.max(0, Number(currentOrderTotal || 0) - Number(currentOrderPaid || 0));
 
   if (!currentOrderId) throw new Error("No order selected.");
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a payment amount greater than ₱0.00.");
   if (remaining <= 0) throw new Error("This order is already fully paid.");
   if (amount > remaining + 0.005) throw new Error(`Payment cannot exceed the remaining balance of ${formatPrice(remaining)}.`);
-  if (!["additional", "final", "cash", "other"].includes(paymentType)) throw new Error("Choose a valid payment type.");
+  if (!["cash", "bank_transfer", "digital_wallet"].includes(paymentMethod)) throw new Error("Choose a valid payment method.");
 
   const saveButton = $("savePaymentButton");
   setLoading(saveButton, true, "Recording…");
@@ -7349,6 +7437,9 @@ async function recordSellerPayment() {
     });
     if (error) throw error;
     if (!data?.payment_id) throw new Error("The payment was not recorded.");
+    try {
+      await supabase.from("payments").update({ payment_method: paymentMethod }).eq("id", data.payment_id).eq("seller_id", (await getCurrentUser()).id);
+    } catch (_) {}
 
     closePaymentEditor();
     await loadOrderDetail(currentOrderId);
@@ -7804,13 +7895,19 @@ function formatDate(value) {
 function paymentTypeLabel(value) {
   const labels = {
     downpayment: "Downpayment",
-    additional: "Additional Payment",
-    final: "Final Payment",
+    additional: "Payment",
+    balance: "Payment",
     cash: "Cash",
-    other: "Other"
+    bank_transfer: "Bank Transfer",
+    digital_wallet: "Digital Wallet"
   };
   return labels[value] || "Payment";
 }
+
+function paymentMethodLabel(value) {
+  return ({ cash: "Cash", bank_transfer: "Bank Transfer", digital_wallet: "Digital Wallet" })[value] || "Payment";
+}
+
 
 // ============================================================
 // LOGOUT

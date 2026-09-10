@@ -3125,3 +3125,56 @@ a:hover {
     width: 100%;
   }
 }
+
+/* ==========================================================
+   PAYMENT MODAL
+========================================================== */
+.payment-editor.payment-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  margin: 0;
+  background: rgba(15,23,42,.48);
+}
+.payment-editor.payment-modal .payment-editor-inner {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15,23,42,.22);
+  padding: 20px;
+}
+.payment-editor.payment-modal .payment-editor-inner h3 { margin-top: 0; }
+.payment-editor.payment-modal .editor-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:8px; }
+@media (max-width:640px){
+  .payment-editor.payment-modal { align-items:flex-end; padding:0; }
+  .payment-editor.payment-modal .payment-editor-inner { width:100%; border-radius:18px 18px 0 0; max-height:92vh; }
+  .payment-editor.payment-modal .editor-actions { flex-direction:column-reverse; }
+  .payment-editor.payment-modal .editor-actions button { width:100%; }
+}
+
+/* ==========================================================
+   ITEM PRODUCTION DETAIL
+========================================================== */
+.item-production-detail-card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:18px; }
+.item-production-detail-summary { display:grid; gap:6px; padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid #eef0f2; }
+.item-production-summary-row { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; }
+.item-production-summary-row span { color:#68727d; }
+.item-production-detail-stages { display:grid; gap:9px; }
+.item-production-stage-detail { padding:12px; border:1px solid #e7eaee; border-radius:11px; background:#fafbfc; }
+.item-production-stage-detail.is-current { border-color:#cbd5e1; background:#f8fafc; }
+.item-production-stage-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.item-production-stage-head strong { font-size:14px; }
+.item-production-stage-badge { flex:0 0 auto; padding:3px 8px; border-radius:999px; background:#eef1f4; color:#475569; font-size:11px; font-weight:700; }
+.item-production-stage-meta,.item-production-stage-note { margin:7px 0 0; color:#68727d; font-size:12px; line-height:1.45; }
+.item-production-stage-note { color:#374151; white-space:pre-wrap; }
+.item-production-proof-button { margin-top:10px; width:auto; }
+.order-item-stage-link { border:0; background:none; padding:0; color:#475569; text-decoration:underline; cursor:pointer; font-size:11px; font-weight:700; }
+@media (max-width:640px){ .item-production-detail-card{padding:14px;} .item-production-stage-head{align-items:flex-start;} }
