@@ -3,9 +3,6 @@
   "name": "ordeli",
   "main": "./worker.js",
   "compatibility_date": "2026-09-02",
-  "secrets": {
-    "required": ["SUPABASE_SECRET_KEY"]
-  },
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
