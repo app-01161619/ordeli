@@ -6428,7 +6428,10 @@ async function loadOrderDetail(
   // When an assigned QR opens an existing order, the seller should only have
   // the Add Another Item action.
   if (newTransactionButton) {
-    newTransactionButton.hidden = !isFreshOrder || currentOrderShowProduction;
+    const showNewTransaction = Boolean(isFreshOrder && !currentOrderShowProduction);
+    newTransactionButton.hidden = !showNewTransaction;
+    newTransactionButton.style.display = showNewTransaction ? "" : "none";
+    newTransactionButton.setAttribute("aria-hidden", showNewTransaction ? "false" : "true");
   }
   if ($("orderDetailCancellationActions")) $("orderDetailCancellationActions").hidden = isFreshOrder;
   if ($("orderDetailMessage")) $("orderDetailMessage").hidden = isFreshOrder;
@@ -7005,10 +7008,45 @@ function openFinishStageEditor(item, stage, panel) {
   optional.className = "optional";
   optional.textContent = "Optional";
   photoLabel.appendChild(optional);
+
+  const photoPicker = document.createElement("label");
+  photoPicker.className = "finish-stage-photo-picker";
+  photoPicker.setAttribute("tabindex", "0");
+  photoPicker.setAttribute("role", "button");
+
+  const photoIcon = document.createElement("span");
+  photoIcon.className = "finish-stage-photo-icon";
+  photoIcon.setAttribute("aria-hidden", "true");
+  photoIcon.textContent = "↑";
+
+  const photoCopy = document.createElement("span");
+  photoCopy.className = "finish-stage-photo-copy";
+  const photoTitle = document.createElement("strong");
+  photoTitle.textContent = "Upload proof photo";
+  const photoHint = document.createElement("small");
+  photoHint.textContent = "JPG, PNG, or WebP";
+  const photoName = document.createElement("span");
+  photoName.className = "finish-stage-photo-name";
+  photoName.textContent = "No file selected";
+  photoCopy.append(photoTitle, photoHint, photoName);
+
   const photo = document.createElement("input");
   photo.type = "file";
   photo.accept = "image/jpeg,image/png,image/webp";
-  photoField.append(photoLabel, photo);
+  photo.className = "finish-stage-photo-input";
+  photo.addEventListener("change", () => {
+    const file = photo.files?.[0];
+    photoName.textContent = file ? file.name : "No file selected";
+    photoPicker.classList.toggle("has-file", Boolean(file));
+  });
+  photoPicker.append(photoIcon, photoCopy, photo);
+  photoPicker.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      photo.click();
+    }
+  });
+  photoField.append(photoLabel, photoPicker);
 
   body.append(description, noteField, photoField);
 

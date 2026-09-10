@@ -3018,6 +3018,82 @@ a:hover {
   width: 100%;
 }
 
+.finish-stage-photo-picker {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px dashed #cfd5db;
+  border-radius: 12px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+
+.finish-stage-photo-picker:hover,
+.finish-stage-photo-picker:focus-visible,
+.finish-stage-photo-picker.has-file {
+  border-style: solid;
+  border-color: #9ca7b2;
+  background: #f3f6f8;
+  box-shadow: 0 0 0 3px rgba(100,116,139,.08);
+  outline: none;
+}
+
+.finish-stage-photo-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e1e5e9;
+  color: #475569;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.finish-stage-photo-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.finish-stage-photo-copy strong {
+  font-size: 13px;
+  color: #27313b;
+}
+
+.finish-stage-photo-copy small,
+.finish-stage-photo-name {
+  color: #7a8590;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.finish-stage-photo-name {
+  color: #4b5563;
+}
+
+.finish-stage-photo-input {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+#orderDetailNewTransactionButton[hidden] {
+  display: none !important;
+}
+
 .finish-stage-modal-actions {
   display: flex;
   justify-content: flex-end;
