@@ -7,9 +7,10 @@ begin;
 
 drop policy if exists "customer_can_upload_payment_proofs" on storage.objects;
 
--- Ensure public API roles cannot write to this bucket directly. Seller reads
--- and deletes remain controlled by the existing seller policies.
-revoke insert on table storage.objects from anon, authenticated;
+-- The direct anonymous upload policy is removed above. Do not change the
+-- global storage.objects INSERT privilege here because other authenticated
+-- upload flows use different buckets and bucket-specific RLS policies.
+revoke insert on table storage.objects from anon;
 
 notify pgrst, 'reload schema';
 commit;

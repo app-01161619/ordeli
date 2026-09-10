@@ -46,7 +46,9 @@ declare
     'release_qr_reservations_for_offline',
     'seller_record_payment',
     'update_production_member',
-    'set_production_member_active'
+    'set_production_member_active',
+    'seller_cancel_order_item',
+    'seller_cancel_order'
   ];
 begin
   for r in

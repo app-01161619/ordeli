@@ -1,33 +1,53 @@
-# Ordeli security and reliability fixes — 2026-09-11
+# Ordeli Security Fixes — 2026-09-11
 
-This package includes a focused hardening pass based on the 2026-09-10 project scan.
+This build continues the security hardening pass for the Ordeli PWA.
 
-## Included fixes
+## Included
 
-- Removed the stale duplicate customer application at `customer/customer/`.
-- `/t/<token>` redirects now place the customer bearer token in the URL fragment instead of a query string. Old `?token=` customer URLs remain supported for backward compatibility.
-- Revoked QR codes are no longer accepted by `get_customer_stage_proof_v2`.
-- Added `supabase/migrations/032_security_hardening.sql` to apply the revoked-token fix to the database.
-- The Cloudflare Worker now reads `SUPABASE_URL` from its environment instead of hardcoding the project URL.
-- The public proof endpoint accepts only GET and no longer returns upstream Supabase/Storage error text to customers.
-- Worker errors are logged server-side with a generic public response.
-- The seller service worker shell now includes `boot.js` and `register-sw.js`, fixing an offline first-load gap.
-- The seller service worker explicitly leaves `/customer/` pages alone.
-- Offline sync recovery styles were moved from a runtime `<style>` injection into the main stylesheet so the existing `style-src 'self'` CSP remains compatible.
-- Strengthened `.gitignore` for local secrets, Wrangler state, dependencies, build output, and editor temporary files.
+- Customer tracking links from `/t/<token>` are redirected to `/customer/#token=...` so the bearer token is not placed in the initial HTTP query string.
+- Legacy customer `?token=` links remain supported for compatibility.
+- Revoked QR codes no longer authorize production-proof lookup through the hardened v2 proof function.
+- Customer production-proof viewing now goes through `/api/customer-stage-proof`; the browser no longer calls the older proof RPC directly.
+- The proof API is GET-only and returns generic public errors.
+- Customer payment-proof uploads go through `/api/customer-payment-proof` and are validated server-side for token eligibility, amount, file size, MIME type, and file signature before Storage upload.
+- Direct anonymous payment-proof Storage upload policy is removed without revoking Storage INSERT globally for authenticated seller/production workflows.
+- Public RPC execution privileges are explicitly allowlisted; seller/member RPCs remain authenticated-only.
+- Internal SMS helper/trigger functions are not browser-callable.
+- PWA app-shell caching includes the boot files needed for a fresh offline start.
+- The seller service worker does not control `/customer/`.
+- Dynamic runtime `<style>` injection was removed in favor of CSP-compatible stylesheet rules.
+- Stale nested customer application files and editor/OS junk are excluded from the deployment package.
+- `.gitignore` now covers environment files, build output, Wrangler state, editor files, and OS junk.
 
-## Important remaining deployment work
+## Supabase migration order
 
-The repository still relies on the live Supabase database for the full RPC/security history. The ZIP contains current schema snapshots plus the historical SQL in Git history, but it is not yet a clean, from-scratch Supabase migration chain. Before creating a new Supabase project, export/validate the live schema and RLS policies, then establish a single authoritative migration baseline.
+Apply these hardening migrations to the existing Supabase project in order:
 
-Payment-proof uploads should also be moved behind a server-validated upload flow with server-side file-size/type limits and rate limiting before production launch.
+1. `032_security_hardening.sql`
+2. `033_payment_proof_upload_hardening.sql`
+3. `034_rpc_privilege_hardening.sql`
+4. `035_hardening_corrections.sql`
+5. `036_customer_proof_rpc_surface.sql`
 
-External JavaScript libraries are still loaded from pinned CDNs. They should eventually be self-hosted/bundled (or protected with verified SRI hashes) for a stronger supply-chain boundary.
+`036_customer_proof_rpc_surface.sql` removes anonymous/authenticated execute access to the older `get_customer_stage_proof` RPC because the customer UI now uses the Worker endpoint and the hardened `get_customer_stage_proof_v2` implementation.
 
-## Second hardening pass
+## Cloudflare Worker secrets
 
-- Customer payment-proof uploads now go through `POST /api/customer-payment-proof` instead of direct anonymous Storage INSERT.
-- The Worker validates token/payment eligibility, amount, size, MIME type, and image magic bytes before upload.
-- `supabase/migrations/033_payment_proof_upload_hardening.sql` removes the public Storage INSERT policy for payment proofs.
-- `supabase/migrations/034_rpc_privilege_hardening.sql` revokes PostgREST EXECUTE from all public-schema functions and restores only the known customer/authenticated application RPCs.
-- Worker payment-proof responses avoid returning raw Supabase error messages to the browser.
+Set these Worker variables/secrets:
+
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
+
+Legacy secret variable names are still accepted by the Worker for compatibility, but a Supabase secret/service-role key must never be placed in frontend JavaScript.
+
+## Remaining live-environment audit
+
+The repository does not contain the complete historical RLS/Storage policy migration chain. Before treating the database as fully audited, inspect the live Supabase project for:
+
+- RLS enabled on every application table.
+- Seller/member policies constrained by `auth.uid()` and seller ownership.
+- Private Storage buckets for proof images.
+- Production-proof upload/delete/read policies scoped to the correct seller/member.
+- No anonymous `INSERT` policy on `payment-proofs`.
+- Customer RPCs validating bearer tokens and rejecting revoked/ineligible tokens.
+- No unintended `EXECUTE` grants on other `SECURITY DEFINER` functions.

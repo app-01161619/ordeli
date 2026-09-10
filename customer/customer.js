@@ -136,11 +136,14 @@ async function viewCustomerProductionProof(stageOrder, button) {
   button.disabled = true;
   button.textContent = "Loading Photo…";
   try {
-    const { data, error } = await supabase.rpc("get_customer_stage_proof", {
-      p_public_token: token,
-      p_stage_order: Number(stageOrder)
+    const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store"
     });
-    if (error) throw error;
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.error || "Unable to open the proof photo.");
     if (!data?.available || !data?.url) {
       throw new Error("No proof photo is available for this stage.");
     }

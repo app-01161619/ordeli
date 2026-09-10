@@ -132,6 +132,7 @@ async function handleCustomerPaymentProof(request, env) {
 }
 
 async function handleCustomerStageProof(request, env) {
+  if (request.method !== "GET") return json({ error: "Method not allowed." }, 405, { Allow: "GET" });
   const url = new URL(request.url);
   const token = (url.searchParams.get("token") || "").trim();
   const stageOrder = Number(url.searchParams.get("stage_order"));
