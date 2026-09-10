@@ -6,6 +6,6 @@
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
-    "run_worker_first": ["/t/*"]
+    "run_worker_first": ["/t/*", "/api/*"]
   }
 }

@@ -13,6 +13,56 @@ function withSecurityHeaders(response) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+async function handleCustomerStageProof(request, env) {
+  const url = new URL(request.url);
+  const token = (url.searchParams.get("token") || "").trim();
+  const stageOrder = Number(url.searchParams.get("stage_order"));
+  const serviceKey = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_KEY || "";
+  if (!token || !Number.isInteger(stageOrder) || stageOrder < 1) {
+    return new Response(JSON.stringify({ error: "Invalid proof request." }), { status: 400, headers: { "Content-Type": "application/json" } });
+  }
+  if (!serviceKey) {
+    return new Response(JSON.stringify({ error: "Proof service is not configured." }), { status: 503, headers: { "Content-Type": "application/json" } });
+  }
+
+  const base = "https://kbgdxhshxkhuelbxlggc.supabase.co";
+  const rpcResponse = await fetch(`${base}/rest/v1/rpc/get_customer_stage_proof_v2`, {
+    method: "POST",
+    headers: {
+      "apikey": serviceKey,
+      "Authorization": `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+      "Prefer": "return=representation"
+    },
+    body: JSON.stringify({ p_public_token: token, p_stage_order: stageOrder })
+  });
+  const proof = await rpcResponse.json().catch(() => null);
+  if (!rpcResponse.ok || !proof?.available || !proof?.path) {
+    return new Response(JSON.stringify({ error: proof?.error || "No proof photo is available for this stage." }), { status: rpcResponse.ok ? 404 : 502, headers: { "Content-Type": "application/json" } });
+  }
+
+  const encodedPath = proof.path.split("/").map(part => encodeURIComponent(part)).join("/");
+  const signResponse = await fetch(`${base}/storage/v1/object/sign/production-proofs/${encodedPath}`, {
+    method: "POST",
+    headers: {
+      "apikey": serviceKey,
+      "Authorization": `Bearer ${serviceKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ expiresIn: 300 })
+  });
+  const signed = await signResponse.json().catch(() => null);
+  if (!signResponse.ok || !signed?.signedURL) {
+    return new Response(JSON.stringify({ error: signed?.message || signed?.error || "Unable to create a proof photo URL." }), { status: 502, headers: { "Content-Type": "application/json" } });
+  }
+
+  const signedUrl = signed.signedURL.startsWith("http") ? signed.signedURL : `${base}${signed.signedURL}`;
+  return new Response(JSON.stringify({ available: true, url: signedUrl, stage_name: proof.stage_name || `Stage ${stageOrder}` }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store" }
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -24,6 +74,13 @@ export default {
       const customerUrl = new URL("/customer/", url);
       customerUrl.searchParams.set("token", token);
       return Response.redirect(customerUrl.toString(), 302);
+    }
+
+    if (pathname === "/api/customer-stage-proof") {
+      try { return withSecurityHeaders(await handleCustomerStageProof(request, env)); }
+      catch (error) {
+        return withSecurityHeaders(new Response(JSON.stringify({ error: error?.message || "Unable to load proof photo." }), { status: 500, headers: { "Content-Type": "application/json" } }));
+      }
     }
 
     const response = await env.ASSETS.fetch(request);
