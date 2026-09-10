@@ -104,7 +104,7 @@
             <strong>Remaining Balance Payment</strong>
             <p id="paymentProofHint">Upload a clear photo of your payment proof. The seller will verify it.</p>
           </div>
-          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
           <button id="choosePaymentProofButton" class="secondary-button" type="button">Choose Payment Proof Photo</button>
           <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
           <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment Proof</button>
@@ -181,6 +181,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-09-12"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-10-20"></script>
 </body>
 </html>

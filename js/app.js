@@ -7112,6 +7112,7 @@ function openFinishStageEditor(item, stage, panel) {
   const photo = document.createElement("input");
   photo.type = "file";
   photo.accept = "image/jpeg,image/png,image/webp";
+  photo.setAttribute("capture", "environment");
   photo.className = "finish-stage-photo-input";
   photo.addEventListener("change", () => {
     const file = photo.files?.[0];
