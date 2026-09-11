@@ -147,30 +147,20 @@ async function viewCustomerProductionProof(stageOrder, button) {
   button.textContent = "Loading Photo…";
   try {
     let data = null;
-    let workerResponse = null;
     try {
       const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
-      workerResponse = await fetch(endpoint, {
+      const workerResponse = await fetch(endpoint, {
         method: "GET",
         headers: { Accept: "application/json" },
         cache: "no-store"
       });
       data = await workerResponse.json().catch(() => null);
     } catch (workerError) {
-      console.warn("Customer proof Worker unavailable; trying direct hardened proof RPC.", workerError);
-    }
-
-    if (!workerResponse?.ok || !data?.available || !data?.url) {
-      const { data: rpcData, error: rpcError } = await supabase.rpc("get_customer_stage_proof", {
-        p_public_token: token,
-        p_stage_order: Number(stageOrder)
-      });
-      if (rpcError) throw new Error(rpcError.message || "Unable to open the proof photo.");
-      data = rpcData;
+      console.warn("Customer proof Worker unavailable.", workerError);
     }
 
     if (!data?.available || !data?.url) {
-      throw new Error("No proof photo is available for this stage.");
+      throw new Error(data?.error || "No proof photo is available for this stage.");
     }
     const viewer = $("customerPhotoViewer");
     const image = $("customerPhotoViewerImage");
@@ -423,7 +413,8 @@ function renderPaymentProof() {
   const box = $("paymentProofBox");
   if (!box) return;
   const state = paymentProofState || {};
-  const eligible = Boolean(state.eligible);
+  const remaining = Number(state.remaining ?? trackingPayload?.payment?.remaining);
+  const eligible = Boolean(state.eligible) || (Number.isFinite(remaining) && remaining > 0);
   box.hidden = !eligible;
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
@@ -435,7 +426,7 @@ function renderPaymentProof() {
   } else if (state.rejected) {
     if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
   } else if (hint) {
-    hint.textContent = `Upload a clear screenshot or photo of your payment transaction for ${formatPrice(state.remaining)}. The seller will verify it.`;
+    hint.textContent = `Upload a clear screenshot or photo of your payment transaction for ${formatPrice(remaining)}. The seller will verify it.`;
   }
   if (submit) submit.hidden = state.pending_verification;
   if (choose) choose.disabled = state.pending_verification;
@@ -449,7 +440,11 @@ async function submitCustomerPaymentProof() {
   const file = input?.files?.[0];
   const state = paymentProofState || {};
   if (!token || !file) { $("paymentProofMessage").textContent = "Choose a proof photo first."; return; }
-  if (!state.eligible) { $("paymentProofMessage").textContent = "Payment proof is not available for this order yet."; return; }
+  const remaining = Number(state.remaining ?? trackingPayload?.payment?.remaining);
+  if (!state.eligible && !(Number.isFinite(remaining) && remaining > 0)) {
+    $("paymentProofMessage").textContent = "Payment proof is not available for this order yet.";
+    return;
+  }
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image."; return; }
   if (file.size > 8 * 1024 * 1024) { $("paymentProofMessage").textContent = "Please choose an image smaller than 8 MB."; return; }
   paymentProofBusy = true;
