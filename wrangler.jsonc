@@ -3,6 +3,9 @@
   "name": "ordeli",
   "main": "./worker.js",
   "compatibility_date": "2026-09-02",
+  "vars": {
+    "SUPABASE_URL": "https://kbgdxhshxkhuelbxlggc.supabase.co"
+  },
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
