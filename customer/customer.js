@@ -454,7 +454,7 @@ async function submitCustomerPaymentProof() {
   try {
     const form = new FormData();
     form.set("token", token);
-    form.set("amount", String(state.remaining));
+    form.set("amount", String(remaining));
     form.set("file", file, file.name || "payment-proof");
     const response = await fetch("/api/customer-payment-proof", { method: "POST", body: form });
     const result = await response.json().catch(() => null);
@@ -760,3 +760,11 @@ $("paymentProofFile")?.addEventListener("change", () => {
   }
 });
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
+$("customerPhotoViewerClose")?.addEventListener("click", () => {
+  const viewer = $("customerPhotoViewer");
+  if (viewer?.open && viewer.close) viewer.close();
+  else if (viewer) viewer.hidden = true;
+});
+$("customerPhotoViewer")?.addEventListener("click", (event) => {
+  if (event.target === $("customerPhotoViewer")) event.target.close?.();
+});

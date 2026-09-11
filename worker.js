@@ -85,12 +85,21 @@ async function handleCustomerPaymentProof(request, env) {
 
   const contextResponse = await supabaseRpc(base, serviceKey, "get_customer_payment_proof", { p_public_token: token });
   const context = await contextResponse.json().catch(() => null);
+  let paymentContext = context;
   if (!contextResponse.ok || !context?.eligible) {
+    const trackingResponse = await supabaseRpc(base, serviceKey, "get_customer_tracking", { p_public_token: token });
+    const tracking = await trackingResponse.json().catch(() => null);
+    const remaining = Number(tracking?.payment?.remaining);
+    if (trackingResponse.ok && Number.isFinite(remaining) && remaining > 0) {
+      paymentContext = { ...context, eligible: true, remaining, pending_verification: false };
+    }
+  }
+  if (!paymentContext?.eligible) {
     return json({ error: context?.rejection_reason || "Payment proof is not available for this order." }, contextResponse.ok ? 409 : 502);
   }
-  const remaining = Number(context.remaining);
+  const remaining = Number(paymentContext.remaining);
   if (!Number.isFinite(remaining) || amount > remaining + 0.000001) return json({ error: "Payment amount exceeds the remaining balance." }, 400);
-  if (context.pending_verification) return json({ error: "A payment proof is already pending verification." }, 409);
+  if (paymentContext.pending_verification) return json({ error: "A payment proof is already pending verification." }, 409);
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (!validImageSignature(file.type, bytes)) return json({ error: "The selected file is not a supported image." }, 400);
@@ -153,9 +162,10 @@ async function handleCustomerStageProof(request, env) {
     body: JSON.stringify({ expiresIn: 300 })
   });
   const signed = await signResponse.json().catch(() => null);
-  if (!signResponse.ok || !signed?.signedURL) return json({ error: "Unable to create a proof photo URL." }, 502);
+  const signedPath = signed?.signedURL || signed?.signedUrl || signed?.signed_url;
+  if (!signResponse.ok || !signedPath) return json({ error: "Unable to create a proof photo URL." }, 502);
 
-  const signedUrl = signed.signedURL.startsWith("http") ? signed.signedURL : `${base}${signed.signedURL}`;
+  const signedUrl = signedPath.startsWith("http") ? signedPath : `${base}${signedPath}`;
   return json({ available: true, url: signedUrl, stage_name: proof.stage_name || `Stage ${stageOrder}` }, 200, { "Cache-Control": "private, no-store" });
 }
 
