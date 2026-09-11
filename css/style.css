@@ -702,7 +702,7 @@ a:hover {
 }
 
 .workflow-intro-icon {
-  width: 52px;
+  width: 64px;
   height: 52px;
   display: flex;
   align-items: center;
@@ -711,8 +711,29 @@ a:hover {
   border-radius: 15px;
   background: #208aef;
   color: #fff;
-  font-size: 30px;
+  gap: 4px;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.workflow-intro-icon span {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 2px solid rgba(255,255,255,.9);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
   line-height: 1;
+}
+
+.workflow-intro-icon i {
+  width: 5px;
+  flex: 0 0 5px;
+  border-top: 2px solid rgba(255,255,255,.75);
 }
 
 .workflow-intro-copy h2 {
