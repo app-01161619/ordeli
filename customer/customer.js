@@ -165,7 +165,18 @@ async function viewCustomerProductionProof(stageOrder, button) {
     const viewer = $("customerPhotoViewer");
     const image = $("customerPhotoViewerImage");
     const caption = $("customerPhotoViewerCaption");
-    if (image) image.src = data.url;
+    if (image) {
+      image.alt = "Loading production proof photo";
+      image.onerror = () => {
+        image.removeAttribute("src");
+        image.alt = "Production proof photo could not be loaded";
+        if (caption) caption.textContent = "The production proof photo could not be loaded.";
+      };
+      image.onload = () => {
+        image.alt = "Production proof photo";
+      };
+      image.src = data.url;
+    }
     if (caption) caption.textContent = `${data.stage_name || `Stage ${stageOrder}`} · Production proof`;
     if (viewer?.showModal) viewer.showModal();
     else if (viewer) viewer.hidden = false;

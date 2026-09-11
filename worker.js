@@ -30,6 +30,12 @@ function getSupabaseBase(env) {
   return String(env.SUPABASE_URL || "").replace(/\/+$/, "");
 }
 
+async function upstreamError(response, fallback) {
+  const body = await response.json().catch(() => null);
+  const message = body?.message || body?.error || body?.msg;
+  return message ? `${fallback}: ${message}` : fallback;
+}
+
 async function supabaseRpc(base, serviceKey, functionName, body) {
   return fetch(`${base}/rest/v1/rpc/${functionName}`, {
     method: "POST",
@@ -118,7 +124,7 @@ async function handleCustomerPaymentProof(request, env) {
   });
   if (!uploadResponse.ok) {
     console.error("Customer payment proof upload failed upstream:", uploadResponse.status);
-    return json({ error: "Unable to store the payment proof." }, 502);
+    return json({ error: await upstreamError(uploadResponse, "Unable to store the payment proof.") }, 502);
   }
 
   const submitResponse = await supabaseRpc(base, serviceKey, "submit_customer_payment_proof", {
@@ -134,7 +140,8 @@ async function handleCustomerPaymentProof(request, env) {
         headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
       });
     } catch (_) {}
-    return json({ error: "Unable to submit the payment proof." }, 409);
+    const message = submitResult?.message || submitResult?.error || submitResult?.msg;
+    return json({ error: message ? `Unable to submit the payment proof: ${message}` : "Unable to submit the payment proof." }, 409);
   }
 
   return json({ success: true, payment: submitResult });
@@ -163,9 +170,13 @@ async function handleCustomerStageProof(request, env) {
   });
   const signed = await signResponse.json().catch(() => null);
   const signedPath = signed?.signedURL || signed?.signedUrl || signed?.signed_url;
-  if (!signResponse.ok || !signedPath) return json({ error: "Unable to create a proof photo URL." }, 502);
+  if (!signResponse.ok || !signedPath) {
+    return json({ error: await upstreamError(signResponse, "Unable to create a proof photo URL.") }, 502);
+  }
 
-  const signedUrl = signedPath.startsWith("http") ? signedPath : `${base}${signedPath}`;
+  const signedUrl = signedPath.startsWith("http")
+    ? signedPath
+    : `${base}${signedPath.startsWith("/storage/v1/") ? "" : "/storage/v1"}${signedPath}`;
   return json({ available: true, url: signedUrl, stage_name: proof.stage_name || `Stage ${stageOrder}` }, 200, { "Cache-Control": "private, no-store" });
 }
 
