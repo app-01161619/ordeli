@@ -1,0 +1,15 @@
+.git
+.git/**
+.wrangler
+.wrangler/**
+supabase/.temp
+supabase/.temp/**
+supabase/config.toml
+supabase/database.types.ts
+supabase/migrations
+supabase/migrations/**
+node_modules
+node_modules/**
+.env
+.env.*
+.dev.vars
