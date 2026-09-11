@@ -84,6 +84,14 @@ function showTrackingError(message) {
   $("trackingErrorMessage").textContent = message || "This tracking link could not be loaded.";
 }
 
+function getTrackingStageStatus(stage) {
+  return String(stage?.status || stage?.production_status || "").toLowerCase().replace(/-/g, "_");
+}
+
+function isTrackingStageFinished(stage) {
+  return ["finished", "complete", "completed", "done"].includes(getTrackingStageStatus(stage));
+}
+
 function renderTrackingStages(stages) {
   const list = $("trackingStageList");
   list.replaceChildren();
@@ -96,20 +104,22 @@ function renderTrackingStages(stages) {
   }
   const fragment = document.createDocumentFragment();
   stages.forEach((stage) => {
+    const stageStatus = getTrackingStageStatus(stage) || "upcoming";
+    const stageFinished = isTrackingStageFinished(stage);
     const row = document.createElement("div");
-    row.className = `tracking-stage-row is-${stage.status || "upcoming"}`;
+    row.className = `tracking-stage-row is-${stageStatus}`;
     const icon = document.createElement("span");
     icon.className = "tracking-stage-icon";
-    icon.textContent = stage.status === "finished" ? "✓" : stage.status === "in_progress" ? "→" : "○";
+    icon.textContent = stageFinished ? "✓" : stageStatus === "in_progress" ? "→" : "○";
     const body = document.createElement("div");
     body.className = "tracking-stage-body";
     const name = document.createElement("strong");
     name.textContent = stage.name || `Stage ${stage.stage_order || ""}`;
     const status = document.createElement("span");
-    status.textContent = stage.status === "finished" ? "Finished" : stage.status === "in_progress" ? "In Progress" : "Upcoming";
+    status.textContent = stageFinished ? "Finished" : stageStatus === "in_progress" ? "In Progress" : "Upcoming";
     body.append(name, status);
 
-    if (stage.status === "finished") {
+    if (stageFinished) {
       const proofButton = document.createElement("button");
       proofButton.type = "button";
       proofButton.className = "tracking-photo-button";
