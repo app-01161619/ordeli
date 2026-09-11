@@ -616,6 +616,20 @@ a:hover {
   font-weight: 600;
 }
 
+.product-stage-count {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.product-stage-count.has-stages {
+  color: #167447;
+}
+
+.product-stage-count.is-empty {
+  color: #8a5a00;
+}
+
 .product-card-actions {
   display: flex;
   gap: 8px;
@@ -726,11 +740,18 @@ a:hover {
 }
 
 .workflow-editor-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 20px;
+  margin: -24px -24px 20px;
+  padding: 20px 24px 16px;
+  background: rgba(255,255,255,.96);
+  border-bottom: 1px solid #e5e7eb;
+  backdrop-filter: blur(8px);
 }
 
 .workflow-help {
@@ -896,6 +917,8 @@ a:hover {
     align-items: stretch;
     flex-direction: column;
     gap: 12px;
+    margin: -20px -20px 20px;
+    padding: 16px 20px;
   }
 
   .workflow-add-stage-button {

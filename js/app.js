@@ -3518,6 +3518,21 @@ async function loadProducts() {
         .order("name", { ascending: true });
       if (result.error) throw result.error;
       data = result.data || [];
+      if (data.length) {
+        const stageResult = await supabase
+          .from("production_stages")
+          .select("product_id")
+          .in("product_id", data.map(product => product.id));
+        if (stageResult.error) throw stageResult.error;
+        const stageCounts = new Map();
+        (stageResult.data || []).forEach(stage => {
+          stageCounts.set(stage.product_id, (stageCounts.get(stage.product_id) || 0) + 1);
+        });
+        data = data.map(product => ({
+          ...product,
+          stage_count: stageCounts.get(product.id) || 0
+        }));
+      }
       await cacheNamed(cacheKey, data);
     } catch (error) {
       data = await getCachedSnapshot(cacheKey);
@@ -3586,10 +3601,20 @@ function createProductCard(
       product.default_price
     );
 
+  const stageCount = document.createElement("p");
+  const hasStageCount = Number.isFinite(Number(product.stage_count));
+  const stageTotal = Number(product.stage_count) || 0;
+  stageCount.className = `product-stage-count ${stageTotal > 0 ? "has-stages" : "is-empty"}`;
+  stageCount.textContent = !hasStageCount
+    ? "Stage count unavailable offline"
+    : stageTotal > 0
+      ? `${stageTotal} production stage${stageTotal === 1 ? "" : "s"}`
+      : "No production stages yet";
 
   info.append(
     title,
-    price
+    price,
+    stageCount
   );
 
 
@@ -4552,6 +4577,13 @@ $("workflowCreateButton")
   .addEventListener(
     "click",
     openWorkflowEditor
+  );
+
+
+$("addStageButton")
+  .addEventListener(
+    "click",
+    addStage
   );
 
 
