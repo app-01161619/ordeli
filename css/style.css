@@ -675,6 +675,48 @@ a:hover {
 
 /* WORKFLOW */
 
+.workflow-intro-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 24px;
+  background: linear-gradient(135deg, #f5f9ff, #fff);
+  border: 1px solid #cfe2fb;
+  border-radius: 14px;
+  box-shadow: 0 5px 20px rgba(32,138,239,.08);
+}
+
+.workflow-intro-icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  background: #208aef;
+  color: #fff;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.workflow-intro-copy h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.workflow-intro-copy p {
+  margin: 0;
+  color: #5f6875;
+  line-height: 1.5;
+}
+
+.workflow-create-button {
+  width: auto;
+  white-space: nowrap;
+}
+
 .workflow-card {
   padding: 24px;
   background: #fff;
@@ -683,8 +725,16 @@ a:hover {
   box-shadow: 0 5px 20px rgba(0,0,0,.06);
 }
 
-.workflow-help {
+.workflow-editor-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
+}
+
+.workflow-help {
+  margin-bottom: 0;
 }
 
 .workflow-help h2 {
@@ -712,6 +762,11 @@ a:hover {
   border-radius: 10px;
 }
 
+.stage-item:focus-within {
+  border-color: #9bc8f6;
+  box-shadow: 0 0 0 3px rgba(32,138,239,.1);
+}
+
 .stage-number {
   width: 36px;
   height: 36px;
@@ -730,6 +785,10 @@ a:hover {
   border-radius: 8px;
   background: #fff;
   color: #202124;
+}
+
+.stage-name-input::placeholder {
+  color: #8993a1;
 }
 
 .stage-name-input:focus {
@@ -818,8 +877,36 @@ a:hover {
     grid-template-columns: 1fr;
   }
 
+  .workflow-intro-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px;
+    padding: 20px;
+  }
+
+  .workflow-intro-copy h2 {
+    font-size: 18px;
+  }
+
+  .workflow-create-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .workflow-editor-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .workflow-add-stage-button {
+    width: 100%;
+  }
+
   .stage-item {
     grid-template-columns: 38px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 14px 12px;
   }
 
   .stage-actions {

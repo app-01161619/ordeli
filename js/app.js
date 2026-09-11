@@ -3614,7 +3614,7 @@ function createProductCard(
 
 
   workflow.textContent =
-    "Workflow";
+    "Create Stages";
 
 
   workflow.addEventListener(
@@ -4118,6 +4118,8 @@ async function openWorkflow(
   $("workflowProductName")
     .textContent =
       product.name;
+  $("workflowEditorProductName").textContent = product.name;
+  setWorkflowEditorVisible(false);
 
 
   clearWorkflowMessage();
@@ -4188,6 +4190,11 @@ async function loadWorkflow() {
   $("workflowProductName").textContent = product.name;
   workflowStages = stages.map(stage => ({ id: stage.id, name: stage.name, stage_order: stage.stage_order }));
   renderWorkflowStages();
+}
+
+function setWorkflowEditorVisible(visible) {
+  $("workflowIntroCard").hidden = visible;
+  $("workflowEditorCard").hidden = !visible;
 }
 
 
@@ -4535,10 +4542,16 @@ function addStage() {
 }
 
 
-$("addStageButton")
+function openWorkflowEditor() {
+  setWorkflowEditorVisible(true);
+  if (!workflowStages.length) addStage();
+}
+
+
+$("workflowCreateButton")
   .addEventListener(
     "click",
-    addStage
+    openWorkflowEditor
   );
 
 

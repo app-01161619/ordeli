@@ -638,23 +638,33 @@
 <span id="workflowProductName"></span>
 </p>
 </div>
-<button id="addStageButton" type="button">Add Stage</button>
 </header>
-<section class="workflow-card">
+<section class="workflow-intro-card" id="workflowIntroCard">
+<div class="workflow-intro-icon" aria-hidden="true">1-2-3</div>
+<div class="workflow-intro-copy">
+<h2>Build your production stages</h2>
+<p>Add each step in the order it happens. You can add as many stages as your product needs.</p>
+</div>
+<button class="workflow-create-button" id="workflowCreateButton" type="button">Create Stages for this Product</button>
+</section>
+<section class="workflow-card" hidden id="workflowEditorCard">
+<div class="workflow-editor-heading">
 <div class="workflow-help">
-<h2>Stages</h2>
+<h2>Stages for <span id="workflowEditorProductName"></span></h2>
 <p>
-            Arrange the stages in the order the product is made.
+            Add the steps in the order the product is made.
           </p>
+</div>
+<button class="secondary-button workflow-add-stage-button" id="addStageButton" type="button">+ Add stage</button>
 </div>
 <div class="stage-list" id="stageList"></div>
 <section class="empty-state compact-empty" hidden="" id="emptyStagesState">
 <h3>No Workflow Stages</h3>
 <p>
-            Add the first production stage for this product.
+            Start with the first step in making this product.
           </p>
 <button id="emptyAddStageButton" type="button">
-            Add Stage
+            + Add first stage
           </button>
 </section>
 <div class="workflow-actions">
