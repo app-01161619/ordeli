@@ -1,1 +1,0 @@
-Startup fix: the seller app now loads app.js through js/boot.js using a caught dynamic import so module-load failures are surfaced instead of leaving a misleading boot overlay. The app/service-worker cache version was bumped to 2026-09-09-07.
