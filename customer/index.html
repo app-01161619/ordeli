@@ -6,14 +6,13 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-12-01">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-12-03">
 </head>
 <body>
   <main id="customerApp">
     <div class="tracking-page">
       <header class="tracking-header">
         <div class="tracking-brand">
-          <span class="tracking-brand-mark">O</span>
           <div>
             <strong>Ordeli</strong>
             <span>Order Tracking</span>
@@ -101,17 +100,33 @@
             <div><span>Paid</span><strong id="trackingPaymentPaid">₱0.00</strong></div>
             <div><span>Remaining</span><strong id="trackingPaymentRemaining">₱0.00</strong></div>
           </div>
-        </section>
+          <button id="addPaymentButton" class="tracking-primary-button add-payment-button" type="button" hidden>Add Payment</button>
 
-        <section id="paymentProofBox" class="tracking-card payment-proof-box" hidden>
-          <div>
-            <strong>Remaining Balance Payment</strong>
-            <p id="paymentProofHint">Upload a clear photo of your payment proof. The seller will verify it.</p>
+          <div id="paymentProofBox" class="payment-proof-box" hidden>
+            <div class="payment-proof-header">
+              <strong>Add Payment</strong>
+              <p id="paymentProofHint">Upload your payment screenshot, preview it, then enter the amount you paid.</p>
+            </div>
+            <div class="payment-form-field">
+              <span class="payment-form-label">Payment Proof</span>
+              <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+              <button id="choosePaymentProofButton" class="secondary-button" type="button">Upload Proof of Payment</button>
+              <div id="paymentProofPreviewWrap" class="payment-proof-preview" hidden>
+                <img id="paymentProofPreview" alt="Selected payment proof preview">
+                <button id="clearPaymentProofButton" class="secondary-button payment-proof-clear" type="button">Remove Photo</button>
+              </div>
+            </div>
+            <label class="payment-form-field" for="paymentAmountInput">
+              <span class="payment-form-label">Enter Amount</span>
+              <div class="payment-amount-wrap">
+                <span>₱</span>
+                <input id="paymentAmountInput" inputmode="decimal" autocomplete="off" type="number" min="0.01" step="0.01" placeholder="0.00">
+              </div>
+              <small id="paymentAmountHint">Enter the amount you paid.</small>
+            </label>
+            <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
+            <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment</button>
           </div>
-          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-          <button id="choosePaymentProofButton" class="secondary-button" type="button">Choose Payment Proof Photo</button>
-          <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
-          <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment Proof</button>
         </section>
 
         <section id="trackingFulfillmentNoticeCard" class="tracking-card tracking-fulfillment-notice" hidden>
@@ -187,6 +202,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-12-01"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-12-03"></script>
 </body>
 </html>
