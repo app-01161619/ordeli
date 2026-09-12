@@ -309,6 +309,7 @@ function renderFulfillment() {
     ? true
     : Boolean(state.fully_paid);
   const ready = Boolean(fullyPaid && !state.handed_over_at);
+  const savedSelection = Boolean(state.fulfillment_type && state.fulfillment_type !== "not_selected");
   const statusCard = $("trackingFulfillmentNoticeCard");
   const statusTitle = $("trackingFulfillmentNoticeTitle");
   const statusText = $("trackingFulfillmentNoticeText");
@@ -368,7 +369,7 @@ function renderFulfillment() {
   const notice = $("fulfillmentNotice");
   const eventPicker = $("fulfillmentEventPicker");
   const saveButton = $("saveFulfillmentButton");
-  if (!ready) {
+  if (!ready || savedSelection) {
     options.hidden = true;
     eventPicker.hidden = true;
     if (saveButton) saveButton.hidden = true;
@@ -840,15 +841,41 @@ async function saveCustomerFulfillment() {
   const eventId = choice === "location" ? $("fulfillmentEventSelect").value : null;
   if (!choice) { $("fulfillmentNotice").textContent = "Choose a fulfillment option."; return; }
   if (choice === "location" && !eventId) { $("fulfillmentNotice").textContent = "Choose a pickup event."; return; }
+
   fulfillmentBusy = true;
   const button = $("saveFulfillmentButton");
   if (button) { button.disabled = true; button.textContent = "Saving…"; }
   try {
-    const { error } = await supabase.rpc("set_customer_fulfillment", { p_public_token: token, p_fulfillment_type: choice, p_event_id: eventId });
+    const { data, error } = await supabase.rpc("set_customer_fulfillment", {
+      p_public_token: token,
+      p_fulfillment_type: choice,
+      p_event_id: eventId
+    });
     if (error) throw error;
-    await loadCustomerTracking(token);
-    await loadCustomerFulfillment(token);
-    // Saved fulfillment is reflected by the selected option/header; no extra note is rendered under the button.
+
+    // Apply the server response immediately so the customer never stays on the
+    // selection form while a second tracking request is loading or gets blocked.
+    const current = fulfillmentState || {};
+    const selectedEvent = choice === "location"
+      ? (current.events || []).find((event) => event.id === eventId) || null
+      : null;
+    fulfillmentState = {
+      ...current,
+      ...(data || {}),
+      fulfillment_type: choice,
+      event: selectedEvent,
+      pickup_status: choice === "location" ? "scheduled" : "not_scheduled"
+    };
+    if (trackingPayload?.order) {
+      trackingPayload.order.fulfillment_type = choice;
+      trackingPayload.order.pickup_status = fulfillmentState.pickup_status;
+    }
+    renderFulfillment();
+
+    // Refresh from the server in the background; the saved UI is already visible.
+    loadCustomerTracking(token).catch((refreshError) => {
+      console.warn("Customer tracking refresh after fulfillment save failed:", refreshError);
+    });
   } catch (error) {
     console.error("Customer fulfillment save failed:", error);
     $("fulfillmentNotice").textContent = error?.message || "Unable to save your fulfillment choice.";
