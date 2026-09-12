@@ -443,14 +443,8 @@ async function loadCustomerPaymentProof(publicToken) {
   try {
     const { data, error } = await supabase.rpc("get_customer_payment_proof", { p_public_token: publicToken });
     if (error) throw error;
-
-    // The tracking payload is the authoritative source for the balance shown to
-    // the customer. Do not hide Add Payment just because the supplemental proof
-    // RPC reports an eligibility mismatch.
     const trackingRemaining = Number(trackingPayload?.payment?.remaining);
-    const trackingLifecycleBlocked = Boolean(
-      trackingPayload?.order?.cancelled_at || trackingPayload?.order?.handed_over_at
-    );
+    const trackingLifecycleBlocked = Boolean(trackingPayload?.order?.cancelled_at || trackingPayload?.order?.handed_over_at);
     paymentProofState = {
       ...(data || {}),
       remaining: Number.isFinite(trackingRemaining) ? trackingRemaining : Number(data?.remaining) || 0,
@@ -459,8 +453,6 @@ async function loadCustomerPaymentProof(publicToken) {
     renderPaymentProof();
   } catch (error) {
     console.error("Customer payment proof load failed:", error);
-    // A proof-status RPC failure must not make a valid remaining balance
-    // disappear from the UI. Fall back to the tracking payload.
     paymentProofState = {
       remaining: Number(trackingPayload?.payment?.remaining) || 0,
       eligible: Boolean(Number(trackingPayload?.payment?.remaining) > 0),
@@ -520,9 +512,13 @@ function renderPaymentProof() {
     return;
   }
 
-  if (state.rejected) {
-    hint.textContent = state.rejection_reason
-      ? `Your previous proof was rejected: ${state.rejection_reason}`
+  const history = Array.isArray(trackingPayload?.payment?.history) ? trackingPayload.payment.history : [];
+  const latestPayment = history.length ? history[history.length - 1] : null;
+  const latestRejected = latestPayment?.proof_status === "rejected";
+  if (latestRejected) {
+    const reason = latestPayment?.rejection_reason || state.rejection_reason;
+    hint.textContent = reason
+      ? `Your previous proof was rejected: ${reason}`
       : "Your previous payment proof was rejected. Please submit a new proof.";
   } else {
     hint.textContent = `You can pay any amount up to ${formatPrice(remaining)}. Both the proof photo and amount are required.`;
@@ -826,9 +822,7 @@ async function saveCustomerFulfillment() {
     if (error) throw error;
     await loadCustomerTracking(token);
     await loadCustomerFulfillment(token);
-    $("fulfillmentNotice").textContent = choice === "courier"
-      ? "Thank you for your purchase! Our customer service team will contact you to arrange delivery."
-      : `Fulfillment selected: ${fulfillmentLabel(choice)}.`;
+    // Saved fulfillment is reflected by the selected option/header; no extra note is rendered under the button.
   } catch (error) {
     console.error("Customer fulfillment save failed:", error);
     $("fulfillmentNotice").textContent = error?.message || "Unable to save your fulfillment choice.";
@@ -853,7 +847,7 @@ async function switchCustomerToCourier() {
     if (error) throw error;
     await loadCustomerTracking(token);
     await loadCustomerFulfillment(token);
-    $("fulfillmentNotice").textContent = "Thank you for your purchase! Our customer service team will contact you to arrange delivery.";
+
   } catch (error) {
     console.error("Customer switch to courier failed:", error);
     $("customerRescheduleMessage").textContent = error?.message || "Unable to switch to Courier Delivery.";
@@ -1012,7 +1006,6 @@ $("customerSwitchToCourierButton")?.addEventListener("click", switchCustomerToCo
 $("fulfillmentEventSelect")?.addEventListener("change", () => {
   const option = $("fulfillmentEventSelect").selectedOptions[0];
   const location = option?.dataset.location || "";
-  if (location) $("fulfillmentNotice").textContent = location;
 });
 
 $("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFile")?.click());
