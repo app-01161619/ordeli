@@ -6,15 +6,18 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-12-17">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-12-01">
 </head>
 <body>
   <main id="customerApp">
     <div class="tracking-page">
       <header class="tracking-header">
         <div class="tracking-brand">
-          <strong>Order Tracking</strong>
-          <span>Customer view</span>
+          <span class="tracking-brand-mark">O</span>
+          <div>
+            <strong>Ordeli</strong>
+            <span>Order Tracking</span>
+          </div>
         </div>
         <button id="trackingRefreshButton" class="secondary-button tracking-refresh-button" type="button">Refresh</button>
       </header>
@@ -61,12 +64,7 @@
           <div id="trackingStageList" class="tracking-stage-list"></div>
         </section>
 
-        <div id="trackingActionBar" class="tracking-action-bar">
-          <button id="openPaymentButton" class="secondary-button" type="button">Payment</button>
-          <button id="openFulfillmentButton" class="secondary-button" type="button" hidden>Fulfillment</button>
-        </div>
-
-        <dialog id="trackingFulfillmentCard" class="tracking-modal tracking-fulfillment-card">
+        <section id="trackingFulfillmentCard" class="tracking-card tracking-fulfillment-card">
           <div class="tracking-section-heading">
             <div>
               <h3>Fulfillment</h3>
@@ -74,7 +72,10 @@
             </div>
             <strong id="fulfillmentCurrent">Not selected yet</strong>
           </div>
-          <button class="tracking-modal-close secondary-button" data-close-modal="trackingFulfillmentCard" type="button">Close</button>
+          <div id="fulfillmentShopAddress" class="fulfillment-shop-address" hidden>
+            <span class="tracking-kicker">SHOP ADDRESS</span>
+            <p id="fulfillmentShopAddressText"></p>
+          </div>
           <div id="fulfillmentOptions" class="fulfillment-options" hidden>
             <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="shop"><span><strong>Pickup at Shop</strong><small>Pick up from the seller's shop.</small></span></label>
             <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="location"><span><strong>Pickup at Location</strong><small>Choose one of the seller's upcoming pickup events.</small></span></label>
@@ -86,39 +87,32 @@
           </div>
           <button id="saveFulfillmentButton" class="tracking-primary-button" type="button">Save Fulfillment</button>
           <p id="fulfillmentNotice" class="tracking-inline-notice" role="status"></p>
-        </dialog>
+        </section>
 
-        <dialog id="trackingPaymentCard" class="tracking-modal tracking-payment-card">
+        <section class="tracking-card tracking-payment-card">
           <div class="tracking-section-heading">
             <div>
               <h3>Payment</h3>
               <p id="trackingPaymentStatusText">Payment status</p>
             </div>
           </div>
-          <button class="tracking-modal-close secondary-button" data-close-modal="trackingPaymentCard" type="button">Close</button>
           <div class="tracking-payment-grid">
             <div><span>Total</span><strong id="trackingPaymentTotal">₱0.00</strong></div>
             <div><span>Paid</span><strong id="trackingPaymentPaid">₱0.00</strong></div>
             <div><span>Remaining</span><strong id="trackingPaymentRemaining">₱0.00</strong></div>
           </div>
-          <section id="paymentProofBox" class="payment-proof-box" hidden>
-            <div>
-              <strong>Upload Proof of Payment</strong>
-              <p id="paymentProofHint">You can send partial payments while your order is in progress. One proof photo at a time.</p>
-            </div>
-            <label class="payment-proof-amount">
-              <span>Payment amount</span>
-              <input id="paymentProofAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter amount">
-            </label>
-            <p class="payment-proof-note">You may pay part of the remaining balance. The seller will verify the amount before it is added to your paid total.</p>
-            <input id="paymentProofFile" class="payment-proof-file-input" type="file" accept="image/jpeg,image/png,image/webp">
-            <button id="choosePaymentProofButton" class="secondary-button payment-proof-upload-button" type="button">Upload Proof of Payment</button>
-            <div id="paymentProofPreview" class="payment-proof-preview" hidden>
-              <img id="paymentProofPreviewImage" alt="Selected payment proof preview">
-            </div>
-            <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
-            <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment Proof</button>
-          </dialog>
+        </section>
+
+        <section id="paymentProofBox" class="tracking-card payment-proof-box" hidden>
+          <div>
+            <strong>Remaining Balance Payment</strong>
+            <p id="paymentProofHint">Upload a clear photo of your payment proof. The seller will verify it.</p>
+          </div>
+          <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <button id="choosePaymentProofButton" class="secondary-button" type="button">Choose Payment Proof Photo</button>
+          <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
+          <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment Proof</button>
+        </section>
 
         <section id="trackingFulfillmentNoticeCard" class="tracking-card tracking-fulfillment-notice" hidden>
           <strong id="trackingFulfillmentNoticeTitle"></strong>
@@ -138,6 +132,8 @@
           </div>
           <button id="customerRescheduleButton" class="tracking-primary-button" type="button">Reschedule Pickup</button>
           <p id="customerRescheduleMessage" class="tracking-inline-notice" role="status"></p>
+          <div class="customer-reschedule-divider"><span>or</span></div>
+          <button id="customerSwitchToCourierButton" class="secondary-button" type="button">Switch to Courier Delivery</button>
         </section>
 
         <section id="customerReviewBox" class="tracking-card customer-review-box" hidden>
@@ -166,7 +162,7 @@
           <p id="customerCancellationMessage" class="tracking-inline-notice" role="status"></p>
         </section>
 
-        <button id="trackingViewOrderButton" class="tracking-order-toggle" type="button" hidden>View My Order</button>
+        <button id="trackingViewOrderButton" class="tracking-order-toggle" type="button">View My Order</button>
 
         <section id="trackingOrderCard" class="tracking-card tracking-order-card" hidden>
           <div class="tracking-section-heading">
@@ -176,7 +172,6 @@
             </div>
           </div>
           <div id="trackingOrderItems" class="tracking-order-items"></div>
-          <div id="trackingOrderSummaryCards" class="tracking-order-summary-cards"></div>
         </section>
       </section>
     </div>
@@ -192,6 +187,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-12-18"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-12-01"></script>
 </body>
 </html>

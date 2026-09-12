@@ -28,7 +28,6 @@ let customerReviewBusy = false;
 let customerCancellationState = null;
 let customerCancellationBusy = false;
 let customerRescheduleBusy = false;
-let paymentProofPreviewUrl = null;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
@@ -50,12 +49,6 @@ function getTrackingToken() {
 function formatPrice(value) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency", currency: "PHP"
-  }).format(Number(value) || 0);
-}
-
-function formatWholePrice(value) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency", currency: "PHP", maximumFractionDigits: 0
   }).format(Number(value) || 0);
 }
 
@@ -91,14 +84,6 @@ function showTrackingError(message) {
   $("trackingErrorMessage").textContent = message || "This tracking link could not be loaded.";
 }
 
-function getTrackingStageStatus(stage) {
-  return String(stage?.status || stage?.production_status || "").toLowerCase().replace(/-/g, "_");
-}
-
-function isTrackingStageFinished(stage) {
-  return ["finished", "complete", "completed", "done"].includes(getTrackingStageStatus(stage));
-}
-
 function renderTrackingStages(stages) {
   const list = $("trackingStageList");
   list.replaceChildren();
@@ -111,22 +96,27 @@ function renderTrackingStages(stages) {
   }
   const fragment = document.createDocumentFragment();
   stages.forEach((stage) => {
-    const stageStatus = getTrackingStageStatus(stage) || "upcoming";
-    const stageFinished = isTrackingStageFinished(stage);
     const row = document.createElement("div");
-    row.className = `tracking-stage-row is-${stageStatus}`;
+    row.className = `tracking-stage-row is-${stage.status || "upcoming"}`;
     const icon = document.createElement("span");
     icon.className = "tracking-stage-icon";
-    icon.textContent = stageFinished ? "✓" : stageStatus === "in_progress" ? "→" : "○";
+    icon.textContent = stage.status === "finished" ? "✓" : stage.status === "in_progress" ? "→" : "○";
     const body = document.createElement("div");
     body.className = "tracking-stage-body";
     const name = document.createElement("strong");
     name.textContent = stage.name || `Stage ${stage.stage_order || ""}`;
     const status = document.createElement("span");
-    status.textContent = stageFinished ? "Finished" : stageStatus === "in_progress" ? "In Progress" : "Upcoming";
+    status.textContent = stage.status === "finished" ? "Finished" : stage.status === "in_progress" ? "In Progress" : "Upcoming";
     body.append(name, status);
 
-    if (stageFinished) addCustomerProofButtonIfAvailable(stage, body);
+    if (stage.status === "finished") {
+      const proofButton = document.createElement("button");
+      proofButton.type = "button";
+      proofButton.className = "tracking-photo-button";
+      proofButton.textContent = "View Photo";
+      proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
+      body.appendChild(proofButton);
+    }
 
     row.append(icon, body);
     fragment.appendChild(row);
@@ -134,27 +124,6 @@ function renderTrackingStages(stages) {
   list.appendChild(fragment);
 }
 
-async function addCustomerProofButtonIfAvailable(stage, body) {
-  const token = getTrackingToken();
-  if (!token || !stage?.stage_order || body.dataset.proofChecked === "1") return;
-  body.dataset.proofChecked = "1";
-  try {
-    const response = await fetch(`/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stage.stage_order))}`, {
-      headers: { Accept: "application/json" },
-      cache: "no-store"
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok || !data?.available || !data.url) return;
-    const proofButton = document.createElement("button");
-    proofButton.type = "button";
-    proofButton.className = "tracking-photo-button";
-    proofButton.textContent = "View Photo";
-    proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
-    body.appendChild(proofButton);
-  } catch (error) {
-    console.warn("Customer proof availability check failed:", error);
-  }
-}
 
 
 async function viewCustomerProductionProof(stageOrder, button) {
@@ -167,37 +136,21 @@ async function viewCustomerProductionProof(stageOrder, button) {
   button.disabled = true;
   button.textContent = "Loading Photo…";
   try {
-    let data = null;
-    try {
-      const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
-      const workerResponse = await fetch(endpoint, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        cache: "no-store"
-      });
-      data = await workerResponse.json().catch(() => null);
-    } catch (workerError) {
-      console.warn("Customer proof Worker unavailable.", workerError);
-    }
-
+    const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.error || "Unable to open the proof photo.");
     if (!data?.available || !data?.url) {
-      throw new Error(data?.error || "No proof photo is available for this stage.");
+      throw new Error("No proof photo is available for this stage.");
     }
     const viewer = $("customerPhotoViewer");
     const image = $("customerPhotoViewerImage");
     const caption = $("customerPhotoViewerCaption");
-    if (image) {
-      image.alt = "Loading production proof photo";
-      image.onerror = () => {
-        image.removeAttribute("src");
-        image.alt = "Production proof photo could not be loaded";
-        if (caption) caption.textContent = "The production proof photo could not be loaded.";
-      };
-      image.onload = () => {
-        image.alt = "Production proof photo";
-      };
-      image.src = data.url;
-    }
+    if (image) image.src = data.url;
     if (caption) caption.textContent = `${data.stage_name || `Stage ${stageOrder}`} · Production proof`;
     if (viewer?.showModal) viewer.showModal();
     else if (viewer) viewer.hidden = false;
@@ -249,48 +202,15 @@ function fulfillmentLabel(value) {
   return value === "shop" ? "Pickup at Shop" : value === "location" ? "Pickup at Location" : value === "courier" ? "Courier Delivery" : "Not Selected";
 }
 
-function moveWholeOrderCards(orderItemCount) {
-  const orderCard = $("trackingOrderCard");
-  const summaryCards = $("trackingOrderSummaryCards");
-  const actionBar = $("trackingActionBar");
-  if (!orderCard || !summaryCards || !actionBar) return;
-
-  if (orderItemCount > 1) {
-    if (actionBar.parentElement !== summaryCards) summaryCards.appendChild(actionBar);
-  } else {
-    const content = $("trackingContent");
-    const noticeCard = $("trackingFulfillmentNoticeCard");
-    const rescheduleBox = $("customerRescheduleBox");
-    const reviewBox = $("customerReviewBox");
-    const cancellationBox = $("customerCancellationBox");
-    const viewButton = $("trackingViewOrderButton");
-    if (content) {
-      const anchor = viewButton || noticeCard || rescheduleBox || reviewBox || cancellationBox;
-      if (anchor && anchor !== actionBar && anchor.parentNode === content) {
-        content.insertBefore(actionBar, anchor);
-      } else {
-        content.append(actionBar);
-      }
-    }
-    summaryCards.replaceChildren();
-  }
-}
-
 function renderFulfillment() {
   const card = $("trackingFulfillmentCard");
-  const openButton = $("openFulfillmentButton");
   if (!card) return;
   const state = fulfillmentState || {};
-  const orderItemCount = Array.isArray(trackingPayload?.order_items) ? trackingPayload.order_items.length : 1;
-  moveWholeOrderCards(orderItemCount);
   renderCustomerReschedule();
-
-  const productionReady = Boolean(state.production_completed && !state.handed_over_at);
-  const readyForSelection = Boolean(productionReady && state.fully_paid);
+  const ready = Boolean(state.production_completed && state.fully_paid && !state.handed_over_at);
   const statusCard = $("trackingFulfillmentNoticeCard");
   const statusTitle = $("trackingFulfillmentNoticeTitle");
   const statusText = $("trackingFulfillmentNoticeText");
-
   if (statusCard && statusTitle && statusText) {
     if (state.handed_over_at) {
       statusCard.hidden = false;
@@ -308,47 +228,37 @@ function renderFulfillment() {
       statusCard.hidden = true;
     }
   }
-
   card.hidden = false;
-  if (openButton) openButton.hidden = !productionReady;
-  if (!productionReady) {
-    $("fulfillmentCurrent").textContent = "Not available yet";
-    $("fulfillmentRequirement").textContent = state.handed_over_at
-      ? "This order has already been handed over."
-      : "Fulfillment options will appear after all production stages are finished.";
-    $("fulfillmentOptions").hidden = true;
-    $("fulfillmentEventPicker").hidden = true;
-    $("saveFulfillmentButton").hidden = true;
-    $("fulfillmentNotice").textContent = "";
-    return;
-  }
-
-  $("saveFulfillmentButton").hidden = false;
   $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
-  $("fulfillmentRequirement").textContent = readyForSelection
+
+  const shopAddressBox = $("fulfillmentShopAddress");
+  const shopAddress = trackingPayload?.shop?.address || "";
+  if (shopAddressBox) {
+    const showAddress = state.fulfillment_type === "shop" && Boolean(shopAddress);
+    shopAddressBox.hidden = !showAddress;
+    if (showAddress) $("fulfillmentShopAddressText").textContent = shopAddress;
+  }
+  $("fulfillmentRequirement").textContent = ready
     ? "Your order is ready for fulfillment selection."
-    : "Production is complete. Fulfillment options will unlock after payment is fully confirmed.";
+    : state.handed_over_at
+      ? "This order has already been handed over."
+      : !state.production_completed
+        ? "Fulfillment options will appear after production is completed."
+        : "Fulfillment options will appear after payment is fully confirmed.";
 
   const options = $("fulfillmentOptions");
   const notice = $("fulfillmentNotice");
   const eventPicker = $("fulfillmentEventPicker");
-  if (!readyForSelection) {
-    options.hidden = true;
-    eventPicker.hidden = true;
-    notice.textContent = "";
-    return;
+  if (!ready) {
+    options.hidden = true; eventPicker.hidden = true; notice.textContent = ""; return;
   }
-
   options.hidden = false;
   const selected = state.fulfillment_type || "";
   document.querySelectorAll("input[name='fulfillmentType']").forEach(r => r.checked = r.value === selected);
   eventPicker.hidden = selected !== "location";
   const select = $("fulfillmentEventSelect");
   select.replaceChildren();
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "Choose an event";
-  select.appendChild(placeholder);
+  const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = "Choose an event"; select.appendChild(placeholder);
   (state.events || []).forEach((event) => {
     const option = document.createElement("option");
     option.value = event.id;
@@ -442,28 +352,24 @@ async function loadCustomerPaymentProof(publicToken) {
 
 function renderPaymentProof() {
   const box = $("paymentProofBox");
-  const openButton = $("openPaymentButton");
   if (!box) return;
   const state = paymentProofState || {};
-  const remaining = Number(state.remaining ?? trackingPayload?.payment?.remaining);
-  const eligible = Boolean(state.eligible) || (Number.isFinite(remaining) && remaining > 0);
+  const eligible = Boolean(state.eligible);
   box.hidden = !eligible;
-  if (openButton) openButton.hidden = !eligible;
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
+  const submit = $("submitPaymentProofButton");
   const choose = $("choosePaymentProofButton");
-  const amountInput = $("paymentProofAmount");
   if (!eligible) return;
   if (state.pending_verification) {
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify.";
   } else if (state.rejected) {
     if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
   } else if (hint) {
-    hint.textContent = `Remaining balance: ${formatWholePrice(remaining)}. Upload one proof photo for a partial or full payment.`;
+    hint.textContent = `Upload a clear photo of your payment proof for ${formatPrice(state.remaining)}. The seller will verify it.`;
   }
-  if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.max = remaining.toFixed(2);
-  if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.placeholder = String(Math.round(remaining));
-  if (choose) choose.disabled = Boolean(state.pending_verification);
+  if (submit) submit.hidden = state.pending_verification;
+  if (choose) choose.disabled = state.pending_verification;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
 }
 
@@ -474,16 +380,7 @@ async function submitCustomerPaymentProof() {
   const file = input?.files?.[0];
   const state = paymentProofState || {};
   if (!token || !file) { $("paymentProofMessage").textContent = "Choose a proof photo first."; return; }
-  const remaining = Number(state.remaining ?? trackingPayload?.payment?.remaining);
-  const amount = Number($("paymentProofAmount")?.value);
-  if (!state.eligible && !(Number.isFinite(remaining) && remaining > 0)) {
-    $("paymentProofMessage").textContent = "Payment proof is not available for this order yet.";
-    return;
-  }
-  if (!Number.isFinite(amount) || amount <= 0 || amount > remaining) {
-    $("paymentProofMessage").textContent = `Enter an amount between 0.01 and ${formatWholePrice(remaining)}.`;
-    return;
-  }
+  if (!state.eligible) { $("paymentProofMessage").textContent = "Payment proof is not available for this order yet."; return; }
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image."; return; }
   if (file.size > 8 * 1024 * 1024) { $("paymentProofMessage").textContent = "Please choose an image smaller than 8 MB."; return; }
   paymentProofBusy = true;
@@ -493,7 +390,7 @@ async function submitCustomerPaymentProof() {
   try {
     const form = new FormData();
     form.set("token", token);
-    form.set("amount", String(amount));
+    form.set("amount", String(state.remaining));
     form.set("file", file, file.name || "payment-proof");
     const response = await fetch("/api/customer-payment-proof", { method: "POST", body: form });
     const result = await response.json().catch(() => null);
@@ -501,8 +398,6 @@ async function submitCustomerPaymentProof() {
       throw new Error(result?.error || "Unable to submit payment proof.");
     }
     input.value = "";
-    if ($("paymentProofAmount")) $("paymentProofAmount").value = "";
-    clearPaymentProofPreview();
     $("paymentProofMessage").textContent = "Payment proof submitted. The seller will verify it.";
     await loadCustomerTracking(token);
     await loadCustomerPaymentProof(token);
@@ -513,25 +408,6 @@ async function submitCustomerPaymentProof() {
     paymentProofBusy = false;
     if (button) { button.disabled = false; button.textContent = "Submit Payment Proof"; }
   }
-}
-
-function clearPaymentProofPreview() {
-  const preview = $("paymentProofPreview");
-  const image = $("paymentProofPreviewImage");
-  if (paymentProofPreviewUrl) URL.revokeObjectURL(paymentProofPreviewUrl);
-  paymentProofPreviewUrl = null;
-  if (image) image.removeAttribute("src");
-  if (preview) preview.hidden = true;
-}
-
-function showPaymentProofPreview(file) {
-  const preview = $("paymentProofPreview");
-  const image = $("paymentProofPreviewImage");
-  if (!preview || !image) return;
-  if (paymentProofPreviewUrl) URL.revokeObjectURL(paymentProofPreviewUrl);
-  paymentProofPreviewUrl = URL.createObjectURL(file);
-  image.src = paymentProofPreviewUrl;
-  preview.hidden = false;
 }
 
 
@@ -694,14 +570,37 @@ async function saveCustomerFulfillment() {
   }
 }
 
+async function switchCustomerToCourier() {
+  if (fulfillmentBusy) return;
+  const token = getTrackingToken();
+  if (!token) return;
+  const confirmed = window.confirm("Switch this order to Courier Delivery instead of pickup?");
+  if (!confirmed) return;
+  fulfillmentBusy = true;
+  const button = $("customerSwitchToCourierButton");
+  if (button) { button.disabled = true; button.textContent = "Switching…"; }
+  $("customerRescheduleMessage").textContent = "Switching to Courier Delivery…";
+  try {
+    const { error } = await supabase.rpc("set_customer_fulfillment", { p_public_token: token, p_fulfillment_type: "courier", p_event_id: null });
+    if (error) throw error;
+    await loadCustomerTracking(token);
+    await loadCustomerFulfillment(token);
+    $("fulfillmentNotice").textContent = "Thank you for your purchase! Our customer service team will contact you to arrange delivery.";
+  } catch (error) {
+    console.error("Customer switch to courier failed:", error);
+    $("customerRescheduleMessage").textContent = error?.message || "Unable to switch to Courier Delivery.";
+  } finally {
+    fulfillmentBusy = false;
+    if (button) { button.disabled = false; button.textContent = "Switch to Courier Delivery"; }
+  }
+}
+
 function renderCustomerTracking(payload) {
   showTrackingContent();
   const shop = payload?.shop || {};
   const order = payload?.order || {};
   const item = payload?.item || {};
   const payment = payload?.payment || {};
-  const orderItems = Array.isArray(payload?.order_items) ? payload.order_items : [];
-  const multipleItems = orderItems.length > 1;
 
   $("trackingShopName").textContent = shop.name || "Shop";
   $("trackingOrderNumber").textContent = `#${order.order_number ?? "—"}`;
@@ -731,17 +630,18 @@ function renderCustomerTracking(payload) {
   $("trackingPaymentPaid").textContent = formatPrice(payment.paid);
   $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
   $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
+  const orderItems = payload?.order_items || [];
   renderTrackingOrderItems(orderItems);
-  $("trackingViewOrderButton").hidden = !multipleItems;
-  $("trackingOrderCard").hidden = !multipleItems || !trackingOrderVisible;
+  const isMultiItemOrder = orderItems.length > 1;
+  if (!isMultiItemOrder) trackingOrderVisible = false;
+  $("trackingViewOrderButton").hidden = !isMultiItemOrder;
+  $("trackingOrderCard").hidden = !isMultiItemOrder || !trackingOrderVisible;
   $("trackingViewOrderButton").textContent = trackingOrderVisible ? "Hide My Order" : "View My Order";
-  moveWholeOrderCards(orderItems.length || 1);
 }
 
 async function loadCustomerTracking(publicToken) {
   trackingPayload = null;
   trackingOrderVisible = false;
-  paymentProofState = null;
   $("trackingLoadingState").hidden = false;
   $("trackingErrorState").hidden = true;
   $("trackingContent").hidden = true;
@@ -768,17 +668,6 @@ $("trackingRefreshButton").addEventListener("click", () => {
 $("trackingViewOrderButton").addEventListener("click", () => {
   trackingOrderVisible = !trackingOrderVisible;
   if (trackingPayload) renderCustomerTracking(trackingPayload);
-});
-
-$("openPaymentButton")?.addEventListener("click", () => $("trackingPaymentCard")?.showModal());
-$("openFulfillmentButton")?.addEventListener("click", () => $("trackingFulfillmentCard")?.showModal());
-document.querySelectorAll("[data-close-modal]").forEach(button => {
-  button.addEventListener("click", () => $(button.dataset.closeModal)?.close());
-});
-document.querySelectorAll(".tracking-modal").forEach(dialog => {
-  dialog.addEventListener("click", event => {
-    if (event.target === dialog) dialog.close();
-  });
 });
 
 function bootCustomerTracking() {
@@ -815,6 +704,7 @@ document.querySelectorAll("#customerReviewStars button").forEach(button => {
 $("submitCustomerReviewButton")?.addEventListener("click", submitCustomerReview);
 $("customerCancelItemButton")?.addEventListener("click", cancelCustomerItem);
 $("customerRescheduleButton")?.addEventListener("click", rescheduleCustomerPickup);
+$("customerSwitchToCourierButton")?.addEventListener("click", switchCustomerToCourier);
 
 $("fulfillmentEventSelect")?.addEventListener("change", () => {
   const option = $("fulfillmentEventSelect").selectedOptions[0];
@@ -827,22 +717,7 @@ $("paymentProofFile")?.addEventListener("change", () => {
   const file = $("paymentProofFile").files?.[0];
   if (file) {
     paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
-    showPaymentProofPreview(file);
-    renderPaymentProof();
-  } else {
-    paymentProofState = { ...(paymentProofState || {}), selected_name: null };
     renderPaymentProof();
   }
 });
-$("paymentProofAmount")?.addEventListener("input", () => {
-  renderPaymentProof();
-});
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
-$("customerPhotoViewerClose")?.addEventListener("click", () => {
-  const viewer = $("customerPhotoViewer");
-  if (viewer?.open && viewer.close) viewer.close();
-  else if (viewer) viewer.hidden = true;
-});
-$("customerPhotoViewer")?.addEventListener("click", (event) => {
-  if (event.target === $("customerPhotoViewer")) event.target.close?.();
-});
