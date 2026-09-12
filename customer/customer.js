@@ -28,6 +28,7 @@ let customerReviewBusy = false;
 let customerCancellationState = null;
 let customerCancellationBusy = false;
 let customerRescheduleBusy = false;
+let paymentProofPreviewUrl = null;
 
 function getTrackingToken() {
   const pathname = window.location.pathname.replace(/\/+$/, "");
@@ -431,14 +432,16 @@ function renderPaymentProof() {
   const message = $("paymentProofMessage");
   const submit = $("submitPaymentProofButton");
   const choose = $("choosePaymentProofButton");
+  const amountInput = $("paymentProofAmount");
   if (!eligible) return;
   if (state.pending_verification) {
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify.";
   } else if (state.rejected) {
     if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
   } else if (hint) {
-    hint.textContent = `Upload a clear screenshot or photo of your payment transaction for ${formatPrice(remaining)}. The seller will verify it.`;
+    hint.textContent = `Remaining balance: ${formatPrice(remaining)}. Upload one proof photo for a partial or full payment.`;
   }
+  if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.max = remaining.toFixed(2);
   if (submit) submit.hidden = state.pending_verification || !state.selected_name;
   if (choose) choose.disabled = state.pending_verification;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
@@ -452,8 +455,13 @@ async function submitCustomerPaymentProof() {
   const state = paymentProofState || {};
   if (!token || !file) { $("paymentProofMessage").textContent = "Choose a proof photo first."; return; }
   const remaining = Number(state.remaining ?? trackingPayload?.payment?.remaining);
+  const amount = Number($("paymentProofAmount")?.value);
   if (!state.eligible && !(Number.isFinite(remaining) && remaining > 0)) {
     $("paymentProofMessage").textContent = "Payment proof is not available for this order yet.";
+    return;
+  }
+  if (!Number.isFinite(amount) || amount <= 0 || amount > remaining) {
+    $("paymentProofMessage").textContent = `Enter an amount between 0.01 and ${formatPrice(remaining)}.`;
     return;
   }
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image."; return; }
@@ -465,7 +473,7 @@ async function submitCustomerPaymentProof() {
   try {
     const form = new FormData();
     form.set("token", token);
-    form.set("amount", String(remaining));
+    form.set("amount", String(amount));
     form.set("file", file, file.name || "payment-proof");
     const response = await fetch("/api/customer-payment-proof", { method: "POST", body: form });
     const result = await response.json().catch(() => null);
@@ -473,6 +481,8 @@ async function submitCustomerPaymentProof() {
       throw new Error(result?.error || "Unable to submit payment proof.");
     }
     input.value = "";
+    if ($("paymentProofAmount")) $("paymentProofAmount").value = "";
+    clearPaymentProofPreview();
     $("paymentProofMessage").textContent = "Payment proof submitted. The seller will verify it.";
     await loadCustomerTracking(token);
     await loadCustomerPaymentProof(token);
@@ -483,6 +493,25 @@ async function submitCustomerPaymentProof() {
     paymentProofBusy = false;
     if (button) { button.disabled = false; button.textContent = "Submit Payment Proof"; }
   }
+}
+
+function clearPaymentProofPreview() {
+  const preview = $("paymentProofPreview");
+  const image = $("paymentProofPreviewImage");
+  if (paymentProofPreviewUrl) URL.revokeObjectURL(paymentProofPreviewUrl);
+  paymentProofPreviewUrl = null;
+  if (image) image.removeAttribute("src");
+  if (preview) preview.hidden = true;
+}
+
+function showPaymentProofPreview(file) {
+  const preview = $("paymentProofPreview");
+  const image = $("paymentProofPreviewImage");
+  if (!preview || !image) return;
+  if (paymentProofPreviewUrl) URL.revokeObjectURL(paymentProofPreviewUrl);
+  paymentProofPreviewUrl = URL.createObjectURL(file);
+  image.src = paymentProofPreviewUrl;
+  preview.hidden = false;
 }
 
 
@@ -767,11 +796,20 @@ $("paymentProofFile")?.addEventListener("change", () => {
   const file = $("paymentProofFile").files?.[0];
   if (file) {
     paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
+    showPaymentProofPreview(file);
     renderPaymentProof();
   } else {
     paymentProofState = { ...(paymentProofState || {}), selected_name: null };
     renderPaymentProof();
   }
+});
+$("paymentProofAmount")?.addEventListener("input", renderPaymentProof);
+$("removePaymentProofButton")?.addEventListener("click", () => {
+  const input = $("paymentProofFile");
+  if (input) input.value = "";
+  paymentProofState = { ...(paymentProofState || {}), selected_name: null };
+  clearPaymentProofPreview();
+  renderPaymentProof();
 });
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
 $("customerPhotoViewerClose")?.addEventListener("click", () => {
