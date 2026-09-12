@@ -818,6 +818,8 @@ $("paymentProofFile")?.addEventListener("change", () => {
   if (file) {
     paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
     showPaymentProofPreview(file);
+    const submit = $("submitPaymentProofButton");
+    if (submit && !paymentProofState.pending_verification) submit.hidden = false;
     renderPaymentProof();
   } else {
     paymentProofState = { ...(paymentProofState || {}), selected_name: null };
