@@ -22,7 +22,6 @@ let fulfillmentState = null;
 let fulfillmentBusy = false;
 let paymentProofState = null;
 let paymentProofBusy = false;
-let paymentFormOpen = false;
 let customerReviewState = null;
 let selectedReviewRating = 0;
 let customerReviewBusy = false;
@@ -379,13 +378,7 @@ async function loadCustomerPaymentProof(publicToken) {
     renderPaymentProof();
   } catch (error) {
     console.error("Customer payment proof load failed:", error);
-    // Keep the tracking payload as the source of truth for the remaining balance.
-    // A failure in this optional status call must never remove the Add Payment action.
-    paymentProofState = {
-      ...(paymentProofState || {}),
-      eligible: Number(trackingPayload?.payment?.remaining) > 0,
-      remaining: Number(trackingPayload?.payment?.remaining) || 0
-    };
+    paymentProofState = null;
     renderPaymentProof();
   }
 }
@@ -401,19 +394,15 @@ function revokePaymentPreview() {
 }
 
 function renderPaymentProof() {
-  const addButton = $("customerAddPaymentButton");
+  const addButton = $("addPaymentButton");
   const box = $("paymentProofBox");
   if (!addButton || !box) return;
 
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const payloadEligible = Number.isFinite(payloadRemaining) && payloadRemaining > 0;
-  // The main tracking response is authoritative for whether a balance exists.
-  // Optional proof-status loading must not hide Add Payment when a balance remains.
-  const eligible = (payloadEligible || Boolean(state.eligible)) && remaining > 0;
+  const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
   if (Number.isFinite(remaining)) state.remaining = remaining;
-  addButton.disabled = false;
   addButton.hidden = !eligible;
 
   const hint = $("paymentProofHint");
@@ -425,16 +414,13 @@ function renderPaymentProof() {
 
   if (!eligible) {
     box.hidden = true;
-    if (!paymentFormOpen) {
-      revokePaymentPreview();
-      if (message) message.textContent = "";
-      if (amountInput) amountInput.value = "";
-    }
+    revokePaymentPreview();
+    if (message) message.textContent = "";
+    if (amountInput) amountInput.value = "";
     return;
   }
 
   if (state.pending_verification) {
-    paymentFormOpen = false;
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify it.";
     if (submit) submit.hidden = true;
     if (choose) choose.disabled = true;
@@ -454,58 +440,30 @@ function renderPaymentProof() {
   if (choose) choose.disabled = false;
   if (amountInput) amountInput.disabled = false;
   if (amountHint) amountHint.textContent = `Maximum for this payment: ${formatPrice(state.remaining)}`;
-  if (paymentFormOpen) {
-    box.hidden = false;
-    box.removeAttribute("hidden");
-  }
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
 }
 
-function openAddPaymentForm(event) {
-  event?.preventDefault?.();
-  event?.stopPropagation?.();
-
-  const addButton = $("customerAddPaymentButton");
+function openAddPaymentForm() {
   const box = $("paymentProofBox");
-  const amountInput = $("paymentAmountInput");
-  const message = $("paymentProofMessage");
   if (!box) return;
-
-  const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const state = paymentProofState || {};
-  const remaining = Number.isFinite(Number(state.remaining))
-    ? Number(state.remaining)
-    : payloadRemaining;
-
-  if (!Number.isFinite(remaining) || remaining <= 0) {
-    if (message) message.textContent = "There is no remaining balance available for payment.";
+  const payloadRemaining = Number(trackingPayload?.payment?.remaining);
+  const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
+  const eligible = Number.isFinite(remaining) && remaining > 0 && !state.pending_verification;
+  if (!eligible) {
+    const message = $("paymentProofMessage");
+    if (message) message.textContent = state.pending_verification
+      ? "A payment proof is already pending seller verification."
+      : "There is no remaining balance available for payment.";
     return;
   }
-
-  if (state.pending_verification || trackingPayload?.payment?.status === "pending_verification") {
-    if (message) message.textContent = "A payment proof is already pending seller verification.";
-    return;
-  }
-
   paymentProofState = { ...state, eligible: true, remaining };
-  paymentFormOpen = true;
-
-  if (addButton) {
-    addButton.hidden = false;
-    addButton.disabled = false;
-  }
   box.hidden = false;
   box.removeAttribute("hidden");
   renderPaymentProof();
-  box.hidden = false;
-  box.removeAttribute("hidden");
-
-  requestAnimationFrame(() => {
-    amountInput?.focus();
-    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  });
+  $("paymentAmountInput")?.focus();
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
-
 
 function handlePaymentProofSelection() {
   const input = $("paymentProofFile");
@@ -604,7 +562,6 @@ async function submitCustomerPaymentProof() {
     await loadCustomerTracking(token);
     await loadCustomerPaymentProof(token);
     // Keep the Add Payment form closed after a successful submission.
-    paymentFormOpen = false;
     $("paymentProofBox").hidden = true;
   } catch (error) {
     console.error("Customer payment proof submit failed:", error);
@@ -894,6 +851,7 @@ async function loadCustomerTracking(publicToken) {
     renderCustomerTracking(trackingPayload);
     await Promise.allSettled([
       loadCustomerFulfillment(publicToken),
+      loadCustomerPaymentProof(publicToken),
       loadCustomerPostPurchaseActions(publicToken)
     ]);
   } catch (error) {
@@ -959,16 +917,7 @@ $("fulfillmentEventSelect")?.addEventListener("change", () => {
 $("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFile")?.click());
 $("paymentProofFile")?.addEventListener("change", handlePaymentProofSelection);
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
-function handleAddPaymentInteraction(event) {
-  const button = event.target?.closest?.("#customerAddPaymentButton");
-  if (!button) return;
-  openAddPaymentForm(event);
-}
-
-// Delegated click is used because the customer card can be re-rendered.
-document.addEventListener("click", handleAddPaymentInteraction, true);
-window.ordeliOpenCustomerAddPayment = openAddPaymentForm;
-$("customerAddPaymentButton")?.addEventListener("click", openAddPaymentForm);
+$("addPaymentButton")?.addEventListener("click", openAddPaymentForm);
 $("clearPaymentProofButton")?.addEventListener("click", () => {
   const input = $("paymentProofFile");
   if (input) input.value = "";

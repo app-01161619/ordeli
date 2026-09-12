@@ -550,16 +550,5 @@ button:focus-visible {
   opacity: 1 !important;
 }
 .tracking-photo-button:disabled { opacity: .65 !important; }
-.add-payment-button { display: inline-flex; width: 100%; visibility: visible; }
+.add-payment-button { display: block; visibility: visible; }
 .tracking-payment-card { margin-top: 12px; }
-
-
-/* Add Payment interaction hardening */
-.add-payment-button {
-  position: relative;
-  z-index: 2;
-  pointer-events: auto !important;
-  cursor: pointer;
-}
-.payment-proof-box[hidden] { display: none !important; }
-.payment-proof-box { position: relative; z-index: 1; }
