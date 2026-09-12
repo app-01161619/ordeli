@@ -104,7 +104,7 @@
               <input id="paymentProofAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter amount">
             </label>
             <p class="payment-proof-note">You may pay part of the remaining balance. The seller will verify the amount before it is added to your paid total.</p>
-            <input id="paymentProofFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+            <input id="paymentProofFile" class="payment-proof-file-input" type="file" accept="image/jpeg,image/png,image/webp" capture="environment">
             <button id="choosePaymentProofButton" class="secondary-button" type="button">Upload Proof of Payment</button>
             <div id="paymentProofPreview" class="payment-proof-preview" hidden>
               <img id="paymentProofPreviewImage" alt="Selected payment proof preview">
@@ -187,6 +187,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-12-06"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-12-07"></script>
 </body>
 </html>

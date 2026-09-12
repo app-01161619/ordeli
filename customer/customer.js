@@ -53,6 +53,12 @@ function formatPrice(value) {
   }).format(Number(value) || 0);
 }
 
+function formatWholePrice(value) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency", currency: "PHP", maximumFractionDigits: 0
+  }).format(Number(value) || 0);
+}
+
 function trackingProductionStatusLabel(value) {
   switch (value) {
     case "completed": return "Completed";
@@ -453,10 +459,10 @@ function renderPaymentProof() {
   } else if (state.rejected) {
     if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
   } else if (hint) {
-    hint.textContent = `Remaining balance: ${formatPrice(remaining)}. Upload one proof photo for a partial or full payment.`;
+    hint.textContent = `Remaining balance: ${formatWholePrice(remaining)}. Upload one proof photo for a partial or full payment.`;
   }
   if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.max = remaining.toFixed(2);
-  if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.value = remaining.toFixed(2);
+  if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.placeholder = String(Math.round(remaining));
   if (submit) submit.hidden = state.pending_verification || !state.selected_name;
   if (choose) choose.disabled = state.pending_verification;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
@@ -476,7 +482,7 @@ async function submitCustomerPaymentProof() {
     return;
   }
   if (!Number.isFinite(amount) || amount <= 0 || amount > remaining) {
-    $("paymentProofMessage").textContent = `Enter an amount between 0.01 and ${formatPrice(remaining)}.`;
+    $("paymentProofMessage").textContent = `Enter an amount between 0.01 and ${formatWholePrice(remaining)}.`;
     return;
   }
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image."; return; }
