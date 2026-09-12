@@ -399,14 +399,10 @@ function renderPaymentProof() {
   if (!addButton || !box) return;
 
   const state = paymentProofState || {};
-<<<<<<< HEAD
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
   const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
   if (Number.isFinite(remaining)) state.remaining = remaining;
-=======
-  const eligible = Boolean(state.eligible && Number(state.remaining) > 0);
->>>>>>> dd11db46651740ae8d0f3ba3c7e861415788e2f4
   addButton.hidden = !eligible;
 
   const hint = $("paymentProofHint");
@@ -449,7 +445,6 @@ function renderPaymentProof() {
 
 function openAddPaymentForm() {
   const box = $("paymentProofBox");
-<<<<<<< HEAD
   if (!box) return;
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
@@ -466,11 +461,6 @@ function openAddPaymentForm() {
   box.hidden = false;
   box.removeAttribute("hidden");
   renderPaymentProof();
-=======
-  const state = paymentProofState || {};
-  if (!box || !state.eligible || Number(state.remaining) <= 0 || state.pending_verification) return;
->>>>>>> dd11db46651740ae8d0f3ba3c7e861415788e2f4
-  box.hidden = false;
   $("paymentAmountInput")?.focus();
   box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -809,7 +799,8 @@ function renderCustomerTracking(payload) {
   $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
   $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
   // Payment controls are driven by the latest server-reported remaining balance.
-  paymentProofState = { ...(paymentProofState || {}), eligible: Number(payment.remaining) > 0 };
+  paymentProofState = { ...(paymentProofState || {}), eligible: Number(payment.remaining) > 0, remaining: Number(payment.remaining) || 0 };
+  renderPaymentProof();
   const orderItems = payload?.order_items || [];
   renderTrackingOrderItems(orderItems);
   const isMultiItemOrder = orderItems.length > 1;
@@ -828,17 +819,46 @@ async function loadCustomerTracking(publicToken) {
   $("trackingErrorState").hidden = true;
   $("trackingContent").hidden = true;
   try {
-    const { data, error } = await supabase.rpc("get_customer_tracking", { p_public_token: publicToken });
-    if (error) throw error;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_customer_tracking`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({ p_public_token: publicToken }),
+        cache: "no-store",
+        signal: controller.signal
+      });
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch (_) {}
+    if (!response.ok) {
+      throw new Error(data?.message || data?.hint || data?.details || `Tracking request failed (${response.status}).`);
+    }
     if (!data) throw new Error("Tracking information is not available.");
+
     trackingPayload = { ...data, _token: publicToken };
     renderCustomerTracking(trackingPayload);
-    await loadCustomerFulfillment(publicToken);
-    await loadCustomerPaymentProof(publicToken);
-    await loadCustomerPostPurchaseActions(publicToken);
+    await Promise.allSettled([
+      loadCustomerFulfillment(publicToken),
+      loadCustomerPaymentProof(publicToken),
+      loadCustomerPostPurchaseActions(publicToken)
+    ]);
   } catch (error) {
     console.error("Customer tracking load failed:", error);
-    showTrackingError(error?.message || "This tracking link could not be loaded.");
+    showTrackingError(error?.name === "AbortError"
+      ? "The tracking request timed out. Please tap Refresh and try again."
+      : error?.message || "This tracking link could not be loaded.");
   }
 }
 
@@ -906,7 +926,6 @@ $("clearPaymentProofButton")?.addEventListener("click", () => {
   const message = $("paymentProofMessage");
   if (message) message.textContent = "";
 });
-<<<<<<< HEAD
 function closeCustomerPhotoViewer() {
   const viewer = $("customerPhotoViewer");
   if (!viewer) return;
@@ -928,14 +947,6 @@ $("customerPhotoViewer")?.addEventListener("click", (event) => {
 $("customerPhotoViewer")?.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeCustomerPhotoViewer();
-=======
-$("customerPhotoViewerClose")?.addEventListener("click", () => {
-  const viewer = $("customerPhotoViewer");
-  if (viewer?.open) viewer.close();
-});
-$("customerPhotoViewer")?.addEventListener("click", (event) => {
-  if (event.target === event.currentTarget) event.currentTarget.close();
->>>>>>> dd11db46651740ae8d0f3ba3c7e861415788e2f4
 });
 $("customerPhotoViewer")?.addEventListener("close", () => {
   const image = $("customerPhotoViewerImage");

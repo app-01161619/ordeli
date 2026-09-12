@@ -38,7 +38,7 @@ button:focus-visible {
 
 .tracking-header {
   width: 100%;
-  max-width: 770px;
+  max-width: 760px;
   margin: 0 auto 18px;
   display: flex;
   justify-content: space-between;
@@ -538,3 +538,17 @@ button:focus-visible {
   .tracking-stage-body { align-items: flex-start; }
   .tracking-stage-row { align-items: start; }
 }
+
+/* Customer screen reliability/visibility fixes */
+.tracking-photo-button {
+  min-width: 86px;
+  min-height: 30px;
+  background: #eef1f4;
+  color: #202124;
+  border: 1px solid #cfd5dc;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.tracking-photo-button:disabled { opacity: .65 !important; }
+.add-payment-button { display: block; visibility: visible; }
+.tracking-payment-card { margin-top: 12px; }
