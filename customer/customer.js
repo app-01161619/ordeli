@@ -439,7 +439,7 @@ function renderPaymentProof() {
   } else if (hint) {
     hint.textContent = `Upload a clear screenshot or photo of your payment transaction for ${formatPrice(remaining)}. The seller will verify it.`;
   }
-  if (submit) submit.hidden = state.pending_verification;
+  if (submit) submit.hidden = state.pending_verification || !state.selected_name;
   if (choose) choose.disabled = state.pending_verification;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
 }
@@ -767,6 +767,9 @@ $("paymentProofFile")?.addEventListener("change", () => {
   const file = $("paymentProofFile").files?.[0];
   if (file) {
     paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
+    renderPaymentProof();
+  } else {
+    paymentProofState = { ...(paymentProofState || {}), selected_name: null };
     renderPaymentProof();
   }
 });
