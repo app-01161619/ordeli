@@ -812,7 +812,6 @@ $("fulfillmentEventSelect")?.addEventListener("change", () => {
   if (location) $("fulfillmentNotice").textContent = location;
 });
 
-$("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFile")?.click());
 $("paymentProofFile")?.addEventListener("change", () => {
   const file = $("paymentProofFile").files?.[0];
   if (file) {

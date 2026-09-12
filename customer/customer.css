@@ -457,10 +457,11 @@ button:focus-visible {
 .payment-proof-box strong { font-size: 15px; }
 .payment-proof-box p { margin: 0; color: #666; line-height: 1.45; font-size: 13px; }
 .payment-proof-box button { margin-top: 2px; }
+.payment-proof-upload-button { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .payment-proof-amount { display: grid; gap: 5px; }
 .payment-proof-amount span { color: #555; font-size: 13px; font-weight: 700; }
 .payment-proof-amount input { width: 100%; padding: 10px 12px; border: 1px solid #d9dde3; border-radius: 10px; }
-.payment-proof-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.payment-proof-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .payment-proof-note { margin: -2px 0 0; color: #777; font-size: 12px; line-height: 1.4; }
 .payment-proof-preview { display: grid; gap: 8px; padding: 10px; border: 1px solid #dce5ef; border-radius: 12px; background: #f7faff; }
 .payment-proof-preview img { display: block; width: 100%; max-height: 220px; object-fit: contain; border-radius: 8px; background: #fff; }
