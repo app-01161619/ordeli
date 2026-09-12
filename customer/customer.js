@@ -453,6 +453,7 @@ function renderPaymentProof() {
   const submit = $("submitPaymentProofButton");
   const choose = $("choosePaymentProofButton");
   const amountInput = $("paymentProofAmount");
+  const hasSelectedFile = Boolean($("paymentProofFile")?.files?.[0]) || Boolean(state.selected_name);
   if (!eligible) return;
   if (state.pending_verification) {
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify.";
@@ -463,7 +464,7 @@ function renderPaymentProof() {
   }
   if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.max = remaining.toFixed(2);
   if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.placeholder = String(Math.round(remaining));
-  if (submit) submit.hidden = state.pending_verification || !state.selected_name;
+  if (submit) submit.hidden = state.pending_verification || !hasSelectedFile;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
 }
 
@@ -824,13 +825,6 @@ $("paymentProofFile")?.addEventListener("change", () => {
   }
 });
 $("paymentProofAmount")?.addEventListener("input", () => {
-  renderPaymentProof();
-});
-$("removePaymentProofButton")?.addEventListener("click", () => {
-  const input = $("paymentProofFile");
-  if (input) input.value = "";
-  paymentProofState = { ...(paymentProofState || {}), selected_name: null };
-  clearPaymentProofPreview();
   renderPaymentProof();
 });
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
