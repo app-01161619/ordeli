@@ -399,10 +399,14 @@ function renderPaymentProof() {
   if (!addButton || !box) return;
 
   const state = paymentProofState || {};
+<<<<<<< HEAD
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
   const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
   if (Number.isFinite(remaining)) state.remaining = remaining;
+=======
+  const eligible = Boolean(state.eligible && Number(state.remaining) > 0);
+>>>>>>> dd11db46651740ae8d0f3ba3c7e861415788e2f4
   addButton.hidden = !eligible;
 
   const hint = $("paymentProofHint");
@@ -445,6 +449,7 @@ function renderPaymentProof() {
 
 function openAddPaymentForm() {
   const box = $("paymentProofBox");
+<<<<<<< HEAD
   if (!box) return;
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
@@ -461,6 +466,10 @@ function openAddPaymentForm() {
   box.hidden = false;
   box.removeAttribute("hidden");
   renderPaymentProof();
+=======
+  const state = paymentProofState || {};
+  if (!box || !state.eligible || Number(state.remaining) <= 0 || state.pending_verification) return;
+>>>>>>> dd11db46651740ae8d0f3ba3c7e861415788e2f4
   box.hidden = false;
   $("paymentAmountInput")?.focus();
   box.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -897,6 +906,7 @@ $("clearPaymentProofButton")?.addEventListener("click", () => {
   const message = $("paymentProofMessage");
   if (message) message.textContent = "";
 });
+<<<<<<< HEAD
 function closeCustomerPhotoViewer() {
   const viewer = $("customerPhotoViewer");
   if (!viewer) return;
@@ -918,6 +928,14 @@ $("customerPhotoViewer")?.addEventListener("click", (event) => {
 $("customerPhotoViewer")?.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeCustomerPhotoViewer();
+=======
+$("customerPhotoViewerClose")?.addEventListener("click", () => {
+  const viewer = $("customerPhotoViewer");
+  if (viewer?.open) viewer.close();
+});
+$("customerPhotoViewer")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) event.currentTarget.close();
+>>>>>>> dd11db46651740ae8d0f3ba3c7e861415788e2f4
 });
 $("customerPhotoViewer")?.addEventListener("close", () => {
   const image = $("customerPhotoViewerImage");
