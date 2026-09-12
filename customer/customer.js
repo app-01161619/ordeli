@@ -345,7 +345,6 @@ function renderFulfillment() {
         <span class="tracking-kicker">SHOP ADDRESS</span>
         ${shopAddress ? `<strong class="fulfillment-address-value">${escapeHtml(shopAddress)}</strong>` : `<p>The shop address is currently unavailable.</p>`}
         <p>Please pick up your order at the shop.</p>`;
-      `;
     } else if (fulfillmentType === "location") {
       const events = Array.isArray(state.events) ? state.events : [];
       const event = state.event || events.find((e) => e.id === state.event_id) || events.find((e) => e.id === trackingPayload?.order?.event_id) || null;
