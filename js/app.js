@@ -290,6 +290,32 @@ async function resolveServerOrderId(orderId, { attemptSync = true } = {}) {
   return null;
 }
 
+async function resolveServerOrderItemId(orderItemId, { attemptSync = true } = {}) {
+  if (!orderItemId) return null;
+  const value = String(orderItemId);
+  if (!value.startsWith("offline-item:")) return value;
+
+  const clientActionId = value.slice("offline-item:".length);
+  const rows = await getOfflineQueueRows({ includeFinished: true });
+  const row = rows.find(candidate =>
+    candidate.clientOrderId === clientActionId &&
+    (candidate.type === "create_order" || candidate.type === "add_order_item")
+  );
+  if (row?.serverResult?.order_item_id) return row.serverResult.order_item_id;
+
+  if (attemptSync && navigator.onLine) {
+    try { await syncOfflineOrders(); } catch (_) {}
+    const refreshed = await getOfflineQueueRows({ includeFinished: true });
+    const retry = refreshed.find(candidate =>
+      candidate.clientOrderId === clientActionId &&
+      (candidate.type === "create_order" || candidate.type === "add_order_item")
+    );
+    if (retry?.serverResult?.order_item_id) return retry.serverResult.order_item_id;
+  }
+
+  return null;
+}
+
 async function reconcileOrderCacheFromServer(serverOrderId) {
   if (!serverOrderId || !navigator.onLine) return null;
   const user = await getCurrentUser();
@@ -361,6 +387,10 @@ async function syncOfflineOrders() {
         const p = row.payload || {};
         if (row.type === "finish_production_stage") {
           const p = row.payload || {};
+          const resolvedOrderItemId = await resolveServerOrderItemId(p.orderItemId);
+          if (!resolvedOrderItemId) {
+            throw new Error("The production item is still waiting to sync.");
+          }
           let uploadedPath = p.proofPath || null;
           if (p.file && uploadedPath) {
             const { error: uploadError } = await supabase.storage.from("production-proofs").upload(uploadedPath, p.file, {
@@ -372,19 +402,19 @@ async function syncOfflineOrders() {
           let data, error;
           if (p.actorType === "production_member") {
             ({ data, error } = await supabase.rpc("finish_production_stage_member_v2", {
-              p_order_item_id: p.orderItemId,
+              p_order_item_id: resolvedOrderItemId,
               p_note: p.note || null,
               p_proof_photo_path: uploadedPath
             }));
           } else {
             ({ data, error } = await supabase.rpc("finish_production_stage", {
-              p_order_item_id: p.orderItemId,
+              p_order_item_id: resolvedOrderItemId,
               p_stage_order: p.stageOrder,
               p_stage_name: p.stageName,
               p_note: p.note || null
             }));
             if (!error && uploadedPath && data?.stage_log_id) {
-              const updateResult = await supabase.from("stage_logs").update({ proof_photo_path: uploadedPath }).eq("id", data.stage_log_id).eq("order_item_id", p.orderItemId);
+              const updateResult = await supabase.from("stage_logs").update({ proof_photo_path: uploadedPath }).eq("id", data.stage_log_id).eq("order_item_id", resolvedOrderItemId);
               if (updateResult.error) throw updateResult.error;
             }
           }
@@ -6064,13 +6094,34 @@ async function loadActiveCustomers() {
     try {
       // This is intentionally the seller's customer list, not just customers
       // with an in-progress order. "Existing customer" is for a NEW order.
-      const result = await supabase
-        .from('customers')
-        .select('id,name,phone')
+      const ordersResult = await supabase
+        .from('orders')
+        .select('customer_id')
         .eq('seller_id', user.id)
-        .order('name', { ascending: true });
-      if (result.error) throw result.error;
-      data = result.data || [];
+        .is('cancelled_at', null)
+        .is('handed_over_at', null);
+
+      if (ordersResult.error) throw ordersResult.error;
+
+      const activeIds = [...new Set(
+        (ordersResult.data || [])
+          .map(order => order.customer_id)
+          .filter(Boolean)
+      )];
+
+      if (!activeIds.length) {
+        data = [];
+      } else {
+        const result = await supabase
+          .from('customers')
+          .select('id,name,phone')
+          .eq('seller_id', user.id)
+          .in('id', activeIds)
+          .order('name', { ascending: true });
+        if (result.error) throw result.error;
+        data = result.data || [];
+      }
+
       await cacheNamed(cacheKey, data);
     } catch (error) {
       data = await getCachedSnapshot(cacheKey);
@@ -6187,7 +6238,19 @@ async function createOrderOfflineFallback() {
     const parentOrder = await getCachedSnapshot(`order:${existingOrderId}`);
     if (!parentOrder) throw new Error('This order is not available offline on this device.');
     const existingItems = (await getCachedSnapshot(`order-items:${existingOrderId}`)) || [];
-    const itemId = `offline-item:${crypto?.randomUUID ? crypto.randomUUID() : Date.now()}`;
+    const row = await enqueueOfflineOrder({
+      action: 'add_item',
+      orderId: existingOrderId,
+      parentClientOrderId: String(existingOrderId).startsWith('offline:') ? String(existingOrderId).slice('offline:'.length) : null,
+      qrToken: pendingQrToken,
+      quantity,
+      product: pendingProduct,
+      productName: pendingProduct?.name || 'Product',
+      unitPrice: Number(pendingProduct?.default_price) || 0,
+      total,
+      downpayment
+    });
+    const itemId = `offline-item:${row.clientOrderId}`;
     const newItem = {
       id: itemId,
       product_name: pendingProduct?.name || 'Product',
@@ -6198,19 +6261,21 @@ async function createOrderOfflineFallback() {
       cancelled_at: null,
       offline: true
     };
-    const row = await enqueueOfflineOrder({
-      action: 'add_item',
-      orderId: existingOrderId,
-      parentClientOrderId: String(existingOrderId).startsWith('offline:') ? String(existingOrderId).slice('offline:'.length) : null,
-      qrToken: pendingQrToken,
-      quantity,
-      product: pendingProduct,
-      productName: newItem.product_name,
-      unitPrice: newItem.unit_price,
-      total,
-      downpayment
-    });
     await cacheNamed(`order-items:${existingOrderId}`, [...existingItems, newItem]);
+    if (downpayment > 0) {
+      const existingPayments = (await getCachedSnapshot(`order-payments:${existingOrderId}`)) || [];
+      await cacheNamed(`order-payments:${existingOrderId}`, [
+        ...existingPayments,
+        {
+          id: `offline-payment:${row.clientOrderId}`,
+          amount: downpayment,
+          proof_status: null,
+          payment_type: "additional",
+          created_at: row.createdAt,
+          offline_pending: true
+        }
+      ]);
+    }
     await markOfflineQrUsed(pendingQrToken, row.clientOrderId);
     currentOrderId = existingOrderId;
     currentOrderShowProduction = false;

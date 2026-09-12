@@ -1,4 +1,4 @@
-create table public.orders (
+    create table public.orders (
   id uuid not null default gen_random_uuid (),
   seller_id uuid not null,
   customer_id uuid not null,
