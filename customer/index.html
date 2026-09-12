@@ -102,15 +102,14 @@
           </div>
           <button id="addPaymentButton" class="tracking-primary-button add-payment-button" type="button" hidden>Add Payment</button>
           <p id="paymentPendingNote" class="payment-pending-note" role="status" hidden></p>
-          <div class="payment-history-section">
-            <div class="payment-history-heading">Payment History</div>
+          <details class="payment-history-section">
+            <summary class="payment-history-heading">Payment History</summary>
             <div id="paymentHistoryList" class="payment-history-list"></div>
             <p id="paymentHistoryEmpty" class="payment-history-empty">No payments have been recorded yet.</p>
-          </div>
+          </details>
 
           <div id="paymentProofBox" class="payment-proof-box" hidden>
             <div class="payment-proof-header">
-              <strong>Add Payment</strong>
               <p id="paymentProofHint">Upload your payment screenshot, preview it, then enter the amount you paid.</p>
             </div>
             <div class="payment-form-field">
@@ -203,7 +202,7 @@
     <div class="add-payment-modal-inner">
       <div class="customer-photo-viewer-head">
         <div>
-          <strong id="addPaymentModalTitle">Add Payment</strong>
+          <strong id="addPaymentModalTitle">Payment Proof</strong>
           <p id="addPaymentModalSubtitle">Upload your payment proof and enter the amount you paid.</p>
         </div>
         <button id="addPaymentModalClose" class="secondary-button" type="button">Close</button>
@@ -222,6 +221,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-13-02"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-13-03"></script>
 </body>
 </html>

@@ -598,3 +598,10 @@ button:focus-visible {
   .add-payment-modal { width: 100vw; max-width: none; margin: 0; border-radius: 18px 18px 0 0; align-self: end; }
   .add-payment-modal-inner { border-radius:18px 18px 0 0; max-height:90vh; }
 }
+
+.payment-history-section { margin-top: 16px; border-top: 1px solid #eee; padding-top: 10px; }
+.payment-history-heading { cursor: pointer; list-style: none; display:flex; align-items:center; justify-content:space-between; margin-bottom:0; }
+.payment-history-heading::-webkit-details-marker { display:none; }
+.payment-history-heading::after { content:'+'; font-size:18px; line-height:1; color:#777; }
+.payment-history-section[open] .payment-history-heading::after { content:'−'; }
+.payment-history-section[open] .payment-history-heading { margin-bottom:8px; }

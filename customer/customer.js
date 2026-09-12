@@ -172,7 +172,7 @@ function renderTrackingStages(stages) {
     if (stage.status === "finished" && stage.finished_at) {
       const finishedAt = document.createElement("time");
       finishedAt.dateTime = stage.finished_at;
-      finishedAt.textContent = `Finished ${formatDateTime(stage.finished_at)}`;
+      finishedAt.textContent = formatDateTime(stage.finished_at);
       meta.append(finishedAt);
     }
     body.append(name, meta);
@@ -353,6 +353,8 @@ function renderFulfillment() {
   options.hidden = false;
   const selected = state.fulfillment_type || "";
   document.querySelectorAll("input[name='fulfillmentType']").forEach(r => r.checked = r.value === selected);
+  // The customer-facing courier message only appears after courier is actually saved as the selection.
+  if (notice && selected !== "courier" && state.pickup_status !== "unclaimed") notice.textContent = "";
   eventPicker.hidden = selected !== "location";
   const select = $("fulfillmentEventSelect");
   select.replaceChildren();
