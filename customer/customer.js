@@ -332,12 +332,30 @@ function renderFulfillment() {
 
   $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
 
-  const shopAddressBox = $("fulfillmentShopAddress");
-  const shopAddress = trackingPayload?.shop?.address || "";
-  if (shopAddressBox) {
-    const showAddress = state.fulfillment_type === "shop" && Boolean(shopAddress);
-    shopAddressBox.hidden = !showAddress;
-    if (showAddress) $("fulfillmentShopAddressText").textContent = shopAddress;
+  const shopAddress = trackingPayload?.shop?.address || state.shop?.address || "";
+  const savedContent = $("fulfillmentSavedContent");
+  if (savedContent) {
+    savedContent.hidden = !state.fulfillment_type || state.fulfillment_type === "not_selected";
+    if (state.fulfillment_type === "shop") {
+      savedContent.innerHTML = shopAddress
+        ? `<span class="tracking-kicker">SHOP ADDRESS</span><p>Please pick up your order at the shop:</p><strong class="fulfillment-address-value">${escapeHtml(shopAddress)}</strong>`
+        : `<p>Please pick up your order at the shop.</p>`;
+    } else if (state.fulfillment_type === "location" && state.event) {
+      const event = state.event;
+      const date = formatEventDate(event.event_date);
+      const time = formatEventTime(event.start_time, event.end_time);
+      const location = event.location || event.name || "the pickup location";
+      savedContent.innerHTML = `<p>Please pick up your order at <strong>${escapeHtml(location)}</strong> on <strong>${escapeHtml(date)}</strong>${time ? ` from <strong>${escapeHtml(time)}</strong>` : ""}.</p>`;
+    } else if (state.fulfillment_type === "courier") {
+      savedContent.innerHTML = `<p>Thank you for your purchase! Please wait for <strong>${escapeHtml(trackingPayload?.shop?.name || "the shop")}</strong> to contact you to arrange your delivery.</p>`;
+    } else {
+      savedContent.textContent = "";
+    }
+  }
+
+  const showCourierNotice = state.fulfillment_type === "courier";
+  if (statusCard && showCourierNotice && !state.handed_over_at && state.pickup_status !== "unclaimed") {
+    statusCard.hidden = true;
   }
 
   $("fulfillmentRequirement").textContent = ready
@@ -362,8 +380,8 @@ function renderFulfillment() {
   options.hidden = false;
   const selected = state.fulfillment_type || "";
   document.querySelectorAll("input[name='fulfillmentType']").forEach(r => r.checked = r.value === selected);
-  // The customer-facing courier message only appears after courier is actually saved as the selection.
-  if (notice && selected !== "courier" && state.pickup_status !== "unclaimed") notice.textContent = "";
+  // Fulfillment-specific saved content is rendered inside the Fulfillment card.
+  if (notice && state.pickup_status !== "unclaimed") notice.textContent = "";
   eventPicker.hidden = selected !== "location";
   const select = $("fulfillmentEventSelect");
   select.replaceChildren();

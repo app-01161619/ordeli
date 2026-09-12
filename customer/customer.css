@@ -382,6 +382,11 @@ button:focus-visible {
 .fulfillment-event-picker { margin-top: 14px; }
 .fulfillment-shop-address { margin-top: 16px; padding: 14px; background: #f7f9fb; border-radius: 11px; }
 .fulfillment-shop-address p { margin: 4px 0 0; color: #202124; font-size: 14px; line-height: 1.5; }
+
+.fulfillment-saved-content { margin-top: 16px; padding: 14px; background: #f7f9fb; border-radius: 11px; color: #202124; }
+.fulfillment-saved-content p { margin: 0; color: #666; font-size: 14px; line-height: 1.5; }
+.fulfillment-saved-content .tracking-kicker { display: block; margin-bottom: 4px; }
+.fulfillment-address-value { display: block; margin-top: 5px; font-size: 15px; line-height: 1.5; }
 .tracking-select { width: 100%; padding: 12px 13px; border: 1px solid #d9dde3; border-radius: 10px; background: #fff; font: inherit; }
 .tracking-primary-button { width: 100%; margin-top: 14px; }
 .tracking-inline-notice { min-height: 18px; margin: 10px 0 0; color: #666; font-size: 13px; }
