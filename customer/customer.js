@@ -402,8 +402,14 @@ function renderPaymentProof() {
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
   const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
+  const pendingVerification = Boolean(state.pending_verification);
+  const canAddPayment = eligible && !pendingVerification;
   if (Number.isFinite(remaining)) state.remaining = remaining;
-  addButton.hidden = !eligible;
+  // Never show a tappable Add Payment action when a proof is already pending.
+  // The previous implementation left the button visible but openAddPaymentForm()
+  // immediately returned, making the tap appear to do nothing.
+  addButton.hidden = !canAddPayment;
+  addButton.disabled = !canAddPayment;
 
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
@@ -412,15 +418,17 @@ function renderPaymentProof() {
   const amountHint = $("paymentAmountHint");
   const amountInput = $("paymentAmountInput");
 
-  if (!eligible) {
+  if (!canAddPayment) {
     box.hidden = true;
     revokePaymentPreview();
-    if (message) message.textContent = "";
+    if (message) message.textContent = pendingVerification
+      ? "Your payment proof is waiting for the seller to verify it."
+      : "";
     if (amountInput) amountInput.value = "";
     return;
   }
 
-  if (state.pending_verification) {
+  if (pendingVerification) {
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify it.";
     if (submit) submit.hidden = true;
     if (choose) choose.disabled = true;
@@ -449,11 +457,11 @@ function openAddPaymentForm() {
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const eligible = Number.isFinite(remaining) && remaining > 0 && !state.pending_verification;
-  if (!eligible) {
+  const eligible = Number.isFinite(remaining) && remaining > 0;
+  if (!eligible || state.pending_verification) {
     const message = $("paymentProofMessage");
     if (message) message.textContent = state.pending_verification
-      ? "A payment proof is already pending seller verification."
+      ? "Your payment proof is waiting for the seller to verify it."
       : "There is no remaining balance available for payment.";
     return;
   }
