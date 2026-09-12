@@ -374,11 +374,31 @@ async function loadCustomerPaymentProof(publicToken) {
   try {
     const { data, error } = await supabase.rpc("get_customer_payment_proof", { p_public_token: publicToken });
     if (error) throw error;
-    paymentProofState = data || null;
+
+    // The tracking payload is the authoritative source for the balance shown to
+    // the customer. Do not hide Add Payment just because the supplemental proof
+    // RPC reports an eligibility mismatch.
+    const trackingRemaining = Number(trackingPayload?.payment?.remaining);
+    const trackingLifecycleBlocked = Boolean(
+      trackingPayload?.order?.cancelled_at || trackingPayload?.order?.handed_over_at
+    );
+    paymentProofState = {
+      ...(data || {}),
+      remaining: Number.isFinite(trackingRemaining) ? trackingRemaining : Number(data?.remaining) || 0,
+      eligible: !trackingLifecycleBlocked && (Number.isFinite(trackingRemaining) ? trackingRemaining > 0 : Boolean(data?.eligible))
+    };
     renderPaymentProof();
   } catch (error) {
     console.error("Customer payment proof load failed:", error);
-    paymentProofState = null;
+    // A proof-status RPC failure must not make a valid remaining balance
+    // disappear from the UI. Fall back to the tracking payload.
+    paymentProofState = {
+      remaining: Number(trackingPayload?.payment?.remaining) || 0,
+      eligible: Boolean(Number(trackingPayload?.payment?.remaining) > 0),
+      pending_verification: false,
+      rejected: false,
+      rejection_reason: null
+    };
     renderPaymentProof();
   }
 }
@@ -400,16 +420,21 @@ function renderPaymentProof() {
 
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
-  const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
+  const remaining = Number.isFinite(payloadRemaining)
+    ? payloadRemaining
+    : (Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : 0);
+  const lifecycleBlocked = Boolean(
+    trackingPayload?.order?.cancelled_at || trackingPayload?.order?.handed_over_at
+  );
   const pendingVerification = Boolean(state.pending_verification);
-  const canAddPayment = eligible && !pendingVerification;
+  const canAddPayment = !lifecycleBlocked && remaining > 0 && !pendingVerification;
   if (Number.isFinite(remaining)) state.remaining = remaining;
-  // Never show a tappable Add Payment action when a proof is already pending.
-  // The previous implementation left the button visible but openAddPaymentForm()
-  // immediately returned, making the tap appear to do nothing.
-  addButton.hidden = !canAddPayment;
+
+  // Remaining balance drives whether the action exists. The proof RPC only
+  // supplies supplemental state such as pending/rejected verification.
+  addButton.hidden = lifecycleBlocked || remaining <= 0;
   addButton.disabled = !canAddPayment;
+  addButton.textContent = pendingVerification ? "Payment Pending" : "Add Payment";
 
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
