@@ -453,11 +453,7 @@ function renderPaymentProof() {
   const submit = $("submitPaymentProofButton");
   const choose = $("choosePaymentProofButton");
   const amountInput = $("paymentProofAmount");
-  const enteredAmount = Number(amountInput?.value);
-  const validAmount = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= remaining;
-  if (choose) {
-    choose.disabled = !eligible || state.pending_verification || !validAmount;
-  }
+  updatePaymentProofUploadButton();
   if (!eligible) return;
   if (state.pending_verification) {
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify.";
@@ -470,6 +466,18 @@ function renderPaymentProof() {
   if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.placeholder = String(Math.round(remaining));
   if (submit) submit.hidden = state.pending_verification || !state.selected_name;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
+}
+
+function updatePaymentProofUploadButton() {
+  const amountInput = $("paymentProofAmount");
+  const choose = $("choosePaymentProofButton");
+  if (!amountInput || !choose) return;
+  const state = paymentProofState || {};
+  const remaining = Number(state.remaining ?? trackingPayload?.payment?.remaining);
+  const amount = Number(amountInput.value);
+  const validAmount = Number.isFinite(remaining) && remaining > 0
+    && Number.isFinite(amount) && amount > 0 && amount <= remaining;
+  choose.disabled = Boolean(state.pending_verification) || !validAmount;
 }
 
 async function submitCustomerPaymentProof() {
@@ -828,7 +836,11 @@ $("paymentProofFile")?.addEventListener("change", () => {
     renderPaymentProof();
   }
 });
-$("paymentProofAmount")?.addEventListener("input", renderPaymentProof);
+$("paymentProofAmount")?.addEventListener("input", () => {
+  updatePaymentProofUploadButton();
+  renderPaymentProof();
+});
+$("paymentProofAmount")?.addEventListener("change", updatePaymentProofUploadButton);
 $("removePaymentProofButton")?.addEventListener("click", () => {
   const input = $("paymentProofFile");
   if (input) input.value = "";
