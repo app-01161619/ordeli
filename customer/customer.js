@@ -453,6 +453,12 @@ function renderPaymentProof() {
   const submit = $("submitPaymentProofButton");
   const choose = $("choosePaymentProofButton");
   const amountInput = $("paymentProofAmount");
+  const enteredAmount = Number(amountInput?.value);
+  const validAmount = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= remaining;
+  if (choose) {
+    choose.classList.toggle("is-disabled", !eligible || state.pending_verification || !validAmount);
+    choose.setAttribute("aria-disabled", String(!eligible || state.pending_verification || !validAmount));
+  }
   if (!eligible) return;
   if (state.pending_verification) {
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify.";
@@ -464,7 +470,7 @@ function renderPaymentProof() {
   if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.max = remaining.toFixed(2);
   if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.placeholder = String(Math.round(remaining));
   if (submit) submit.hidden = state.pending_verification || !state.selected_name;
-  if (choose) choose.disabled = state.pending_verification;
+  if (choose) choose.classList.toggle("is-disabled", state.pending_verification || !validAmount);
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
 }
 
@@ -824,6 +830,11 @@ $("paymentProofFile")?.addEventListener("change", () => {
   }
 });
 $("paymentProofAmount")?.addEventListener("input", renderPaymentProof);
+$("choosePaymentProofButton")?.addEventListener("click", (event) => {
+  if ($("choosePaymentProofButton").classList.contains("is-disabled")) {
+    event.preventDefault();
+  }
+});
 $("removePaymentProofButton")?.addEventListener("click", () => {
   const input = $("paymentProofFile");
   if (input) input.value = "";
