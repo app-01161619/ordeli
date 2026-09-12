@@ -294,19 +294,20 @@ function renderFulfillment() {
   const state = fulfillmentState || {};
   renderCustomerReschedule();
 
-  // The server's fulfillment payload is calculated from every active item in the order.
-  // Keep the whole-order gate authoritative for multi-item orders.
-  const productionComplete = state.production_completed === true
-    || (Number(state.production_items_total) > 0
-      && Number(state.production_items_complete) === Number(state.production_items_total));
+  // Fulfillment is a whole-order feature. Use the same authoritative data already
+  // rendered in the customer tracking screen instead of relying on a second RPC
+  // response that can become stale or differ for multi-item orders.
+  const activeItems = (trackingPayload?.order_items || []).filter((item) => !item.cancelled);
+  const productionComplete = activeItems.length > 0
+    ? activeItems.every((item) => item.production_status === "completed")
+    : Boolean(state.production_completed);
   card.hidden = !productionComplete;
   if (!productionComplete) return;
 
   const trackingPayment = trackingPayload?.payment || {};
-  const trackingPaid = Number(trackingPayment.paid);
-  const trackingTotal = Number(trackingPayment.total);
-  const trackingFullyPaid = Number.isFinite(trackingPaid) && Number.isFinite(trackingTotal) && trackingTotal > 0 && trackingPaid >= trackingTotal;
-  const fullyPaid = trackingFullyPaid || Boolean(state.fully_paid);
+  const fullyPaid = Number(trackingPayment.paid) >= Number(trackingPayment.total)
+    ? true
+    : Boolean(state.fully_paid);
   const ready = Boolean(fullyPaid && !state.handed_over_at);
   const statusCard = $("trackingFulfillmentNoticeCard");
   const statusTitle = $("trackingFulfillmentNoticeTitle");
