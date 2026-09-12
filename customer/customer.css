@@ -416,6 +416,9 @@ button:focus-visible {
 
 
 .tracking-photo-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   align-self: flex-start;
   margin-top: 8px;
   padding: 7px 11px;
@@ -424,8 +427,11 @@ button:focus-visible {
   background: #eef1f4;
   color: #202124;
   font: inherit;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  visibility: visible;
+  opacity: 1;
 }
 
 .tracking-photo-button:hover {
