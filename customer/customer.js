@@ -22,6 +22,7 @@ let fulfillmentState = null;
 let fulfillmentBusy = false;
 let paymentProofState = null;
 let paymentProofBusy = false;
+let paymentFormOpen = false;
 let customerReviewState = null;
 let selectedReviewRating = 0;
 let customerReviewBusy = false;
@@ -414,6 +415,7 @@ function renderPaymentProof() {
 
   if (!eligible) {
     box.hidden = true;
+    paymentFormOpen = false;
     revokePaymentPreview();
     if (message) message.textContent = "";
     if (amountInput) amountInput.value = "";
@@ -421,6 +423,7 @@ function renderPaymentProof() {
   }
 
   if (state.pending_verification) {
+    paymentFormOpen = false;
     if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify it.";
     if (submit) submit.hidden = true;
     if (choose) choose.disabled = true;
@@ -440,6 +443,10 @@ function renderPaymentProof() {
   if (choose) choose.disabled = false;
   if (amountInput) amountInput.disabled = false;
   if (amountHint) amountHint.textContent = `Maximum for this payment: ${formatPrice(state.remaining)}`;
+  if (paymentFormOpen) {
+    box.hidden = false;
+    box.removeAttribute("hidden");
+  }
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
 }
 
@@ -458,9 +465,16 @@ function openAddPaymentForm() {
     return;
   }
   paymentProofState = { ...state, eligible: true, remaining };
+  paymentFormOpen = true;
   box.hidden = false;
   box.removeAttribute("hidden");
   renderPaymentProof();
+  // renderPaymentProof may refresh other labels/state, but an explicit Add Payment
+  // action must always leave the form open while the balance remains payable.
+  if (Number(remaining) > 0 && !paymentProofState.pending_verification) {
+    box.hidden = false;
+    box.removeAttribute("hidden");
+  }
   $("paymentAmountInput")?.focus();
   box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
@@ -562,6 +576,7 @@ async function submitCustomerPaymentProof() {
     await loadCustomerTracking(token);
     await loadCustomerPaymentProof(token);
     // Keep the Add Payment form closed after a successful submission.
+    paymentFormOpen = false;
     $("paymentProofBox").hidden = true;
   } catch (error) {
     console.error("Customer payment proof submit failed:", error);
@@ -918,6 +933,14 @@ $("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFi
 $("paymentProofFile")?.addEventListener("change", handlePaymentProofSelection);
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
 $("addPaymentButton")?.addEventListener("click", openAddPaymentForm);
+// Delegated fallback: keeps Add Payment functional even if the button is re-rendered
+// or moved by the page layout after initial module setup.
+document.addEventListener("click", (event) => {
+  const button = event.target?.closest?.("#addPaymentButton");
+  if (!button) return;
+  event.preventDefault();
+  openAddPaymentForm();
+});
 $("clearPaymentProofButton")?.addEventListener("click", () => {
   const input = $("paymentProofFile");
   if (input) input.value = "";
