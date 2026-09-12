@@ -291,13 +291,15 @@ function fulfillmentLabel(value) {
 function renderFulfillment() {
   const card = $("trackingFulfillmentCard");
   if (!card) return;
-  const state = fulfillmentState || {};
+
   renderCustomerReschedule();
 
+  const state = fulfillmentState || {};
   const activeItems = (trackingPayload?.order_items || []).filter((item) => !item.cancelled);
   const productionComplete = activeItems.length > 0
     ? activeItems.every((item) => item.production_status === "completed")
     : Boolean(state.production_completed);
+
   card.hidden = !productionComplete;
   if (!productionComplete) return;
 
@@ -307,73 +309,79 @@ function renderFulfillment() {
   const fullyPaid = Number.isFinite(paid) && Number.isFinite(total)
     ? paid >= total
     : Boolean(state.fully_paid);
-  const ready = Boolean(fullyPaid && !state.handed_over_at);
-  const fulfillmentType = state.fulfillment_type || trackingPayload?.order?.fulfillment_type || "not_selected";
-  const savedSelection = fulfillmentType !== "not_selected";
+  const lifecycleBlocked = Boolean(state.handed_over_at || trackingPayload?.order?.handed_over_at);
+  const ready = fullyPaid && !lifecycleBlocked;
 
-  // The Fulfillment card is the only fulfillment presentation. The old standalone
-  // courier notice is intentionally kept hidden; courier messaging belongs inside
-  // this card after the choice is saved.
+  const fulfillmentType = state.fulfillment_type || trackingPayload?.order?.fulfillment_type || "not_selected";
+  const savedSelection = ["shop", "location", "courier"].includes(fulfillmentType);
+  const shop = state.shop || trackingPayload?.shop || {};
+  const shopAddress = shop.address || "";
+  const shopName = shop.name || "the shop";
+
+  const requirement = $("fulfillmentRequirement");
+  const current = $("fulfillmentCurrent");
+  const savedContent = $("fulfillmentSavedContent");
+  const options = $("fulfillmentOptions");
+  const eventPicker = $("fulfillmentEventPicker");
+  const saveButton = $("saveFulfillmentButton");
+  const notice = $("fulfillmentNotice");
   const statusCard = $("trackingFulfillmentNoticeCard");
+
+  // There is only one fulfillment presentation. Never render the old courier card.
   if (statusCard) statusCard.hidden = true;
 
-  $("fulfillmentCurrent").textContent = fulfillmentLabel(fulfillmentType);
+  current.textContent = savedSelection ? fulfillmentLabel(fulfillmentType) : "Not selected yet";
 
-  const savedContent = $("fulfillmentSavedContent");
-  if (savedContent) {
-    savedContent.hidden = !savedSelection;
-    if (!savedSelection) {
-      savedContent.replaceChildren();
-    } else if (fulfillmentType === "shop") {
-      const shopAddress = trackingPayload?.shop?.address || state.shop?.address || "";
-      savedContent.innerHTML = shopAddress
-        ? `<span class="tracking-kicker">SHOP ADDRESS</span><p>Please pick up your order at the shop:</p><strong class="fulfillment-address-value">${escapeHtml(shopAddress)}</strong>`
-        : `<p>Please pick up your order at the shop.</p>`;
+  if (savedSelection) {
+    requirement.textContent = "Your fulfillment method has been saved.";
+    options.hidden = true;
+    eventPicker.hidden = true;
+    saveButton.hidden = true;
+    notice.textContent = "";
+    savedContent.hidden = false;
+
+    if (fulfillmentType === "shop") {
+      savedContent.innerHTML = `
+        <span class="tracking-kicker">SHOP ADDRESS</span>
+        ${shopAddress ? `<strong class="fulfillment-address-value">${escapeHtml(shopAddress)}</strong>` : `<p>The shop address is currently unavailable.</p>`}
+        <p>Please pick up your order at the shop.</p>`;
+      `;
     } else if (fulfillmentType === "location") {
-      const event = state.event || (state.events || []).find((e) => e.id === state.event_id) || null;
+      const events = Array.isArray(state.events) ? state.events : [];
+      const event = state.event || events.find((e) => e.id === state.event_id) || events.find((e) => e.id === trackingPayload?.order?.event_id) || null;
       if (event) {
         const date = formatEventDate(event.event_date);
         const time = formatEventTime(event.start_time, event.end_time);
         const location = event.location || event.name || "the pickup location";
         savedContent.innerHTML = `<p>Please pick up your order at <strong>${escapeHtml(location)}</strong> on <strong>${escapeHtml(date)}</strong>${time ? ` from <strong>${escapeHtml(time)}</strong>` : ""}.</p>`;
       } else {
-        savedContent.innerHTML = `<p>Your pickup location has been saved.</p>`;
+        savedContent.innerHTML = `<p>Your pickup location has been saved, but the event details are unavailable right now.</p>`;
       }
     } else if (fulfillmentType === "courier") {
-      const shopName = trackingPayload?.shop?.name || state.shop?.name || "the shop";
       savedContent.innerHTML = `<p>Thank you for your purchase! Please wait for <strong>${escapeHtml(shopName)}</strong> to contact you to arrange your delivery.</p>`;
     }
-  }
-
-  const requirement = $("fulfillmentRequirement");
-  if (requirement) {
-    requirement.textContent = savedSelection
-      ? "Your fulfillment method has been saved."
-      : ready
-        ? "Your order is ready for fulfillment selection."
-        : state.handed_over_at
-          ? "This order has already been handed over."
-          : "Production is complete. Fulfillment options will unlock after payment is fully confirmed.";
-  }
-
-  const options = $("fulfillmentOptions");
-  const notice = $("fulfillmentNotice");
-  const eventPicker = $("fulfillmentEventPicker");
-  const saveButton = $("saveFulfillmentButton");
-
-  if (!ready || savedSelection || state.handed_over_at) {
-    options.hidden = true;
-    eventPicker.hidden = true;
-    if (saveButton) saveButton.hidden = true;
-    if (notice) notice.textContent = "";
     return;
   }
 
-  if (saveButton) saveButton.hidden = false;
-  options.hidden = false;
-  document.querySelectorAll("input[name='fulfillmentType']").forEach((r) => { r.checked = false; });
+  savedContent.hidden = true;
+  savedContent.replaceChildren();
+  options.hidden = !ready;
   eventPicker.hidden = true;
-  if (notice) notice.textContent = "";
+  saveButton.hidden = !ready;
+
+  if (!ready) {
+    requirement.textContent = lifecycleBlocked
+      ? "This order has already been handed over."
+      : fullyPaid
+        ? "Your order is ready for fulfillment selection."
+        : "Production is complete. Fulfillment options will unlock after payment is fully confirmed.";
+    notice.textContent = "";
+    return;
+  }
+
+  requirement.textContent = "Your order is ready for fulfillment selection.";
+  notice.textContent = "";
+  document.querySelectorAll("input[name='fulfillmentType']").forEach((r) => { r.checked = false; });
 
   const select = $("fulfillmentEventSelect");
   if (select) {
@@ -382,17 +390,17 @@ function renderFulfillment() {
     placeholder.value = "";
     placeholder.textContent = "Choose an event";
     select.appendChild(placeholder);
+
     (Array.isArray(state.events) ? state.events : []).forEach((event) => {
+      if (!event?.id) return;
       const option = document.createElement("option");
       option.value = event.id;
-      option.textContent = `${event.name} · ${formatEventDate(event.event_date)}${event.start_time ? ` · ${formatEventTime(event.start_time, event.end_time)}` : ""}`;
+      option.textContent = `${event.name || event.location || "Pickup event"} · ${formatEventDate(event.event_date)}${event.start_time ? ` · ${formatEventTime(event.start_time, event.end_time)}` : ""}`;
       option.dataset.location = event.location || "";
       select.appendChild(option);
     });
-    if (state.event?.id) select.value = state.event.id;
   }
 }
-
 
 
 function renderCustomerReschedule() {
