@@ -1,959 +1,632 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.115.0/+esm";
 
 const SUPABASE_URL = "https://kbgdxhshxkhuelbxlggc.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_KJDx4oVgNF6z_5SYvyI-uw_h58jlimx";
-
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false
-    }
-  }
-);
+const SUPABASE_KEY = "sb_publishable_KJDx4oVgNF6z_5SYvyI-uw_h58jlimx";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+});
 
 const $ = (id) => document.getElementById(id);
-let trackingPayload = null;
-let trackingOrderVisible = false;
-let fulfillmentState = null;
+let token = null;
+let payload = null;
+let fulfillment = null;
+let paymentContext = null;
+let reviewState = null;
+let cancellationState = null;
+let paymentFormOpen = false;
+let paymentBusy = false;
 let fulfillmentBusy = false;
-let paymentProofState = null;
-let paymentProofBusy = false;
-let customerReviewState = null;
-let selectedReviewRating = 0;
-let customerReviewBusy = false;
-let customerCancellationState = null;
-let customerCancellationBusy = false;
-let customerRescheduleBusy = false;
+let rescheduleBusy = false;
+let reviewBusy = false;
+let cancelBusy = false;
+let selectedRating = 0;
+let paymentPreviewUrl = null;
+let lastLoadId = 0;
 
-function getTrackingToken() {
-  const pathname = window.location.pathname.replace(/\/+$/, "");
-  const queryToken = new URLSearchParams(window.location.search).get("token");
-  if (queryToken) return queryToken;
-
-  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const hashToken = hashParams.get("token");
-  if (hashToken) return hashToken;
-
-  const match = pathname.match(/^\/t\/([^/]+)$/i);
+function getToken() {
+  const path = location.pathname.replace(/\/+$/, "");
+  const query = new URLSearchParams(location.search).get("token");
+  if (query) return query.trim();
+  const hash = new URLSearchParams(location.hash.replace(/^#/, "")).get("token");
+  if (hash) return hash.trim();
+  const match = path.match(/^\/t\/([^/]+)$/i);
   if (match) {
-    try { return decodeURIComponent(match[1]); }
-    catch { return null; }
+    try { return decodeURIComponent(match[1]).trim(); } catch { return null; }
   }
   return window.__ORDELI_TRACKING_TOKEN || null;
 }
 
-function formatPrice(value) {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency", currency: "PHP"
-  }).format(Number(value) || 0);
+function money(v) {
+  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(v) || 0);
 }
 
-function trackingProductionStatusLabel(value) {
-  switch (value) {
-    case "completed": return "Completed";
-    case "cancelled": return "Cancelled";
-    case "pending": return "Pending";
-    default: return "In Progress";
-  }
+function showContent() {
+  $("loadingCard").hidden = true;
+  $("errorCard").hidden = true;
+  $("content").hidden = false;
 }
 
-function trackingPaymentStatusLabel(value) {
-  switch (value) {
-    case "fully_paid": return "Fully Paid";
-    case "partially_paid": return "Partially Paid";
-    case "pending_verification": return "Payment Pending Verification";
-    case "rejected": return "Payment Proof Rejected";
-    default: return "Unpaid";
-  }
+function showError(message) {
+  $("loadingCard").hidden = true;
+  $("content").hidden = true;
+  $("errorCard").hidden = false;
+  $("errorMessage").textContent = message || "This tracking link could not be loaded.";
 }
 
-function showTrackingContent() {
-  $("trackingLoadingState").hidden = true;
-  $("trackingErrorState").hidden = true;
-  $("trackingContent").hidden = false;
+function statusLabel(v) {
+  if (v === "completed") return "Completed";
+  if (v === "cancelled") return "Cancelled";
+  return "In Progress";
 }
 
-function showTrackingError(message) {
-  $("trackingLoadingState").hidden = true;
-  $("trackingContent").hidden = true;
-  $("trackingErrorState").hidden = false;
-  $("trackingErrorMessage").textContent = message || "This tracking link could not be loaded.";
+function paymentLabel(v) {
+  return ({ fully_paid: "Fully Paid", partially_paid: "Partially Paid", pending_verification: "Payment Pending Verification", rejected: "Payment Proof Rejected", unpaid: "Unpaid" })[v] || "Unpaid";
 }
 
-function renderTrackingStages(stages) {
-  const list = $("trackingStageList");
+function formatDate(v) {
+  if (!v) return "";
+  const d = new Date(`${v}T00:00:00`);
+  return new Intl.DateTimeFormat("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(d);
+}
+
+function formatTime(v) {
+  if (!v) return "";
+  return new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit" }).format(new Date(`1970-01-01T${v}`));
+}
+
+function fulfillmentLabel(v) {
+  return ({ shop: "Pickup at Shop", location: "Pickup at Location", courier: "Courier Delivery" })[v] || "Not selected";
+}
+
+function revokePreview() {
+  if (paymentPreviewUrl) URL.revokeObjectURL(paymentPreviewUrl);
+  paymentPreviewUrl = null;
+  const image = $("paymentPreview");
+  if (image) image.removeAttribute("src");
+  $("paymentPreviewWrap").hidden = true;
+}
+
+function renderStages(stages) {
+  const list = $("stageList");
   list.replaceChildren();
-  if (!stages.length) {
-    const empty = document.createElement("p");
-    empty.className = "tracking-stage-empty";
-    empty.textContent = "No production stages have been added yet.";
+  if (!Array.isArray(stages) || stages.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "No production stages have been configured yet.";
     list.appendChild(empty);
     return;
   }
   const fragment = document.createDocumentFragment();
-  stages.forEach((stage) => {
+  for (const stage of stages) {
     const row = document.createElement("div");
-    row.className = `tracking-stage-row is-${stage.status || "upcoming"}`;
+    row.className = `stage-row ${stage.status || "upcoming"}`;
     const icon = document.createElement("span");
-    icon.className = "tracking-stage-icon";
+    icon.className = "stage-icon";
     icon.textContent = stage.status === "finished" ? "✓" : stage.status === "in_progress" ? "→" : "○";
     const body = document.createElement("div");
-    body.className = "tracking-stage-body";
-    const name = document.createElement("strong");
-    name.textContent = stage.name || `Stage ${stage.stage_order || ""}`;
+    const name = document.createElement("div");
+    name.className = "stage-name";
+    name.textContent = stage.name || `Stage ${stage.stage_order ?? ""}`;
     const status = document.createElement("span");
+    status.className = "stage-status";
     status.textContent = stage.status === "finished" ? "Finished" : stage.status === "in_progress" ? "In Progress" : "Upcoming";
     body.append(name, status);
 
-    // Only render the button when Supabase confirms that a proof photo exists.
+    // The control exists only when the tracking API explicitly says a photo exists.
     if (stage.status === "finished" && stage.has_photo === true) {
-      const proofButton = document.createElement("button");
-      proofButton.type = "button";
-      proofButton.className = "tracking-photo-button";
-      proofButton.textContent = "View Photo";
-      proofButton.setAttribute("aria-label", `View ${name.textContent} production proof photo`);
-      proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
-      body.appendChild(proofButton);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "tracking-photo-button";
+      button.textContent = "View Photo";
+      button.addEventListener("click", () => openStagePhoto(stage.stage_order, button));
+      body.appendChild(button);
     }
-
     row.append(icon, body);
     fragment.appendChild(row);
-  });
+  }
   list.appendChild(fragment);
 }
 
-async function viewCustomerProductionProof(stageOrder, button) {
-  const token = getTrackingToken();
-  if (!token || !stageOrder || !button) return;
-  if (button.dataset.loading === "1") return;
-
-  button.dataset.loading = "1";
-  const original = button.textContent;
+async function openStagePhoto(stageOrder, button) {
+  if (!token || !stageOrder || button?.disabled) return;
   button.disabled = true;
-  button.textContent = "Loading Photo…";
+  const old = button.textContent;
+  button.textContent = "Loading…";
   try {
-    const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
     let data = null;
-    let response = await fetch(endpoint, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      cache: "no-store"
-    }).catch(() => null);
-
+    const response = await fetch(`/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${Number(stageOrder)}`, { headers: { Accept: "application/json" }, cache: "no-store" }).catch(() => null);
     if (response?.ok) data = await response.json().catch(() => null);
-
-    // Direct hardened RPC fallback keeps the production-proof bucket private
-    // when the Worker is unavailable or not configured.
     if (!data?.available || !data?.url) {
-      const { data: fallback, error } = await supabase.rpc("get_customer_stage_proof", {
-        p_public_token: token,
-        p_stage_order: Number(stageOrder)
-      });
-      if (error) throw error;
-      data = fallback;
+      const fallback = await supabase.rpc("get_customer_stage_proof", { p_public_token: token, p_stage_order: Number(stageOrder) });
+      if (fallback.error) throw fallback.error;
+      data = fallback.data;
     }
-
-    if (!data?.available || !data?.url) {
-      throw new Error("No proof photo is available for this stage.");
-    }
-
-    const viewer = $("customerPhotoViewer");
-    const image = $("customerPhotoViewerImage");
-    const caption = $("customerPhotoViewerCaption");
-    if (!viewer || !image) throw new Error("Photo viewer is unavailable.");
+    if (!data?.available || !data?.url) throw new Error("No proof photo is available for this stage.");
+    $("photoCaption").textContent = `${data.stage_name || `Stage ${stageOrder}`} · Production Proof`;
+    const image = $("photoImage");
     image.src = data.url;
-    image.onload = () => image.classList.add("is-loaded");
-    image.onerror = () => image.classList.remove("is-loaded");
-    if (caption) caption.textContent = `${data.stage_name || `Stage ${stageOrder}`} · Production proof`;
-    if (typeof viewer.showModal === "function") viewer.showModal();
-    else viewer.removeAttribute("hidden");
-  } catch (error) {
-    console.error("Customer production proof failed:", error);
-    alert(error?.message || "Unable to open the proof photo.");
+    const dialog = $("photoDialog");
+    if (dialog.open) dialog.close();
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.hidden = false;
+  } catch (e) {
+    console.error(e);
+    alert(e?.message || "Unable to open the proof photo.");
   } finally {
-    button.dataset.loading = "0";
     button.disabled = false;
-    button.textContent = original;
+    button.textContent = old;
   }
 }
 
-function renderTrackingOrderItems(items) {
-  const list = $("trackingOrderItems");
+function closePhoto() {
+  const dialog = $("photoDialog");
+  if (!dialog) return;
+  if (dialog.open && typeof dialog.close === "function") dialog.close();
+  else dialog.hidden = true;
+}
+
+function renderOrderItems(items) {
+  const list = $("orderItems");
   list.replaceChildren();
-  const fragment = document.createDocumentFragment();
-  items.forEach((entry) => {
+  for (const entry of Array.isArray(items) ? items : []) {
     const row = document.createElement("div");
-    row.className = `tracking-order-item ${entry.cancelled ? "is-cancelled" : ""}`;
-    const left = document.createElement("div");
-    const name = document.createElement("strong");
-    name.textContent = entry.product_name || "Product";
-    const quantity = document.createElement("span");
-    quantity.textContent = ` × ${Number(entry.quantity) || 0}`;
-    left.append(name, quantity);
-    const status = document.createElement("span");
-    status.textContent = trackingProductionStatusLabel(entry.production_status);
-    row.append(left, status);
-    fragment.appendChild(row);
+    row.className = "order-item";
+    const left = document.createElement("span");
+    left.textContent = `${entry.product_name || "Product"} × ${Number(entry.quantity) || 0}`;
+    const right = document.createElement("span");
+    right.className = "status";
+    right.textContent = entry.cancelled ? "Cancelled" : statusLabel(entry.production_status);
+    row.append(left, right);
+    list.appendChild(row);
+  }
+}
+
+function renderMain(data) {
+  payload = data;
+  showContent();
+  const shop = data?.shop || {};
+  const order = data?.order || {};
+  const item = data?.item || {};
+  const payment = data?.payment || {};
+  $("shopName").textContent = shop.name || "Shop";
+  $("shopAddress").textContent = shop.address || "";
+  $("orderNumber").textContent = `#${order.order_number ?? "—"}`;
+  $("productName").textContent = item.product_name || "Product";
+  $("productQuantity").textContent = `Quantity: ${Number(item.quantity) || 0}`;
+  const itemStatus = item.cancelled_at ? "Cancelled" : item.production_completed ? "Completed" : "In Progress";
+  const badge = $("itemStatus");
+  badge.textContent = itemStatus;
+  badge.className = `status-badge ${itemStatus === "Completed" ? "complete" : itemStatus === "Cancelled" ? "cancelled" : ""}`;
+  $("productionSummary").textContent = item.cancelled_at ? "This item has been cancelled." : item.production_completed ? "All stages for this product are finished." : "Production updates appear as stages are finished.";
+  renderStages(item.production_stages || []);
+
+  const orderItems = Array.isArray(data.order_items) ? data.order_items : [];
+  const multi = orderItems.length > 1;
+  $("viewOrderButton").hidden = !multi;
+  if (!multi) $("orderCard").hidden = true;
+  renderOrderItems(orderItems);
+
+  $("paymentTotal").textContent = money(payment.total);
+  $("paymentPaid").textContent = money(payment.paid);
+  $("paymentRemaining").textContent = money(payment.remaining);
+  $("paymentStatus").textContent = paymentLabel(payment.status);
+
+  paymentContext = { ...(paymentContext || {}), eligible: Number(payment.remaining) > 0, remaining: Number(payment.remaining) || 0 };
+  renderPayment();
+}
+
+function renderPayment() {
+  const remaining = Number(paymentContext?.remaining ?? payload?.payment?.remaining ?? 0);
+  const hasBalance = Number.isFinite(remaining) && remaining > 0;
+  const add = $("addPaymentButton");
+  const form = $("paymentForm");
+  add.hidden = !hasBalance;
+  add.disabled = false;
+  $("amountHint").textContent = hasBalance ? `Maximum for this payment: ${money(remaining)}` : "";
+
+  // Original customer spec: payment proof is an optional customer action when a balance remains.
+  // It is intentionally separate from production/fulfillment state.
+  const pending = Boolean(paymentContext?.pending_verification || payload?.payment?.status === "pending_verification");
+  if (pending && paymentFormOpen) {
+    paymentFormOpen = false;
+    form.hidden = true;
+  }
+  if (!hasBalance || pending) {
+    if (!paymentFormOpen) form.hidden = true;
+    if (pending) $("paymentMessage").textContent = "A payment proof is already pending seller verification.";
+    return;
+  }
+  if (paymentFormOpen) form.hidden = false;
+}
+
+function openPaymentForm() {
+  if (!payload) return;
+  const remaining = Number(payload?.payment?.remaining ?? 0);
+  if (!Number.isFinite(remaining) || remaining <= 0) return;
+  paymentFormOpen = true;
+  paymentContext = { ...(paymentContext || {}), eligible: true, remaining };
+  $("paymentForm").hidden = false;
+  $("paymentMessage").textContent = "Upload the screenshot and enter the amount you paid.";
+  requestAnimationFrame(() => {
+    $("paymentAmount")?.focus();
+    $("paymentForm")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
-  list.appendChild(fragment);
 }
 
-
-
-function formatEventDate(value) {
-  if (!value) return "";
-  const d = new Date(`${value}T00:00:00`);
-  return new Intl.DateTimeFormat("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(d);
+function clearPaymentForm() {
+  paymentFormOpen = false;
+  revokePreview();
+  if ($("paymentFile")) $("paymentFile").value = "";
+  if ($("paymentAmount")) $("paymentAmount").value = "";
+  $("paymentMessage").textContent = "";
+  $("paymentForm").hidden = true;
 }
 
-function formatEventTime(start, end) {
-  const fmt = (v) => v ? new Intl.DateTimeFormat("en-PH", { hour: "numeric", minute: "2-digit" }).format(new Date(`1970-01-01T${v}`)) : "";
-  return `${fmt(start)}${end ? `–${fmt(end)}` : ""}`;
+function handlePaymentFile() {
+  const file = $("paymentFile")?.files?.[0];
+  if (!file) return;
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    $("paymentFile").value = "";
+    revokePreview();
+    $("paymentMessage").textContent = "Please choose a JPG, PNG, or WebP image.";
+    return;
+  }
+  if (file.size <= 0 || file.size > 8 * 1024 * 1024) {
+    $("paymentFile").value = "";
+    revokePreview();
+    $("paymentMessage").textContent = "Please choose an image smaller than 8 MB.";
+    return;
+  }
+  revokePreview();
+  paymentPreviewUrl = URL.createObjectURL(file);
+  $("paymentPreview").src = paymentPreviewUrl;
+  $("paymentPreviewWrap").hidden = false;
+  $("paymentMessage").textContent = `Selected: ${file.name}`;
 }
 
-function fulfillmentLabel(value) {
-  return value === "shop" ? "Pickup at Shop" : value === "location" ? "Pickup at Location" : value === "courier" ? "Courier Delivery" : "Not Selected";
-}
+async function submitPayment() {
+  if (paymentBusy) return;
+  const file = $("paymentFile")?.files?.[0];
+  const amount = Number($("paymentAmount")?.value);
+  const remaining = Number(paymentContext?.remaining ?? payload?.payment?.remaining ?? 0);
+  if (!file) { $("paymentMessage").textContent = "Upload your payment proof screenshot first."; return; }
+  if (!Number.isFinite(amount) || amount <= 0) { $("paymentMessage").textContent = "Enter the amount you paid."; return; }
+  if (!Number.isFinite(remaining) || remaining <= 0) { $("paymentMessage").textContent = "There is no remaining balance."; return; }
+  if (amount > remaining + 0.000001) { $("paymentMessage").textContent = `Amount cannot exceed ${money(remaining)}.`; return; }
 
-function renderFulfillment() {
-  const card = $("trackingFulfillmentCard");
-  if (!card) return;
-  const state = fulfillmentState || {};
-  renderCustomerReschedule();
-
-  // The Fulfillment card does not appear until every production stage is complete.
-  const productionComplete = Boolean(state.production_completed);
-  card.hidden = !productionComplete;
-  if (!productionComplete) return;
-
-  const fullyPaid = Boolean(state.fully_paid);
-  const ready = Boolean(fullyPaid && !state.handed_over_at);
-  const statusCard = $("trackingFulfillmentNoticeCard");
-  const statusTitle = $("trackingFulfillmentNoticeTitle");
-  const statusText = $("trackingFulfillmentNoticeText");
-  if (statusCard && statusTitle && statusText) {
-    if (state.handed_over_at) {
-      statusCard.hidden = false;
-      statusTitle.textContent = "Order Received";
-      statusText.textContent = "Your order has been handed over. Thank you for your purchase!";
-    } else if (state.pickup_status === "unclaimed") {
-      statusCard.hidden = false;
-      statusTitle.textContent = "Pickup was unclaimed";
-      statusText.textContent = "You can reschedule pickup or switch to Courier Delivery below.";
-    } else if (state.fulfillment_type === "courier") {
-      statusCard.hidden = false;
-      statusTitle.textContent = "Courier Delivery";
-      statusText.textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange delivery.";
-    } else {
-      statusCard.hidden = true;
-    }
-  }
-
-  $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
-
-  const shopAddressBox = $("fulfillmentShopAddress");
-  const shopAddress = trackingPayload?.shop?.address || "";
-  if (shopAddressBox) {
-    const showAddress = state.fulfillment_type === "shop" && Boolean(shopAddress);
-    shopAddressBox.hidden = !showAddress;
-    if (showAddress) $("fulfillmentShopAddressText").textContent = shopAddress;
-  }
-
-  $("fulfillmentRequirement").textContent = ready
-    ? "Your order is ready for fulfillment selection."
-    : state.handed_over_at
-      ? "This order has already been handed over."
-      : "Production is complete. Fulfillment options will unlock after payment is fully confirmed.";
-
-  const options = $("fulfillmentOptions");
-  const notice = $("fulfillmentNotice");
-  const eventPicker = $("fulfillmentEventPicker");
-  const saveButton = $("saveFulfillmentButton");
-  if (!ready) {
-    options.hidden = true;
-    eventPicker.hidden = true;
-    if (saveButton) saveButton.hidden = true;
-    notice.textContent = "";
-    return;
-  }
-
-  if (saveButton) saveButton.hidden = false;
-  options.hidden = false;
-  const selected = state.fulfillment_type || "";
-  document.querySelectorAll("input[name='fulfillmentType']").forEach(r => r.checked = r.value === selected);
-  eventPicker.hidden = selected !== "location";
-  const select = $("fulfillmentEventSelect");
-  select.replaceChildren();
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "Choose an event";
-  select.appendChild(placeholder);
-  (state.events || []).forEach((event) => {
-    const option = document.createElement("option");
-    option.value = event.id;
-    option.textContent = `${event.name} · ${formatEventDate(event.event_date)}${event.start_time ? ` · ${formatEventTime(event.start_time, event.end_time)}` : ""}`;
-    option.dataset.location = event.location || "";
-    select.appendChild(option);
-  });
-  if (state.event?.id) select.value = state.event.id;
-  if (selected === "location" && !state.event?.id && state.events?.length === 0) {
-    notice.textContent = "There are no upcoming pickup events available right now.";
-  } else if (selected === "courier") {
-    notice.textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange delivery.";
-  } else {
-    notice.textContent = "";
-  }
-}
-
-
-function renderCustomerReschedule() {
-  const box = $("customerRescheduleBox");
-  const select = $("customerRescheduleEventSelect");
-  if (!box || !select) return;
-  const state = fulfillmentState || {};
-  const eligible = state.pickup_status === "unclaimed" && state.fulfillment_type === "location" && !state.handed_over_at;
-  box.hidden = !eligible;
-  if (!eligible) return;
-
-  select.replaceChildren();
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "Choose a new event";
-  select.appendChild(placeholder);
-  const events = (state.events || []).filter(event => event.id && event.id !== state.event?.id);
-  events.forEach(event => {
-    const option = document.createElement("option");
-    option.value = event.id;
-    option.textContent = `${event.name} · ${formatEventDate(event.event_date)}${event.start_time ? ` · ${formatEventTime(event.start_time, event.end_time)}` : ""}`;
-    select.appendChild(option);
-  });
-  if (!events.length) {
-    select.disabled = true;
-    $("customerRescheduleButton").disabled = true;
-    $("customerRescheduleMessage").textContent = "There are no other upcoming pickup events available right now.";
-  } else {
-    select.disabled = false;
-    $("customerRescheduleButton").disabled = false;
-    $("customerRescheduleMessage").textContent = "";
-  }
-}
-
-async function rescheduleCustomerPickup() {
-  if (customerRescheduleBusy) return;
-  const token = getTrackingToken();
-  const eventId = $("customerRescheduleEventSelect")?.value || "";
-  if (!token) return;
-  if (!eventId) { $("customerRescheduleMessage").textContent = "Choose a new pickup event."; return; }
-  customerRescheduleBusy = true;
-  const button = $("customerRescheduleButton");
-  if (button) { button.disabled = true; button.textContent = "Rescheduling…"; }
-  $("customerRescheduleMessage").textContent = "Updating your pickup schedule…";
-  try {
-    const { error } = await supabase.rpc("reschedule_customer_pickup", {
-      p_public_token: token,
-      p_new_event_id: eventId
-    });
-    if (error) throw error;
-    $("customerRescheduleMessage").textContent = "Pickup rescheduled successfully.";
-    await loadCustomerTracking(token);
-    await loadCustomerFulfillment(token);
-  } catch (error) {
-    console.error("Customer pickup reschedule failed:", error);
-    $("customerRescheduleMessage").textContent = error?.message || "Unable to reschedule pickup.";
-  } finally {
-    customerRescheduleBusy = false;
-    if (button) { button.disabled = false; button.textContent = "Reschedule Pickup"; }
-  }
-}
-
-async function loadCustomerPaymentProof(publicToken) {
-  try {
-    const { data, error } = await supabase.rpc("get_customer_payment_proof", { p_public_token: publicToken });
-    if (error) throw error;
-    paymentProofState = data || null;
-    renderPaymentProof();
-  } catch (error) {
-    console.error("Customer payment proof load failed:", error);
-    paymentProofState = null;
-    renderPaymentProof();
-  }
-}
-
-function revokePaymentPreview() {
-  const preview = $("paymentProofPreview");
-  if (preview?.dataset.objectUrl) {
-    URL.revokeObjectURL(preview.dataset.objectUrl);
-    delete preview.dataset.objectUrl;
-  }
-  if (preview) preview.removeAttribute("src");
-  $("paymentProofPreviewWrap")?.setAttribute("hidden", "");
-}
-
-function renderPaymentProof() {
-  const addButton = $("addPaymentButton");
-  const box = $("paymentProofBox");
-  if (!addButton || !box) return;
-
-  const state = paymentProofState || {};
-  const payloadRemaining = Number(trackingPayload?.payment?.remaining);
-  const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const payloadHasBalance = Number.isFinite(payloadRemaining) && payloadRemaining > 0;
-  const eligible = (payloadHasBalance || state.eligible === true) && remaining > 0;
-  if (Number.isFinite(remaining)) state.remaining = remaining;
-  addButton.hidden = !eligible;
-
-  const hint = $("paymentProofHint");
-  const message = $("paymentProofMessage");
-  const submit = $("submitPaymentProofButton");
-  const choose = $("choosePaymentProofButton");
-  const amountHint = $("paymentAmountHint");
-  const amountInput = $("paymentAmountInput");
-
-  if (!eligible) {
-    box.hidden = true;
-    revokePaymentPreview();
-    if (message) message.textContent = "";
-    if (amountInput) amountInput.value = "";
-    return;
-  }
-
-  if (state.pending_verification) {
-    if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify it.";
-    if (submit) submit.hidden = true;
-    if (choose) choose.disabled = true;
-    if (amountInput) amountInput.disabled = true;
-    if (amountHint) amountHint.textContent = "A payment is already pending seller verification.";
-    return;
-  }
-
-  if (state.rejected) {
-    if (hint) hint.textContent = state.rejection_reason
-      ? `Your previous proof was rejected: ${state.rejection_reason}`
-      : "Your previous payment proof was rejected. Please submit a new proof.";
-  } else if (hint) {
-    hint.textContent = `You can pay any amount up to ${formatPrice(state.remaining)}. Both the proof photo and amount are required.`;
-  }
-  if (submit) submit.hidden = false;
-  if (choose) choose.disabled = false;
-  if (amountInput) amountInput.disabled = false;
-  if (amountHint) amountHint.textContent = `Maximum for this payment: ${formatPrice(state.remaining)}`;
-  if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
-}
-
-function openAddPaymentForm() {
-  const box = $("paymentProofBox");
-  if (!box) return;
-  const state = paymentProofState || {};
-  const payloadRemaining = Number(trackingPayload?.payment?.remaining);
-  const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const pendingVerification = Boolean(
-    state.pending_verification ||
-    trackingPayload?.payment?.status === "pending_verification"
-  );
-  const eligible = Number.isFinite(remaining) && remaining > 0 && !pendingVerification;
-  if (!eligible) {
-    const message = $("paymentProofMessage");
-    if (message) message.textContent = pendingVerification
-      ? "A payment proof is already pending seller verification."
-      : "There is no remaining balance available for payment.";
-    return;
-  }
-  paymentProofState = { ...state, eligible: true, pending_verification: false, remaining };
-  box.hidden = false;
-  box.removeAttribute("hidden");
-  renderPaymentProof();
-  $("paymentAmountInput")?.focus();
-  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-function handlePaymentProofSelection() {
-  const input = $("paymentProofFile");
-  const file = input?.files?.[0];
-  const previewWrap = $("paymentProofPreviewWrap");
-  const preview = $("paymentProofPreview");
-  const message = $("paymentProofMessage");
-  if (!file || !previewWrap || !preview) return;
-
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
-    input.value = "";
-    revokePaymentPreview();
-    if (message) message.textContent = "Please choose a JPG, PNG, or WebP image.";
-    return;
-  }
-  if (file.size > 8 * 1024 * 1024) {
-    input.value = "";
-    revokePaymentPreview();
-    if (message) message.textContent = "Please choose an image smaller than 8 MB.";
-    return;
-  }
-
-  revokePaymentPreview();
-  const objectUrl = URL.createObjectURL(file);
-  preview.src = objectUrl;
-  preview.dataset.objectUrl = objectUrl;
-  previewWrap.hidden = false;
-  paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
-  if (message) message.textContent = `Selected: ${file.name}`;
-}
-
-async function submitCustomerPaymentProof() {
-  if (paymentProofBusy) return;
-  const token = getTrackingToken();
-  const input = $("paymentProofFile");
-  const file = input?.files?.[0];
-  const amountInput = $("paymentAmountInput");
-  const state = paymentProofState || {};
-  const amount = Number(amountInput?.value);
-
-  if (!token) return;
-  if (!state.eligible || Number(state.remaining) <= 0) {
-    $("paymentProofMessage").textContent = "There is no remaining balance available for payment.";
-    return;
-  }
-  if (state.pending_verification) {
-    $("paymentProofMessage").textContent = "A payment proof is already pending seller verification.";
-    return;
-  }
-  if (!file) {
-    $("paymentProofMessage").textContent = "Upload the payment proof screenshot first.";
-    return;
-  }
-  if (!Number.isFinite(amount) || amount <= 0) {
-    $("paymentProofMessage").textContent = "Enter the amount you paid.";
-    amountInput?.focus();
-    return;
-  }
-  const remaining = Number(state.remaining);
-  if (amount > remaining + 0.000001) {
-    $("paymentProofMessage").textContent = `The amount cannot exceed the remaining balance of ${formatPrice(remaining)}.`;
-    amountInput?.focus();
-    return;
-  }
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
-    $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image.";
-    return;
-  }
-  if (file.size > 8 * 1024 * 1024) {
-    $("paymentProofMessage").textContent = "Please choose an image smaller than 8 MB.";
-    return;
-  }
-
-  paymentProofBusy = true;
-  const button = $("submitPaymentProofButton");
-  if (button) { button.disabled = true; button.textContent = "Submitting…"; }
-  $("choosePaymentProofButton").disabled = true;
-  amountInput.disabled = true;
-  $("paymentProofMessage").textContent = "Uploading your payment proof…";
-
+  paymentBusy = true;
+  $("submitPaymentButton").disabled = true;
+  $("choosePaymentButton").disabled = true;
+  $("paymentAmount").disabled = true;
+  $("paymentMessage").textContent = "Submitting payment proof…";
   try {
     const form = new FormData();
     form.set("token", token);
     form.set("amount", amount.toFixed(2));
     form.set("file", file, file.name || "payment-proof");
-    const response = await fetch("/api/customer-payment-proof", { method: "POST", body: form });
+    const response = await fetch("/api/customer-payment-proof", { method: "POST", body: form, cache: "no-store" });
     const result = await response.json().catch(() => null);
-    if (!response.ok || !result?.success) {
-      throw new Error(result?.error || "Unable to submit payment proof.");
-    }
-
-    input.value = "";
-    revokePaymentPreview();
-    if (amountInput) amountInput.value = "";
-    $("paymentProofMessage").textContent = `Payment proof for ${formatPrice(amount)} submitted. The seller will verify it.`;
-    await loadCustomerTracking(token);
-    await loadCustomerPaymentProof(token);
-    // Keep the Add Payment form closed after a successful submission.
-    $("paymentProofBox").hidden = true;
-  } catch (error) {
-    console.error("Customer payment proof submit failed:", error);
-    $("paymentProofMessage").textContent = error?.message || "Unable to submit payment proof.";
+    if (!response.ok || !result?.success) throw new Error(result?.error || "Unable to submit payment proof.");
+    clearPaymentForm();
+    await loadTracking();
+    await loadPaymentContext();
+  } catch (e) {
+    console.error(e);
+    $("paymentMessage").textContent = e?.message || "Unable to submit payment proof.";
+    paymentFormOpen = true;
+    $("paymentForm").hidden = false;
   } finally {
-    paymentProofBusy = false;
-    const currentButton = $("submitPaymentProofButton");
-    if (currentButton) { currentButton.disabled = false; currentButton.textContent = "Submit Payment"; }
-    const currentState = paymentProofState || {};
-    if (!currentState.pending_verification) {
-      $("choosePaymentProofButton").disabled = false;
-      amountInput.disabled = false;
-    }
+    paymentBusy = false;
+    $("submitPaymentButton").disabled = false;
+    $("choosePaymentButton").disabled = false;
+    $("paymentAmount").disabled = false;
   }
 }
 
+function renderFulfillment() {
+  const card = $("fulfillmentCard");
+  const state = fulfillment || {};
+  const readyForFulfillment = Boolean(state.production_completed);
+  const fullyPaid = Boolean(state.fully_paid);
+  const handedOver = Boolean(state.handed_over_at);
+  card.hidden = !readyForFulfillment;
+  $("unclaimedCard").hidden = !(state.pickup_status === "unclaimed" && state.fulfillment_type === "location" && !handedOver);
+  $("courierCard").hidden = state.fulfillment_type !== "courier" || handedOver;
+  $("receivedCard").hidden = !handedOver;
 
-async function loadCustomerPostPurchaseActions(publicToken) {
-  try {
-    const { data, error } = await supabase.rpc("get_customer_post_purchase_actions", { p_public_token: publicToken });
-    if (error) throw error;
-    customerReviewState = data?.review || null;
-    customerCancellationState = data?.cancellation || null;
-    renderCustomerReview();
-    renderCustomerCancellation();
-  } catch (error) {
-    console.error("Customer post-purchase actions load failed:", error);
-    customerReviewState = null;
-    customerCancellationState = null;
-    renderCustomerReview();
-    renderCustomerCancellation();
-  }
-}
-
-function renderCustomerReview() {
-  const box = $("customerReviewBox");
-  if (!box) return;
-  const state = customerReviewState || {};
-  box.hidden = !state.available;
-  const hint = $("customerReviewHint");
-  const button = $("submitCustomerReviewButton");
-  if (!state.available) return;
-  if (state.submitted) {
-    if (hint) hint.textContent = "Thank you. Your review has been submitted.";
-    if (button) button.hidden = true;
-    document.querySelectorAll("#customerReviewStars button").forEach(b => b.disabled = true);
-    $("customerReviewText").disabled = true;
-    selectedReviewRating = Number(state.rating || 0);
-    setReviewStars(selectedReviewRating);
-    if (state.review_text) $("customerReviewText").value = state.review_text;
+  if (!readyForFulfillment) return;
+  if (handedOver) {
+    $("fulfillmentMessage").textContent = "Your order has been handed over.";
     return;
   }
-  if (hint) hint.textContent = state.reason || "Share your experience with the seller.";
-  if (button) button.hidden = false;
-}
-
-function setReviewStars(rating) {
-  document.querySelectorAll("#customerReviewStars button").forEach(button => {
-    button.classList.toggle("is-selected", Number(button.dataset.rating) <= Number(rating));
-  });
-}
-
-async function submitCustomerReview() {
-  if (customerReviewBusy) return;
-  const token = getTrackingToken();
-  if (!token) return;
-  const rating = Number(selectedReviewRating);
-  if (!rating || rating < 1 || rating > 5) {
-    $("customerReviewMessage").textContent = "Choose a rating from 1 to 5 stars.";
+  if (!fullyPaid) {
+    $("fulfillmentMessage").textContent = "Fulfillment options will appear after payment is fully confirmed.";
+    $("fulfillmentChoices").hidden = true;
+    $("eventPicker").hidden = true;
+    $("saveFulfillmentButton").hidden = true;
     return;
   }
-  customerReviewBusy = true;
-  const button = $("submitCustomerReviewButton");
-  button.disabled = true;
-  $("customerReviewMessage").textContent = "Submitting your review…";
-  try {
-    const { error } = await supabase.rpc("submit_customer_review", {
-      p_public_token: token,
-      p_rating: rating,
-      p_review_text: $("customerReviewText").value.trim() || null
-    });
-    if (error) throw error;
-    await loadCustomerPostPurchaseActions(token);
-    $("customerReviewMessage").textContent = "Thank you for your review.";
-  } catch (error) {
-    console.error("Customer review submit failed:", error);
-    $("customerReviewMessage").textContent = error?.message || "Unable to submit your review.";
-  } finally {
-    customerReviewBusy = false;
-    button.disabled = false;
+
+  $("fulfillmentMessage").textContent = "Choose how you would like to receive your order.";
+  $("fulfillmentChoices").hidden = false;
+  $("saveFulfillmentButton").hidden = false;
+  $("shopPickupHint").textContent = payload?.shop?.address ? payload.shop.address : "Pick up from the seller's shop.";
+  const selected = state.fulfillment_type || "";
+  document.querySelectorAll("input[name='fulfillment']").forEach(r => { r.checked = r.value === selected; });
+  $("selectedFulfillment").hidden = !selected;
+  if (selected) $("selectedFulfillment").textContent = fulfillmentLabel(selected);
+  renderEventOptions();
+}
+
+function fillEventSelect(select, excludeId = null) {
+  select.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose an event";
+  select.appendChild(placeholder);
+  for (const event of Array.isArray(fulfillment?.events) ? fulfillment.events : []) {
+    if (!event?.id || event.id === excludeId) continue;
+    const option = document.createElement("option");
+    option.value = event.id;
+    option.textContent = `${event.name} · ${formatDate(event.event_date)}${event.start_time ? ` · ${formatTime(event.start_time)}${event.end_time ? `–${formatTime(event.end_time)}` : ""}` : ""}`;
+    option.dataset.location = event.location || "";
+    select.appendChild(option);
   }
 }
 
-function renderCustomerCancellation() {
-  const box = $("customerCancellationBox");
-  if (!box) return;
-  const state = customerCancellationState || {};
-  box.hidden = !state.available;
-  if (!state.available) return;
-  $("customerCancellationHint").textContent = state.hint || "This item is still eligible for cancellation.";
-  if (state.cancelled) {
-    box.hidden = false;
-    $("customerCancelItemButton").hidden = true;
-    $("customerCancellationHint").textContent = "This item has been cancelled.";
+function renderEventOptions() {
+  const selected = document.querySelector("input[name='fulfillment']:checked")?.value || fulfillment?.fulfillment_type || "";
+  $("eventPicker").hidden = selected !== "location";
+  if (selected === "location") {
+    fillEventSelect($("eventSelect"));
+    if (fulfillment?.event?.id) $("eventSelect").value = fulfillment.event.id;
   }
+  fillEventSelect($("rescheduleEventSelect"), fulfillment?.event?.id || null);
 }
 
-async function cancelCustomerItem() {
-  if (customerCancellationBusy) return;
-  const token = getTrackingToken();
-  if (!token) return;
-  const confirmed = window.confirm("Cancel this product from the order? This cannot be undone.");
-  if (!confirmed) return;
-  customerCancellationBusy = true;
-  const button = $("customerCancelItemButton");
-  button.disabled = true;
-  $("customerCancellationMessage").textContent = "Cancelling…";
-  try {
-    const { error } = await supabase.rpc("cancel_customer_order_item", {
-      p_public_token: token,
-      p_reason: "Customer cancelled from tracking page"
-    });
-    if (error) throw error;
-    await loadCustomerTracking(token);
-    await loadCustomerPostPurchaseActions(token);
-    $("customerCancellationMessage").textContent = "This item has been cancelled.";
-  } catch (error) {
-    console.error("Customer item cancellation failed:", error);
-    $("customerCancellationMessage").textContent = error?.message || "Unable to cancel this item.";
-  } finally {
-    customerCancellationBusy = false;
-    button.disabled = false;
-  }
-}
-
-async function loadCustomerFulfillment(publicToken) {
-  try {
-    const { data, error } = await supabase.rpc("get_customer_fulfillment", { p_public_token: publicToken });
-    if (error) throw error;
-    fulfillmentState = data || null;
-    renderFulfillment();
-  } catch (error) {
-    console.error("Customer fulfillment load failed:", error);
-    fulfillmentState = null;
-    renderFulfillment();
-  }
-}
-
-async function saveCustomerFulfillment() {
+async function saveFulfillment() {
   if (fulfillmentBusy) return;
-  const token = getTrackingToken();
-  if (!token) return;
-  const choice = document.querySelector("input[name='fulfillmentType']:checked")?.value || "";
-  const eventId = choice === "location" ? $("fulfillmentEventSelect").value : null;
+  const choice = document.querySelector("input[name='fulfillment']:checked")?.value || "";
+  const eventId = choice === "location" ? $("eventSelect").value : null;
   if (!choice) { $("fulfillmentNotice").textContent = "Choose a fulfillment option."; return; }
   if (choice === "location" && !eventId) { $("fulfillmentNotice").textContent = "Choose a pickup event."; return; }
   fulfillmentBusy = true;
-  const button = $("saveFulfillmentButton");
-  if (button) { button.disabled = true; button.textContent = "Saving…"; }
+  $("saveFulfillmentButton").disabled = true;
+  $("fulfillmentNotice").textContent = "Saving…";
   try {
     const { error } = await supabase.rpc("set_customer_fulfillment", { p_public_token: token, p_fulfillment_type: choice, p_event_id: eventId });
     if (error) throw error;
-    await loadCustomerTracking(token);
-    await loadCustomerFulfillment(token);
-    $("fulfillmentNotice").textContent = choice === "courier"
-      ? "Thank you for your purchase! Our customer service team will contact you to arrange delivery."
-      : `Fulfillment selected: ${fulfillmentLabel(choice)}.`;
-  } catch (error) {
-    console.error("Customer fulfillment save failed:", error);
-    $("fulfillmentNotice").textContent = error?.message || "Unable to save your fulfillment choice.";
+    await loadTracking();
+    await loadFulfillment();
+    $("fulfillmentNotice").textContent = choice === "courier" ? "Please wait for the seller to contact you to arrange delivery." : "Fulfillment updated successfully.";
+  } catch (e) {
+    console.error(e);
+    $("fulfillmentNotice").textContent = e?.message || "Unable to save your fulfillment choice.";
   } finally {
     fulfillmentBusy = false;
-    if (button) { button.disabled = false; button.textContent = "Save Fulfillment"; }
+    $("saveFulfillmentButton").disabled = false;
   }
 }
 
-async function switchCustomerToCourier() {
-  if (fulfillmentBusy) return;
-  const token = getTrackingToken();
-  if (!token) return;
-  const confirmed = window.confirm("Switch this order to Courier Delivery instead of pickup?");
-  if (!confirmed) return;
-  fulfillmentBusy = true;
-  const button = $("customerSwitchToCourierButton");
-  if (button) { button.disabled = true; button.textContent = "Switching…"; }
-  $("customerRescheduleMessage").textContent = "Switching to Courier Delivery…";
+async function reschedulePickup() {
+  if (rescheduleBusy) return;
+  const eventId = $("rescheduleEventSelect").value;
+  if (!eventId) { $("rescheduleMessage").textContent = "Choose a new pickup event."; return; }
+  rescheduleBusy = true;
+  $("rescheduleButton").disabled = true;
+  $("switchCourierButton").disabled = true;
+  $("rescheduleMessage").textContent = "Updating your pickup schedule…";
+  try {
+    const { error } = await supabase.rpc("reschedule_customer_pickup", { p_public_token: token, p_new_event_id: eventId });
+    if (error) throw error;
+    await loadTracking();
+    await loadFulfillment();
+    $("rescheduleMessage").textContent = "Pickup rescheduled successfully.";
+  } catch (e) {
+    console.error(e);
+    $("rescheduleMessage").textContent = e?.message || "Unable to reschedule pickup.";
+  } finally {
+    rescheduleBusy = false;
+    $("rescheduleButton").disabled = false;
+    $("switchCourierButton").disabled = false;
+  }
+}
+
+async function switchCourier() {
+  if (rescheduleBusy) return;
+  if (!confirm("Switch this order to Courier Delivery?")) return;
+  rescheduleBusy = true;
+  $("switchCourierButton").disabled = true;
+  $("rescheduleMessage").textContent = "Switching to Courier Delivery…";
   try {
     const { error } = await supabase.rpc("set_customer_fulfillment", { p_public_token: token, p_fulfillment_type: "courier", p_event_id: null });
     if (error) throw error;
-    await loadCustomerTracking(token);
-    await loadCustomerFulfillment(token);
-    $("fulfillmentNotice").textContent = "Thank you for your purchase! Our customer service team will contact you to arrange delivery.";
-  } catch (error) {
-    console.error("Customer switch to courier failed:", error);
-    $("customerRescheduleMessage").textContent = error?.message || "Unable to switch to Courier Delivery.";
+    await loadTracking();
+    await loadFulfillment();
+    $("rescheduleMessage").textContent = "Courier Delivery selected.";
+  } catch (e) {
+    console.error(e);
+    $("rescheduleMessage").textContent = e?.message || "Unable to switch to Courier Delivery.";
   } finally {
-    fulfillmentBusy = false;
-    if (button) { button.disabled = false; button.textContent = "Switch to Courier Delivery"; }
+    rescheduleBusy = false;
+    $("switchCourierButton").disabled = false;
   }
 }
 
-function renderCustomerTracking(payload) {
-  showTrackingContent();
-  const shop = payload?.shop || {};
-  const order = payload?.order || {};
-  const item = payload?.item || {};
-  const payment = payload?.payment || {};
-
-  $("trackingShopName").textContent = shop.name || "Shop";
-  $("trackingOrderNumber").textContent = `#${order.order_number ?? "—"}`;
-  $("trackingProductName").textContent = item.product_name || "Product";
-  $("trackingProductQuantity").textContent = `Quantity: ${Number(item.quantity) || 0}`;
-
-  const itemCancelled = Boolean(item.cancelled_at);
-  const orderCancelled = Boolean(order.cancelled_at);
-  const productionStatus = itemCancelled ? "Cancelled" : item.production_completed ? "Completed" : "In Progress";
-  $("trackingItemStatus").textContent = orderCancelled ? "Order Cancelled" : productionStatus;
-  $("trackingItemStatus").className = `tracking-status-badge ${
-    orderCancelled || itemCancelled ? "is-cancelled" : productionStatus === "Completed" ? "is-complete" : ""
-  }`;
-
-  if (orderCancelled || itemCancelled) {
-    $("trackingProductionSummary").textContent = "This order item is no longer active.";
-  } else if (item.production_completed) {
-    $("trackingProductionSummary").textContent = "All production stages for this item are finished.";
-  } else if (!item.production_stages?.length) {
-    $("trackingProductionSummary").textContent = "Production stages have not been configured yet.";
-  } else {
-    $("trackingProductionSummary").textContent = "The production timeline updates as each stage is finished.";
-  }
-
-  renderTrackingStages(item.production_stages || []);
-  $("trackingPaymentTotal").textContent = formatPrice(payment.total);
-  $("trackingPaymentPaid").textContent = formatPrice(payment.paid);
-  $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
-  $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
-  // Payment controls are driven by the latest server-reported remaining balance.
-  paymentProofState = { ...(paymentProofState || {}), eligible: Number(payment.remaining) > 0, remaining: Number(payment.remaining) || 0 };
-  renderPaymentProof();
-  const orderItems = payload?.order_items || [];
-  renderTrackingOrderItems(orderItems);
-  const isMultiItemOrder = orderItems.length > 1;
-  if (!isMultiItemOrder) trackingOrderVisible = false;
-  $("trackingViewOrderButton").hidden = !isMultiItemOrder;
-  $("trackingOrderCard").hidden = !isMultiItemOrder || !trackingOrderVisible;
-  $("trackingViewOrderButton").textContent = trackingOrderVisible ? "Hide My Order" : "View My Order";
-}
-
-async function loadCustomerTracking(publicToken) {
-  trackingPayload = null;
-  trackingOrderVisible = false;
-  paymentProofState = null;
-  revokePaymentPreview();
-  $("trackingLoadingState").hidden = false;
-  $("trackingErrorState").hidden = true;
-  $("trackingContent").hidden = true;
-  try {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-    let response;
-    try {
-      response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_customer_tracking`, {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({ p_public_token: publicToken }),
-        cache: "no-store",
-        signal: controller.signal
-      });
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
-
-    const raw = await response.text();
-    let data = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch (_) {}
-    if (!response.ok) {
-      throw new Error(data?.message || data?.hint || data?.details || `Tracking request failed (${response.status}).`);
-    }
-    if (!data) throw new Error("Tracking information is not available.");
-
-    trackingPayload = { ...data, _token: publicToken };
-    renderCustomerTracking(trackingPayload);
-    await Promise.allSettled([
-      loadCustomerFulfillment(publicToken),
-      loadCustomerPaymentProof(publicToken),
-      loadCustomerPostPurchaseActions(publicToken)
-    ]);
-  } catch (error) {
-    console.error("Customer tracking load failed:", error);
-    showTrackingError(error?.name === "AbortError"
-      ? "The tracking request timed out. Please tap Refresh and try again."
-      : error?.message || "This tracking link could not be loaded.");
-  }
-}
-
-$("trackingRefreshButton").addEventListener("click", () => {
-  const token = getTrackingToken();
-  if (token) loadCustomerTracking(token);
-});
-
-$("trackingViewOrderButton").addEventListener("click", () => {
-  trackingOrderVisible = !trackingOrderVisible;
-  if (trackingPayload) renderCustomerTracking(trackingPayload);
-});
-
-function bootCustomerTracking() {
-  const token = getTrackingToken();
-  if (!token) {
-    showTrackingError("This tracking link could not be loaded.");
+function renderReview() {
+  const box = $("reviewCard");
+  const state = reviewState || {};
+  box.hidden = !state.available;
+  if (!state.available) return;
+  if (state.submitted) {
+    $("reviewHint").textContent = "Thank you. Your review has been submitted.";
+    $("submitReviewButton").hidden = true;
+    $("reviewText").disabled = true;
+    document.querySelectorAll("#reviewStars button").forEach(b => b.disabled = true);
+    setRating(Number(state.rating || 0));
+    if (state.review_text) $("reviewText").value = state.review_text;
     return;
   }
-  loadCustomerTracking(token);
+  $("reviewHint").textContent = state.reason || "Share your experience with the seller.";
+  $("submitReviewButton").hidden = false;
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bootCustomerTracking, { once: true });
-} else {
-  bootCustomerTracking();
+function setRating(n) {
+  selectedRating = Number(n) || 0;
+  document.querySelectorAll("#reviewStars button").forEach(b => b.classList.toggle("selected", Number(b.dataset.rating) <= selectedRating));
 }
 
-
-document.querySelectorAll("input[name='fulfillmentType']").forEach((radio) => {
-  radio.addEventListener("change", () => {
-    const selected = document.querySelector("input[name='fulfillmentType']:checked")?.value;
-    $("fulfillmentEventPicker").hidden = selected !== "location";
-    if (selected === "courier") $("fulfillmentNotice").textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange your delivery.";
-    else if (selected !== "location") $("fulfillmentNotice").textContent = "";
-  });
-});
-$("saveFulfillmentButton")?.addEventListener("click", saveCustomerFulfillment);
-document.querySelectorAll("#customerReviewStars button").forEach(button => {
-  button.addEventListener("click", () => {
-    selectedReviewRating = Number(button.dataset.rating);
-    setReviewStars(selectedReviewRating);
-  });
-});
-$("submitCustomerReviewButton")?.addEventListener("click", submitCustomerReview);
-$("customerCancelItemButton")?.addEventListener("click", cancelCustomerItem);
-$("customerRescheduleButton")?.addEventListener("click", rescheduleCustomerPickup);
-$("customerSwitchToCourierButton")?.addEventListener("click", switchCustomerToCourier);
-
-$("fulfillmentEventSelect")?.addEventListener("change", () => {
-  const option = $("fulfillmentEventSelect").selectedOptions[0];
-  const location = option?.dataset.location || "";
-  if (location) $("fulfillmentNotice").textContent = location;
-});
-
-$("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFile")?.click());
-$("paymentProofFile")?.addEventListener("change", handlePaymentProofSelection);
-$("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
-$("addPaymentButton")?.addEventListener("click", openAddPaymentForm);
-$("clearPaymentProofButton")?.addEventListener("click", () => {
-  const input = $("paymentProofFile");
-  if (input) input.value = "";
-  revokePaymentPreview();
-  paymentProofState = { ...(paymentProofState || {}), selected_name: "" };
-  const message = $("paymentProofMessage");
-  if (message) message.textContent = "";
-});
-function closeCustomerPhotoViewer() {
-  const viewer = $("customerPhotoViewer");
-  if (!viewer) return;
+async function submitReview() {
+  if (reviewBusy) return;
+  if (!selectedRating) { $("reviewMessage").textContent = "Choose a rating from 1 to 5 stars."; return; }
+  reviewBusy = true;
+  $("submitReviewButton").disabled = true;
   try {
-    if (typeof viewer.close === "function" && viewer.open) viewer.close();
-    else viewer.removeAttribute("open");
-  } catch (_) {
-    viewer.removeAttribute("open");
+    const { error } = await supabase.rpc("submit_customer_review", { p_public_token: token, p_rating: selectedRating, p_review_text: $("reviewText").value.trim() || null });
+    if (error) throw error;
+    await loadPostPurchase();
+    $("reviewMessage").textContent = "Thank you for your review.";
+  } catch (e) {
+    console.error(e);
+    $("reviewMessage").textContent = e?.message || "Unable to submit your review.";
+  } finally {
+    reviewBusy = false;
+    $("submitReviewButton").disabled = false;
   }
 }
-$("customerPhotoViewerClose")?.addEventListener("click", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  closeCustomerPhotoViewer();
+
+function renderCancellation() {
+  const box = $("cancelCard");
+  const state = cancellationState || {};
+  box.hidden = !state.available;
+  if (!state.available) return;
+  $("cancelHint").textContent = state.hint || "This item is still eligible for customer cancellation.";
+  if (state.cancelled) {
+    $("cancelItemButton").hidden = true;
+    $("cancelHint").textContent = "This item has been cancelled.";
+  }
+}
+
+async function cancelItem() {
+  if (cancelBusy) return;
+  if (!confirm("Cancel this product from the order? This cannot be undone.")) return;
+  cancelBusy = true;
+  $("cancelItemButton").disabled = true;
+  $("cancelMessage").textContent = "Cancelling…";
+  try {
+    const { error } = await supabase.rpc("cancel_customer_order_item", { p_public_token: token, p_reason: "Customer cancelled from tracking page" });
+    if (error) throw error;
+    await loadTracking();
+    await loadPostPurchase();
+    $("cancelMessage").textContent = "This item has been cancelled.";
+  } catch (e) {
+    console.error(e);
+    $("cancelMessage").textContent = e?.message || "Unable to cancel this item.";
+  } finally {
+    cancelBusy = false;
+    $("cancelItemButton").disabled = false;
+  }
+}
+
+async function loadTracking() {
+  const id = ++lastLoadId;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_customer_tracking`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_public_token: token }),
+      cache: "no-store",
+      signal: controller.signal
+    });
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch {}
+    if (!response.ok) throw new Error(data?.message || data?.details || `Tracking request failed (${response.status}).`);
+    if (!data) throw new Error("Tracking information is not available.");
+    if (id !== lastLoadId) return;
+    renderMain(data);
+    await Promise.allSettled([loadFulfillment(), loadPostPurchase(), loadPaymentContext()]);
+  } catch (e) {
+    if (id !== lastLoadId) return;
+    console.error("Customer tracking load failed:", e);
+    showError(e?.name === "AbortError" ? "The tracking request timed out. Please try again." : e?.message || "This tracking link could not be loaded.");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function loadFulfillment() {
+  try {
+    const { data, error } = await supabase.rpc("get_customer_fulfillment", { p_public_token: token });
+    if (error) throw error;
+    fulfillment = data || null;
+  } catch (e) {
+    console.error("Customer fulfillment load failed:", e);
+    fulfillment = null;
+  }
+  renderFulfillment();
+}
+
+async function loadPaymentContext() {
+  try {
+    const { data, error } = await supabase.rpc("get_customer_payment_proof", { p_public_token: token });
+    if (error) throw error;
+    const remaining = Number(payload?.payment?.remaining ?? 0);
+    paymentContext = { ...(data || {}), remaining, eligible: remaining > 0 };
+  } catch (e) {
+    console.error("Customer payment context load failed:", e);
+    const remaining = Number(payload?.payment?.remaining ?? 0);
+    paymentContext = { ...(paymentContext || {}), remaining, eligible: remaining > 0 };
+  }
+  renderPayment();
+}
+
+async function loadPostPurchase() {
+  try {
+    const { data, error } = await supabase.rpc("get_customer_post_purchase_actions", { p_public_token: token });
+    if (error) throw error;
+    reviewState = data?.review || null;
+    cancellationState = data?.cancellation || null;
+  } catch (e) {
+    console.error("Customer post-purchase actions load failed:", e);
+    reviewState = null;
+    cancellationState = null;
+  }
+  renderReview();
+  renderCancellation();
+}
+
+$("refreshButton").addEventListener("click", () => loadTracking());
+$("retryButton").addEventListener("click", () => loadTracking());
+$("viewOrderButton").addEventListener("click", () => {
+  const card = $("orderCard");
+  card.hidden = !card.hidden;
+  $("viewOrderButton").textContent = card.hidden ? "View My Order" : "Hide My Order";
 });
-$("customerPhotoViewer")?.addEventListener("click", (event) => {
-  if (event.target === event.currentTarget) closeCustomerPhotoViewer();
-});
-$("customerPhotoViewer")?.addEventListener("cancel", (event) => {
-  event.preventDefault();
-  closeCustomerPhotoViewer();
-});
-$("customerPhotoViewer")?.addEventListener("close", () => {
-  const image = $("customerPhotoViewerImage");
-  if (image) { image.removeAttribute("src"); image.classList.remove("is-loaded"); }
-});
+$("addPaymentButton").addEventListener("click", openPaymentForm);
+$("choosePaymentButton").addEventListener("click", () => $("paymentFile").click());
+$("paymentFile").addEventListener("change", handlePaymentFile);
+$("removePaymentPhoto").addEventListener("click", () => { $("paymentFile").value = ""; revokePreview(); $("paymentMessage").textContent = ""; });
+$("cancelPaymentButton").addEventListener("click", clearPaymentForm);
+$("submitPaymentButton").addEventListener("click", submitPayment);
+$("saveFulfillmentButton").addEventListener("click", saveFulfillment);
+$("rescheduleButton").addEventListener("click", reschedulePickup);
+$("switchCourierButton").addEventListener("click", switchCourier);
+$("cancelItemButton").addEventListener("click", cancelItem);
+$("submitReviewButton").addEventListener("click", submitReview);
+document.querySelectorAll("#reviewStars button").forEach(b => b.addEventListener("click", () => setRating(b.dataset.rating)));
+document.querySelectorAll("input[name='fulfillment']").forEach(r => r.addEventListener("change", () => renderEventOptions()));
+$("closePhotoButton").addEventListener("click", closePhoto);
+$("photoDialog").addEventListener("cancel", (e) => { e.preventDefault(); closePhoto(); });
+$("photoDialog").addEventListener("click", (e) => { if (e.target === $("photoDialog")) closePhoto(); });
+
+function boot() {
+  token = getToken();
+  if (!token) { showError("This tracking link is invalid or incomplete."); return; }
+  loadTracking();
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
+else boot();
