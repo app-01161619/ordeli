@@ -46,6 +46,65 @@ function getTrackingToken() {
   return window.__ORDELI_TRACKING_TOKEN || null;
 }
 
+function formatDateTime(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit"
+  }).format(d);
+}
+
+function paymentTypeLabel(type) {
+  switch (type) {
+    case "downpayment": return "Downpayment";
+    case "additional": return "Additional Payment";
+    case "balance": return "Payment Proof";
+    default: return "Payment";
+  }
+}
+
+function paymentStatusLabel(entry) {
+  if (entry.proof_status === "pending_verification") return "Pending Verification";
+  if (entry.proof_status === "rejected") return "Rejected";
+  return "Confirmed";
+}
+
+function renderPaymentHistory(history) {
+  const list = $("paymentHistoryList");
+  const empty = $("paymentHistoryEmpty");
+  if (!list || !empty) return;
+  list.replaceChildren();
+  const entries = Array.isArray(history) ? history : [];
+  empty.hidden = entries.length > 0;
+  if (!entries.length) return;
+  const fragment = document.createDocumentFragment();
+  entries.forEach((entry) => {
+    const row = document.createElement("div");
+    row.className = `payment-history-row ${entry.proof_status === "rejected" ? "is-rejected" : ""}`;
+    const main = document.createElement("div");
+    const title = document.createElement("strong");
+    const sourceLabel = entry.source === "customer" ? "Uploaded by customer" : "Added by seller";
+    const methodLabel = entry.payment_method ? ` · ${entry.payment_method.replaceAll("_", " ")}` : "";
+    title.textContent = `${sourceLabel}${methodLabel}`;
+    const meta = document.createElement("span");
+    meta.textContent = `${paymentTypeLabel(entry.payment_type)} · ${paymentStatusLabel(entry)}${entry.created_at ? ` · ${formatDateTime(entry.created_at)}` : ""}`;
+    main.append(title, meta);
+    const amount = document.createElement("strong");
+    amount.className = "payment-history-amount";
+    amount.textContent = formatPrice(entry.amount);
+    row.append(main, amount);
+    if (entry.proof_status === "rejected" && entry.rejection_reason) {
+      const reason = document.createElement("p");
+      reason.textContent = `Reason: ${entry.rejection_reason}`;
+      row.appendChild(reason);
+    }
+    fragment.appendChild(row);
+  });
+  list.appendChild(fragment);
+}
+
 function formatPrice(value) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency", currency: "PHP"
@@ -107,7 +166,16 @@ function renderTrackingStages(stages) {
     name.textContent = stage.name || `Stage ${stage.stage_order || ""}`;
     const status = document.createElement("span");
     status.textContent = stage.status === "finished" ? "Finished" : stage.status === "in_progress" ? "In Progress" : "Upcoming";
-    body.append(name, status);
+    const meta = document.createElement("div");
+    meta.className = "tracking-stage-meta";
+    meta.append(status);
+    if (stage.status === "finished" && stage.finished_at) {
+      const finishedAt = document.createElement("time");
+      finishedAt.dateTime = stage.finished_at;
+      finishedAt.textContent = `Finished ${formatDateTime(stage.finished_at)}`;
+      meta.append(finishedAt);
+    }
+    body.append(name, meta);
 
     // Only render the button when Supabase confirms that a proof photo exists.
     if (stage.status === "finished" && stage.has_photo === true) {
@@ -420,82 +488,68 @@ function renderPaymentProof() {
 
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
-  const remaining = Number.isFinite(payloadRemaining)
-    ? payloadRemaining
-    : (Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : 0);
-  const lifecycleBlocked = Boolean(
-    trackingPayload?.order?.cancelled_at || trackingPayload?.order?.handed_over_at
-  );
+  const remaining = Number.isFinite(payloadRemaining) ? payloadRemaining : (Number(state.remaining) || 0);
+  const lifecycleBlocked = Boolean(trackingPayload?.order?.cancelled_at || trackingPayload?.order?.handed_over_at);
   const pendingVerification = Boolean(state.pending_verification);
   const canAddPayment = !lifecycleBlocked && remaining > 0 && !pendingVerification;
-  if (Number.isFinite(remaining)) state.remaining = remaining;
 
-  // Remaining balance drives whether the action exists. The proof RPC only
-  // supplies supplemental state such as pending/rejected verification.
   addButton.hidden = lifecycleBlocked || remaining <= 0;
-  addButton.disabled = !canAddPayment;
+  addButton.disabled = pendingVerification;
   addButton.textContent = pendingVerification ? "Payment Pending" : "Add Payment";
 
-  const hint = $("paymentProofHint");
-  const message = $("paymentProofMessage");
-  const submit = $("submitPaymentProofButton");
-  const choose = $("choosePaymentProofButton");
-  const amountHint = $("paymentAmountHint");
-  const amountInput = $("paymentAmountInput");
+  const pendingNote = $("paymentPendingNote");
+  if (pendingNote) {
+    const shopName = trackingPayload?.shop?.name || "the shop";
+    pendingNote.hidden = !pendingVerification;
+    pendingNote.textContent = pendingVerification
+      ? `Your payment is being verified by ${shopName}. Once the payment is verified, the amount will be deducted from your remaining balance.`
+      : "";
+  }
 
+  const hint = $("paymentProofHint");
   if (!canAddPayment) {
     box.hidden = true;
     revokePaymentPreview();
-    if (message) message.textContent = pendingVerification
-      ? "Your payment proof is waiting for the seller to verify it."
-      : "";
-    if (amountInput) amountInput.value = "";
-    return;
-  }
-
-  if (pendingVerification) {
-    if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify it.";
-    if (submit) submit.hidden = true;
-    if (choose) choose.disabled = true;
-    if (amountInput) amountInput.disabled = true;
-    if (amountHint) amountHint.textContent = "A payment is already pending seller verification.";
+    if (hint && !pendingVerification) hint.textContent = "";
     return;
   }
 
   if (state.rejected) {
-    if (hint) hint.textContent = state.rejection_reason
+    hint.textContent = state.rejection_reason
       ? `Your previous proof was rejected: ${state.rejection_reason}`
       : "Your previous payment proof was rejected. Please submit a new proof.";
-  } else if (hint) {
-    hint.textContent = `You can pay any amount up to ${formatPrice(state.remaining)}. Both the proof photo and amount are required.`;
+  } else {
+    hint.textContent = `You can pay any amount up to ${formatPrice(remaining)}. Both the proof photo and amount are required.`;
   }
-  if (submit) submit.hidden = false;
-  if (choose) choose.disabled = false;
-  if (amountInput) amountInput.disabled = false;
-  if (amountHint) amountHint.textContent = `Maximum for this payment: ${formatPrice(state.remaining)}`;
-  if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
+  $("paymentAmountHint").textContent = `Maximum for this payment: ${formatPrice(remaining)}`;
+  $("submitPaymentProofButton").hidden = false;
+  $("choosePaymentProofButton").disabled = false;
+  $("paymentAmountInput").disabled = false;
 }
 
 function openAddPaymentForm() {
-  const box = $("paymentProofBox");
-  if (!box) return;
+  const modal = $("addPaymentModal");
+  if (!modal) return;
   const state = paymentProofState || {};
-  const payloadRemaining = Number(trackingPayload?.payment?.remaining);
-  const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const eligible = Number.isFinite(remaining) && remaining > 0;
-  if (!eligible || state.pending_verification) {
-    const message = $("paymentProofMessage");
-    if (message) message.textContent = state.pending_verification
-      ? "Your payment proof is waiting for the seller to verify it."
-      : "There is no remaining balance available for payment.";
-    return;
-  }
+  const remaining = Number.isFinite(Number(trackingPayload?.payment?.remaining))
+    ? Number(trackingPayload.payment.remaining)
+    : Number(state.remaining) || 0;
+  if (remaining <= 0 || state.pending_verification || trackingPayload?.order?.cancelled_at || trackingPayload?.order?.handed_over_at) return;
   paymentProofState = { ...state, eligible: true, remaining };
+  const box = $("paymentProofBox");
+  const host = $("paymentProofBoxModalHost");
+  if (box && host && box.parentElement !== host) host.appendChild(box);
   box.hidden = false;
-  box.removeAttribute("hidden");
   renderPaymentProof();
+  if (typeof modal.showModal === "function") modal.showModal();
+  else modal.removeAttribute("hidden");
   $("paymentAmountInput")?.focus();
-  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function closeAddPaymentModal() {
+  const modal = $("addPaymentModal");
+  if (!modal) return;
+  try { if (modal.open && typeof modal.close === "function") modal.close(); else modal.setAttribute("hidden", ""); } catch (_) {}
 }
 
 function handlePaymentProofSelection() {
@@ -594,7 +648,8 @@ async function submitCustomerPaymentProof() {
     $("paymentProofMessage").textContent = `Payment proof for ${formatPrice(amount)} submitted. The seller will verify it.`;
     await loadCustomerTracking(token);
     await loadCustomerPaymentProof(token);
-    // Keep the Add Payment form closed after a successful submission.
+    // Close the modal after a successful submission.
+    closeAddPaymentModal();
     $("paymentProofBox").hidden = true;
   } catch (error) {
     console.error("Customer payment proof submit failed:", error);
@@ -831,6 +886,7 @@ function renderCustomerTracking(payload) {
   $("trackingPaymentPaid").textContent = formatPrice(payment.paid);
   $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
   $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
+  renderPaymentHistory(payment.history || []);
   // Payment controls are driven by the latest server-reported remaining balance.
   paymentProofState = { ...(paymentProofState || {}), eligible: Number(payment.remaining) > 0, remaining: Number(payment.remaining) || 0 };
   renderPaymentProof();
@@ -951,6 +1007,11 @@ $("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFi
 $("paymentProofFile")?.addEventListener("change", handlePaymentProofSelection);
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
 $("addPaymentButton")?.addEventListener("click", openAddPaymentForm);
+$("addPaymentModalClose")?.addEventListener("click", closeAddPaymentModal);
+$("addPaymentModal")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeAddPaymentModal();
+});
+$("addPaymentModal")?.addEventListener("cancel", (event) => { event.preventDefault(); closeAddPaymentModal(); });
 $("clearPaymentProofButton")?.addEventListener("click", () => {
   const input = $("paymentProofFile");
   if (input) input.value = "";

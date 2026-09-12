@@ -101,6 +101,12 @@
             <div><span>Remaining</span><strong id="trackingPaymentRemaining">₱0.00</strong></div>
           </div>
           <button id="addPaymentButton" class="tracking-primary-button add-payment-button" type="button" hidden>Add Payment</button>
+          <p id="paymentPendingNote" class="payment-pending-note" role="status" hidden></p>
+          <div class="payment-history-section">
+            <div class="payment-history-heading">Payment History</div>
+            <div id="paymentHistoryList" class="payment-history-list"></div>
+            <p id="paymentHistoryEmpty" class="payment-history-empty">No payments have been recorded yet.</p>
+          </div>
 
           <div id="paymentProofBox" class="payment-proof-box" hidden>
             <div class="payment-proof-header">
@@ -192,6 +198,20 @@
     </div>
   </main>
 
+
+  <dialog id="addPaymentModal" class="add-payment-modal" aria-labelledby="addPaymentModalTitle">
+    <div class="add-payment-modal-inner">
+      <div class="customer-photo-viewer-head">
+        <div>
+          <strong id="addPaymentModalTitle">Add Payment</strong>
+          <p id="addPaymentModalSubtitle">Upload your payment proof and enter the amount you paid.</p>
+        </div>
+        <button id="addPaymentModalClose" class="secondary-button" type="button">Close</button>
+      </div>
+      <div id="paymentProofBoxModalHost" class="payment-proof-modal-body"></div>
+    </div>
+  </dialog>
+
   <dialog id="customerPhotoViewer" class="customer-photo-viewer">
     <div class="customer-photo-viewer-inner">
       <div class="customer-photo-viewer-head">
@@ -202,6 +222,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-13-01"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-13-02"></script>
 </body>
 </html>
