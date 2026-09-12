@@ -373,8 +373,6 @@ function renderFulfillment() {
   if (state.event?.id) select.value = state.event.id;
   if (selected === "location" && !state.event?.id && state.events?.length === 0) {
     notice.textContent = "There are no upcoming pickup events available right now.";
-  } else if (selected === "courier") {
-    notice.textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange delivery.";
   } else {
     notice.textContent = "";
   }
@@ -634,10 +632,13 @@ async function submitCustomerPaymentProof() {
 
   paymentProofBusy = true;
   const button = $("submitPaymentProofButton");
-  if (button) { button.disabled = true; button.textContent = "Submitting…"; }
+  if (button) { button.disabled = true; button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span>Submitting…</span>'; }
   $("choosePaymentProofButton").disabled = true;
   amountInput.disabled = true;
-  $("paymentProofMessage").textContent = "Uploading your payment proof…";
+  $("paymentProofFile").disabled = true;
+  $("clearPaymentProofButton").disabled = true;
+  $("paymentProofLoading")?.removeAttribute("hidden");
+  $("paymentProofMessage").textContent = "Uploading and submitting your payment proof. Please keep this window open…";
 
   try {
     const form = new FormData();
@@ -666,6 +667,9 @@ async function submitCustomerPaymentProof() {
     paymentProofBusy = false;
     const currentButton = $("submitPaymentProofButton");
     if (currentButton) { currentButton.disabled = false; currentButton.textContent = "Submit Payment"; }
+    $("paymentProofLoading")?.setAttribute("hidden", "");
+    $("paymentProofFile").disabled = false;
+    $("clearPaymentProofButton").disabled = false;
     const currentState = paymentProofState || {};
     if (!currentState.pending_verification) {
       $("choosePaymentProofButton").disabled = false;

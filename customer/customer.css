@@ -637,3 +637,39 @@ button:focus-visible {
   .tracking-order-inline > strong { font-size: 18px; }
   .tracking-stage-meta { gap: 10px; }
 }
+
+
+/* Payment submission progress */
+.payment-proof-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f5f7f9;
+  color: #555;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.loading-spinner, .button-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  animation: payment-spin .75s linear infinite;
+  flex: 0 0 auto;
+}
+.button-spinner { width: 13px; height: 13px; border-width: 2px; vertical-align: -2px; }
+#submitPaymentProofButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.payment-history-row.is-rejected {
+  background: #fff2f2;
+  border-color: #f3d2d2;
+}
+.payment-history-row.is-rejected .payment-history-amount {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+@keyframes payment-spin { to { transform: rotate(360deg); } }

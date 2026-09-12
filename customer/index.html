@@ -130,6 +130,10 @@
               <small id="paymentAmountHint">Enter the amount you paid.</small>
             </label>
             <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
+            <div id="paymentProofLoading" class="payment-proof-loading" hidden aria-live="polite">
+              <span class="loading-spinner" aria-hidden="true"></span>
+              <span>Submitting your payment proof…</span>
+            </div>
             <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment</button>
           </div>
         </section>
