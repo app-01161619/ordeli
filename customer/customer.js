@@ -109,11 +109,13 @@ function renderTrackingStages(stages) {
     status.textContent = stage.status === "finished" ? "Finished" : stage.status === "in_progress" ? "In Progress" : "Upcoming";
     body.append(name, status);
 
-    if (stage.status === "finished") {
+    // Only render the button when Supabase confirms that a proof photo exists.
+    if (stage.status === "finished" && stage.has_photo === true) {
       const proofButton = document.createElement("button");
       proofButton.type = "button";
       proofButton.className = "tracking-photo-button";
       proofButton.textContent = "View Photo";
+      proofButton.setAttribute("aria-label", `View ${name.textContent} production proof photo`);
       proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
       body.appendChild(proofButton);
     }
@@ -123,8 +125,6 @@ function renderTrackingStages(stages) {
   });
   list.appendChild(fragment);
 }
-
-
 
 async function viewCustomerProductionProof(stageOrder, button) {
   const token = getTrackingToken();
@@ -137,23 +137,40 @@ async function viewCustomerProductionProof(stageOrder, button) {
   button.textContent = "Loading Photo…";
   try {
     const endpoint = `/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stageOrder))}`;
-    const response = await fetch(endpoint, {
+    let data = null;
+    let response = await fetch(endpoint, {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store"
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.error || "Unable to open the proof photo.");
+    }).catch(() => null);
+
+    if (response?.ok) data = await response.json().catch(() => null);
+
+    // Direct hardened RPC fallback keeps the production-proof bucket private
+    // when the Worker is unavailable or not configured.
+    if (!data?.available || !data?.url) {
+      const { data: fallback, error } = await supabase.rpc("get_customer_stage_proof", {
+        p_public_token: token,
+        p_stage_order: Number(stageOrder)
+      });
+      if (error) throw error;
+      data = fallback;
+    }
+
     if (!data?.available || !data?.url) {
       throw new Error("No proof photo is available for this stage.");
     }
+
     const viewer = $("customerPhotoViewer");
     const image = $("customerPhotoViewerImage");
     const caption = $("customerPhotoViewerCaption");
-    if (image) image.src = data.url;
+    if (!viewer || !image) throw new Error("Photo viewer is unavailable.");
+    image.src = data.url;
+    image.onload = () => image.classList.add("is-loaded");
+    image.onerror = () => image.classList.remove("is-loaded");
     if (caption) caption.textContent = `${data.stage_name || `Stage ${stageOrder}`} · Production proof`;
-    if (viewer?.showModal) viewer.showModal();
-    else if (viewer) viewer.hidden = false;
+    if (typeof viewer.showModal === "function") viewer.showModal();
+    else viewer.removeAttribute("hidden");
   } catch (error) {
     console.error("Customer production proof failed:", error);
     alert(error?.message || "Unable to open the proof photo.");
@@ -207,7 +224,14 @@ function renderFulfillment() {
   if (!card) return;
   const state = fulfillmentState || {};
   renderCustomerReschedule();
-  const ready = Boolean(state.production_completed && state.fully_paid && !state.handed_over_at);
+
+  // The Fulfillment card does not appear until every production stage is complete.
+  const productionComplete = Boolean(state.production_completed);
+  card.hidden = !productionComplete;
+  if (!productionComplete) return;
+
+  const fullyPaid = Boolean(state.fully_paid);
+  const ready = Boolean(fullyPaid && !state.handed_over_at);
   const statusCard = $("trackingFulfillmentNoticeCard");
   const statusTitle = $("trackingFulfillmentNoticeTitle");
   const statusText = $("trackingFulfillmentNoticeText");
@@ -228,7 +252,7 @@ function renderFulfillment() {
       statusCard.hidden = true;
     }
   }
-  card.hidden = false;
+
   $("fulfillmentCurrent").textContent = state.fulfillment_type ? fulfillmentLabel(state.fulfillment_type) : "Not selected yet";
 
   const shopAddressBox = $("fulfillmentShopAddress");
@@ -238,27 +262,36 @@ function renderFulfillment() {
     shopAddressBox.hidden = !showAddress;
     if (showAddress) $("fulfillmentShopAddressText").textContent = shopAddress;
   }
+
   $("fulfillmentRequirement").textContent = ready
     ? "Your order is ready for fulfillment selection."
     : state.handed_over_at
       ? "This order has already been handed over."
-      : !state.production_completed
-        ? "Fulfillment options will appear after production is completed."
-        : "Fulfillment options will appear after payment is fully confirmed.";
+      : "Production is complete. Fulfillment options will unlock after payment is fully confirmed.";
 
   const options = $("fulfillmentOptions");
   const notice = $("fulfillmentNotice");
   const eventPicker = $("fulfillmentEventPicker");
+  const saveButton = $("saveFulfillmentButton");
   if (!ready) {
-    options.hidden = true; eventPicker.hidden = true; notice.textContent = ""; return;
+    options.hidden = true;
+    eventPicker.hidden = true;
+    if (saveButton) saveButton.hidden = true;
+    notice.textContent = "";
+    return;
   }
+
+  if (saveButton) saveButton.hidden = false;
   options.hidden = false;
   const selected = state.fulfillment_type || "";
   document.querySelectorAll("input[name='fulfillmentType']").forEach(r => r.checked = r.value === selected);
   eventPicker.hidden = selected !== "location";
   const select = $("fulfillmentEventSelect");
   select.replaceChildren();
-  const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = "Choose an event"; select.appendChild(placeholder);
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Choose an event";
+  select.appendChild(placeholder);
   (state.events || []).forEach((event) => {
     const option = document.createElement("option");
     option.value = event.id;
@@ -270,7 +303,7 @@ function renderFulfillment() {
   if (selected === "location" && !state.event?.id && state.events?.length === 0) {
     notice.textContent = "There are no upcoming pickup events available right now.";
   } else if (selected === "courier") {
-    notice.textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange your delivery.";
+    notice.textContent = "Thank you for your purchase! Please wait for our customer service team to contact you to arrange delivery.";
   } else {
     notice.textContent = "";
   }
@@ -350,27 +383,116 @@ async function loadCustomerPaymentProof(publicToken) {
   }
 }
 
+function revokePaymentPreview() {
+  const preview = $("paymentProofPreview");
+  if (preview?.dataset.objectUrl) {
+    URL.revokeObjectURL(preview.dataset.objectUrl);
+    delete preview.dataset.objectUrl;
+  }
+  if (preview) preview.removeAttribute("src");
+  $("paymentProofPreviewWrap")?.setAttribute("hidden", "");
+}
+
 function renderPaymentProof() {
+  const addButton = $("addPaymentButton");
   const box = $("paymentProofBox");
-  if (!box) return;
+  if (!addButton || !box) return;
+
   const state = paymentProofState || {};
-  const eligible = Boolean(state.eligible);
-  box.hidden = !eligible;
+  const payloadRemaining = Number(trackingPayload?.payment?.remaining);
+  const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
+  const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
+  if (Number.isFinite(remaining)) state.remaining = remaining;
+  addButton.hidden = !eligible;
+
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
   const submit = $("submitPaymentProofButton");
   const choose = $("choosePaymentProofButton");
-  if (!eligible) return;
-  if (state.pending_verification) {
-    if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify.";
-  } else if (state.rejected) {
-    if (hint) hint.textContent = state.rejection_reason ? `Your previous proof was rejected: ${state.rejection_reason}` : "Your previous payment proof was rejected. Please submit a new proof.";
-  } else if (hint) {
-    hint.textContent = `Upload a clear photo of your payment proof for ${formatPrice(state.remaining)}. The seller will verify it.`;
+  const amountHint = $("paymentAmountHint");
+  const amountInput = $("paymentAmountInput");
+
+  if (!eligible) {
+    box.hidden = true;
+    revokePaymentPreview();
+    if (message) message.textContent = "";
+    if (amountInput) amountInput.value = "";
+    return;
   }
-  if (submit) submit.hidden = state.pending_verification;
-  if (choose) choose.disabled = state.pending_verification;
+
+  if (state.pending_verification) {
+    if (hint) hint.textContent = "Your payment proof is waiting for the seller to verify it.";
+    if (submit) submit.hidden = true;
+    if (choose) choose.disabled = true;
+    if (amountInput) amountInput.disabled = true;
+    if (amountHint) amountHint.textContent = "A payment is already pending seller verification.";
+    return;
+  }
+
+  if (state.rejected) {
+    if (hint) hint.textContent = state.rejection_reason
+      ? `Your previous proof was rejected: ${state.rejection_reason}`
+      : "Your previous payment proof was rejected. Please submit a new proof.";
+  } else if (hint) {
+    hint.textContent = `You can pay any amount up to ${formatPrice(state.remaining)}. Both the proof photo and amount are required.`;
+  }
+  if (submit) submit.hidden = false;
+  if (choose) choose.disabled = false;
+  if (amountInput) amountInput.disabled = false;
+  if (amountHint) amountHint.textContent = `Maximum for this payment: ${formatPrice(state.remaining)}`;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
+}
+
+function openAddPaymentForm() {
+  const box = $("paymentProofBox");
+  if (!box) return;
+  const state = paymentProofState || {};
+  const payloadRemaining = Number(trackingPayload?.payment?.remaining);
+  const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
+  const eligible = Number.isFinite(remaining) && remaining > 0 && !state.pending_verification;
+  if (!eligible) {
+    const message = $("paymentProofMessage");
+    if (message) message.textContent = state.pending_verification
+      ? "A payment proof is already pending seller verification."
+      : "There is no remaining balance available for payment.";
+    return;
+  }
+  paymentProofState = { ...state, eligible: true, remaining };
+  box.hidden = false;
+  box.removeAttribute("hidden");
+  renderPaymentProof();
+  $("paymentAmountInput")?.focus();
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function handlePaymentProofSelection() {
+  const input = $("paymentProofFile");
+  const file = input?.files?.[0];
+  const previewWrap = $("paymentProofPreviewWrap");
+  const preview = $("paymentProofPreview");
+  const message = $("paymentProofMessage");
+  if (!file || !previewWrap || !preview) return;
+
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+    input.value = "";
+    revokePaymentPreview();
+    if (message) message.textContent = "Please choose a JPG, PNG, or WebP image.";
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    input.value = "";
+    revokePaymentPreview();
+    if (message) message.textContent = "Please choose an image smaller than 8 MB.";
+    return;
+  }
+
+  revokePaymentPreview();
+  const objectUrl = URL.createObjectURL(file);
+  preview.src = objectUrl;
+  preview.dataset.objectUrl = objectUrl;
+  previewWrap.hidden = false;
+  paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
+  if (message) message.textContent = `Selected: ${file.name}`;
 }
 
 async function submitCustomerPaymentProof() {
@@ -378,35 +500,81 @@ async function submitCustomerPaymentProof() {
   const token = getTrackingToken();
   const input = $("paymentProofFile");
   const file = input?.files?.[0];
+  const amountInput = $("paymentAmountInput");
   const state = paymentProofState || {};
-  if (!token || !file) { $("paymentProofMessage").textContent = "Choose a proof photo first."; return; }
-  if (!state.eligible) { $("paymentProofMessage").textContent = "Payment proof is not available for this order yet."; return; }
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image."; return; }
-  if (file.size > 8 * 1024 * 1024) { $("paymentProofMessage").textContent = "Please choose an image smaller than 8 MB."; return; }
+  const amount = Number(amountInput?.value);
+
+  if (!token) return;
+  if (!state.eligible || Number(state.remaining) <= 0) {
+    $("paymentProofMessage").textContent = "There is no remaining balance available for payment.";
+    return;
+  }
+  if (state.pending_verification) {
+    $("paymentProofMessage").textContent = "A payment proof is already pending seller verification.";
+    return;
+  }
+  if (!file) {
+    $("paymentProofMessage").textContent = "Upload the payment proof screenshot first.";
+    return;
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    $("paymentProofMessage").textContent = "Enter the amount you paid.";
+    amountInput?.focus();
+    return;
+  }
+  const remaining = Number(state.remaining);
+  if (amount > remaining + 0.000001) {
+    $("paymentProofMessage").textContent = `The amount cannot exceed the remaining balance of ${formatPrice(remaining)}.`;
+    amountInput?.focus();
+    return;
+  }
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+    $("paymentProofMessage").textContent = "Please choose a JPG, PNG, or WebP image.";
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    $("paymentProofMessage").textContent = "Please choose an image smaller than 8 MB.";
+    return;
+  }
+
   paymentProofBusy = true;
   const button = $("submitPaymentProofButton");
   if (button) { button.disabled = true; button.textContent = "Submitting…"; }
+  $("choosePaymentProofButton").disabled = true;
+  amountInput.disabled = true;
   $("paymentProofMessage").textContent = "Uploading your payment proof…";
+
   try {
     const form = new FormData();
     form.set("token", token);
-    form.set("amount", String(state.remaining));
+    form.set("amount", amount.toFixed(2));
     form.set("file", file, file.name || "payment-proof");
     const response = await fetch("/api/customer-payment-proof", { method: "POST", body: form });
     const result = await response.json().catch(() => null);
     if (!response.ok || !result?.success) {
       throw new Error(result?.error || "Unable to submit payment proof.");
     }
+
     input.value = "";
-    $("paymentProofMessage").textContent = "Payment proof submitted. The seller will verify it.";
+    revokePaymentPreview();
+    if (amountInput) amountInput.value = "";
+    $("paymentProofMessage").textContent = `Payment proof for ${formatPrice(amount)} submitted. The seller will verify it.`;
     await loadCustomerTracking(token);
     await loadCustomerPaymentProof(token);
+    // Keep the Add Payment form closed after a successful submission.
+    $("paymentProofBox").hidden = true;
   } catch (error) {
     console.error("Customer payment proof submit failed:", error);
     $("paymentProofMessage").textContent = error?.message || "Unable to submit payment proof.";
   } finally {
     paymentProofBusy = false;
-    if (button) { button.disabled = false; button.textContent = "Submit Payment Proof"; }
+    const currentButton = $("submitPaymentProofButton");
+    if (currentButton) { currentButton.disabled = false; currentButton.textContent = "Submit Payment"; }
+    const currentState = paymentProofState || {};
+    if (!currentState.pending_verification) {
+      $("choosePaymentProofButton").disabled = false;
+      amountInput.disabled = false;
+    }
   }
 }
 
@@ -630,6 +798,9 @@ function renderCustomerTracking(payload) {
   $("trackingPaymentPaid").textContent = formatPrice(payment.paid);
   $("trackingPaymentRemaining").textContent = formatPrice(payment.remaining);
   $("trackingPaymentStatusText").textContent = trackingPaymentStatusLabel(payment.status);
+  // Payment controls are driven by the latest server-reported remaining balance.
+  paymentProofState = { ...(paymentProofState || {}), eligible: Number(payment.remaining) > 0, remaining: Number(payment.remaining) || 0 };
+  renderPaymentProof();
   const orderItems = payload?.order_items || [];
   renderTrackingOrderItems(orderItems);
   const isMultiItemOrder = orderItems.length > 1;
@@ -642,21 +813,52 @@ function renderCustomerTracking(payload) {
 async function loadCustomerTracking(publicToken) {
   trackingPayload = null;
   trackingOrderVisible = false;
+  paymentProofState = null;
+  revokePaymentPreview();
   $("trackingLoadingState").hidden = false;
   $("trackingErrorState").hidden = true;
   $("trackingContent").hidden = true;
   try {
-    const { data, error } = await supabase.rpc("get_customer_tracking", { p_public_token: publicToken });
-    if (error) throw error;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_customer_tracking`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({ p_public_token: publicToken }),
+        cache: "no-store",
+        signal: controller.signal
+      });
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+
+    const raw = await response.text();
+    let data = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch (_) {}
+    if (!response.ok) {
+      throw new Error(data?.message || data?.hint || data?.details || `Tracking request failed (${response.status}).`);
+    }
     if (!data) throw new Error("Tracking information is not available.");
+
     trackingPayload = { ...data, _token: publicToken };
     renderCustomerTracking(trackingPayload);
-    await loadCustomerFulfillment(publicToken);
-    await loadCustomerPaymentProof(publicToken);
-    await loadCustomerPostPurchaseActions(publicToken);
+    await Promise.allSettled([
+      loadCustomerFulfillment(publicToken),
+      loadCustomerPaymentProof(publicToken),
+      loadCustomerPostPurchaseActions(publicToken)
+    ]);
   } catch (error) {
     console.error("Customer tracking load failed:", error);
-    showTrackingError(error?.message || "This tracking link could not be loaded.");
+    showTrackingError(error?.name === "AbortError"
+      ? "The tracking request timed out. Please tap Refresh and try again."
+      : error?.message || "This tracking link could not be loaded.");
   }
 }
 
@@ -713,11 +915,40 @@ $("fulfillmentEventSelect")?.addEventListener("change", () => {
 });
 
 $("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFile")?.click());
-$("paymentProofFile")?.addEventListener("change", () => {
-  const file = $("paymentProofFile").files?.[0];
-  if (file) {
-    paymentProofState = { ...(paymentProofState || {}), selected_name: file.name };
-    renderPaymentProof();
-  }
-});
+$("paymentProofFile")?.addEventListener("change", handlePaymentProofSelection);
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
+$("addPaymentButton")?.addEventListener("click", openAddPaymentForm);
+$("clearPaymentProofButton")?.addEventListener("click", () => {
+  const input = $("paymentProofFile");
+  if (input) input.value = "";
+  revokePaymentPreview();
+  paymentProofState = { ...(paymentProofState || {}), selected_name: "" };
+  const message = $("paymentProofMessage");
+  if (message) message.textContent = "";
+});
+function closeCustomerPhotoViewer() {
+  const viewer = $("customerPhotoViewer");
+  if (!viewer) return;
+  try {
+    if (typeof viewer.close === "function" && viewer.open) viewer.close();
+    else viewer.removeAttribute("open");
+  } catch (_) {
+    viewer.removeAttribute("open");
+  }
+}
+$("customerPhotoViewerClose")?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeCustomerPhotoViewer();
+});
+$("customerPhotoViewer")?.addEventListener("click", (event) => {
+  if (event.target === event.currentTarget) closeCustomerPhotoViewer();
+});
+$("customerPhotoViewer")?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeCustomerPhotoViewer();
+});
+$("customerPhotoViewer")?.addEventListener("close", () => {
+  const image = $("customerPhotoViewerImage");
+  if (image) { image.removeAttribute("src"); image.classList.remove("is-loaded"); }
+});
