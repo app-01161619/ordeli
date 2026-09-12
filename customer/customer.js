@@ -266,7 +266,7 @@ function moveWholeOrderCards(orderItemCount) {
     const viewButton = $("trackingViewOrderButton");
     if (content) {
       const anchor = viewButton || noticeCard || rescheduleBox || reviewBox || cancellationBox;
-      if (anchor) {
+      if (anchor && anchor !== actionBar && anchor.parentNode === content) {
         content.insertBefore(actionBar, anchor);
       } else {
         content.append(actionBar);
