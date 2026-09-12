@@ -8,6 +8,22 @@ import { supabase, readPersistedSession, ensureSupabase } from "./supabase.js";
 const $ = (id) =>
   document.getElementById(id);
 
+let sellerToastTimer = null;
+function showToast(message, tone = "success") {
+  let toast = $("sellerToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "sellerToast";
+    toast.className = "seller-toast";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.dataset.tone = tone;
+  toast.hidden = false;
+  clearTimeout(sellerToastTimer);
+  sellerToastTimer = setTimeout(() => { toast.hidden = true; }, 5000);
+}
+
 function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = value == null ? "" : String(value);
@@ -749,6 +765,7 @@ let currentOrderTotal = 0;
 let currentOrderPaid = 0;
 
 let productionBusyItemId = null;
+let knownPendingPaymentProofIds = null;
 let scannerInstance = null;
 let qrScanBusy = false;
 let productionScannerInstance = null;
@@ -1374,6 +1391,16 @@ async function loadHomeDashboard(sellerId) {
   }
   snapshot = snapshot || { orders: [], payments: [], events: [], updates: [] };
   const computed = computeOrderMetrics(snapshot.orders, snapshot.payments);
+  const pendingProofIds = new Set((snapshot.payments || [])
+    .filter(payment => payment.proof_status === "pending_verification")
+    .map(payment => payment.id));
+  if (knownPendingPaymentProofIds) {
+    const newProofs = [...pendingProofIds].filter(id => !knownPendingPaymentProofIds.has(id));
+    if (newProofs.length) {
+      showToast(`${newProofs.length} customer payment proof${newProofs.length === 1 ? "" : "s"} waiting for verification.`, "success");
+    }
+  }
+  knownPendingPaymentProofIds = pendingProofIds;
   $("attentionProduction").textContent = String(computed.production);
   $("attentionPayments").textContent = String(computed.paymentReviews);
   $("attentionReady").textContent = String(computed.ready);
@@ -2930,6 +2957,16 @@ function productionTaskCard(task, actor) {
   photo.type = "file";
   photo.accept = "image/jpeg,image/png,image/webp";
   photo.className = "production-proof-input";
+  const photoPreview = document.createElement("img");
+  photoPreview.className = "production-proof-preview";
+  photoPreview.alt = "Selected production proof preview";
+  photoPreview.hidden = true;
+  photo.addEventListener("change", () => {
+    if (photoPreview.src) URL.revokeObjectURL(photoPreview.src);
+    const file = photo.files?.[0];
+    photoPreview.hidden = !file;
+    if (file) photoPreview.src = URL.createObjectURL(file);
+  });
 
   const proofLabel = document.createElement("label");
   proofLabel.className = "production-proof-label";
@@ -2945,7 +2982,7 @@ function productionTaskCard(task, actor) {
     await completeMemberProductionTask(task, note, photo.files?.[0] || null, finish);
   });
 
-  actions.append(proofLabel, finish);
+  actions.append(proofLabel, photoPreview, finish);
   card.append(title, stage, actions);
   return card;
 }
@@ -3000,6 +3037,16 @@ async function showProductionScannedItem(item) {
   const photo = document.createElement("input");
   photo.type = "file";
   photo.accept = "image/jpeg,image/png,image/webp";
+  const photoPreview = document.createElement("img");
+  photoPreview.className = "production-proof-preview";
+  photoPreview.alt = "Selected production proof preview";
+  photoPreview.hidden = true;
+  photo.addEventListener("change", () => {
+    if (photoPreview.src) URL.revokeObjectURL(photoPreview.src);
+    const file = photo.files?.[0];
+    photoPreview.hidden = !file;
+    if (file) photoPreview.src = URL.createObjectURL(file);
+  });
 
   const finish = document.createElement("button");
   finish.type = "button";
@@ -3016,7 +3063,7 @@ async function showProductionScannedItem(item) {
   cancel.textContent = "Close";
   cancel.addEventListener("click", () => { box.hidden = true; box.replaceChildren(); });
 
-  box.append(title, meta, stage, document.createTextNode("Proof photo (optional)"), photo, note, finish, cancel);
+  box.append(title, meta, stage, document.createTextNode("Proof photo (optional)"), photo, photoPreview, note, finish, cancel);
 }
 
 async function completeMemberProductionTask(task, note, file, button) {
@@ -7155,6 +7202,9 @@ function openFinishStageEditor(item, stage, panel) {
     const file = photo.files?.[0];
     photoName.textContent = file ? file.name : "No file selected";
     photoPicker.classList.toggle("has-file", Boolean(file));
+    if (photoPreview.src) URL.revokeObjectURL(photoPreview.src);
+    photoPreview.hidden = !file;
+    if (file) photoPreview.src = URL.createObjectURL(file);
   });
   photoPicker.append(photoIcon, photoCopy, photo);
   photoPicker.addEventListener("keydown", (event) => {
@@ -7163,7 +7213,11 @@ function openFinishStageEditor(item, stage, panel) {
       photo.click();
     }
   });
-  photoField.append(photoLabel, photoPicker);
+  const photoPreview = document.createElement("img");
+  photoPreview.className = "production-proof-preview";
+  photoPreview.alt = "Selected production proof preview";
+  photoPreview.hidden = true;
+  photoField.append(photoLabel, photoPicker, photoPreview);
 
   body.append(description, noteField, photoField);
 

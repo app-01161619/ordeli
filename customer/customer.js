@@ -120,14 +120,7 @@ function renderTrackingStages(stages) {
     status.textContent = stageFinished ? "Finished" : stageStatus === "in_progress" ? "In Progress" : "Upcoming";
     body.append(name, status);
 
-    if (stageFinished) {
-      const proofButton = document.createElement("button");
-      proofButton.type = "button";
-      proofButton.className = "tracking-photo-button";
-      proofButton.textContent = "View Photo";
-      proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
-      body.appendChild(proofButton);
-    }
+    if (stageFinished) addCustomerProofButtonIfAvailable(stage, body);
 
     row.append(icon, body);
     fragment.appendChild(row);
@@ -135,6 +128,27 @@ function renderTrackingStages(stages) {
   list.appendChild(fragment);
 }
 
+async function addCustomerProofButtonIfAvailable(stage, body) {
+  const token = getTrackingToken();
+  if (!token || !stage?.stage_order || body.dataset.proofChecked === "1") return;
+  body.dataset.proofChecked = "1";
+  try {
+    const response = await fetch(`/api/customer-stage-proof?token=${encodeURIComponent(token)}&stage_order=${encodeURIComponent(Number(stage.stage_order))}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.available || !data.url) return;
+    const proofButton = document.createElement("button");
+    proofButton.type = "button";
+    proofButton.className = "tracking-photo-button";
+    proofButton.textContent = "View Photo";
+    proofButton.addEventListener("click", () => viewCustomerProductionProof(stage.stage_order, proofButton));
+    body.appendChild(proofButton);
+  } catch (error) {
+    console.warn("Customer proof availability check failed:", error);
+  }
+}
 
 
 async function viewCustomerProductionProof(stageOrder, button) {
@@ -442,6 +456,7 @@ function renderPaymentProof() {
     hint.textContent = `Remaining balance: ${formatPrice(remaining)}. Upload one proof photo for a partial or full payment.`;
   }
   if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.max = remaining.toFixed(2);
+  if (amountInput && !amountInput.value && Number.isFinite(remaining)) amountInput.value = remaining.toFixed(2);
   if (submit) submit.hidden = state.pending_verification || !state.selected_name;
   if (choose) choose.disabled = state.pending_verification;
   if (state.selected_name && message && !paymentProofBusy) message.textContent = `Selected: ${state.selected_name}`;
