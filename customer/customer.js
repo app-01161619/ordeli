@@ -85,7 +85,7 @@ function renderPaymentHistory(history) {
     row.className = `payment-history-row ${entry.proof_status === "rejected" ? "is-rejected" : ""}`;
     const main = document.createElement("div");
     const title = document.createElement("strong");
-    const sourceLabel = entry.source === "customer" ? "Uploaded by customer" : "Added by seller";
+    const sourceLabel = entry.source === "customer" ? "Uploaded by you" : `Added by ${trackingPayload?.shop?.name || "shop"}`;
     const methodLabel = entry.payment_method ? ` · ${entry.payment_method.replaceAll("_", " ")}` : "";
     title.textContent = `${sourceLabel}${methodLabel}`;
     const meta = document.createElement("span");

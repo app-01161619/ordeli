@@ -1457,7 +1457,7 @@ function computeOrderMetrics(orders, payments) {
     const productionComplete = nonCancelled.length > 0 && nonCancelled.every(isItemProductionComplete);
     if (!productionComplete) production += 1;
     const total = nonCancelled.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
-    const paid = (paymentsByOrder.get(order.id) || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const paid = (paymentsByOrder.get(order.id) || []).filter(p => !p.proof_status || p.proof_status === "confirmed").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const pendingProof = (paymentsByOrder.get(order.id) || []).some(p => p.proof_status === "pending_verification");
     if (pendingProof) paymentReviews += 1;
     const fullyPaid = paid >= total - 0.005;
@@ -1545,7 +1545,7 @@ function renderOrdersList(filter) {
     const cancelled = Boolean(order.cancelled_at) || (order.order_items || []).every(i => i.cancelled_at);
     const productionComplete = items.length > 0 && items.every(isItemProductionComplete);
     const total = items.reduce((sum,i)=>sum+(Number(i.total_price)||0),0);
-    const paid = (paymentsByOrder.get(order.id)||[]).reduce((sum,p)=>sum+(Number(p.amount)||0),0);
+    const paid = (paymentsByOrder.get(order.id)||[]).filter(p => !p.proof_status || p.proof_status === "confirmed").reduce((sum,p)=>sum+(Number(p.amount)||0),0);
     const pendingProof = (paymentsByOrder.get(order.id)||[]).some(p => p.proof_status === "pending_verification");
     const fullyPaid = paid >= total - 0.005;
     const ready = productionComplete && fullyPaid && !order.handed_over_at && !cancelled;
@@ -6644,7 +6644,7 @@ async function loadOrderDetail(
     }
   });
 
-  const paid = payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+  const paid = payments.filter(payment => !payment.proof_status || payment.proof_status === "confirmed").reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
   $("orderDetailTotal").textContent = formatPrice(total);
   $("orderDetailPaid").textContent = formatPrice(paid);
   currentOrderTotal = total;
