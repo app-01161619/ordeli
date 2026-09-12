@@ -401,7 +401,8 @@ function renderPaymentProof() {
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
+  const payloadHasBalance = Number.isFinite(payloadRemaining) && payloadRemaining > 0;
+  const eligible = (payloadHasBalance || state.eligible === true) && remaining > 0;
   if (Number.isFinite(remaining)) state.remaining = remaining;
   addButton.hidden = !eligible;
 
@@ -449,15 +450,19 @@ function openAddPaymentForm() {
   const state = paymentProofState || {};
   const payloadRemaining = Number(trackingPayload?.payment?.remaining);
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
-  const eligible = Number.isFinite(remaining) && remaining > 0 && !state.pending_verification;
+  const pendingVerification = Boolean(
+    state.pending_verification ||
+    trackingPayload?.payment?.status === "pending_verification"
+  );
+  const eligible = Number.isFinite(remaining) && remaining > 0 && !pendingVerification;
   if (!eligible) {
     const message = $("paymentProofMessage");
-    if (message) message.textContent = state.pending_verification
+    if (message) message.textContent = pendingVerification
       ? "A payment proof is already pending seller verification."
       : "There is no remaining balance available for payment.";
     return;
   }
-  paymentProofState = { ...state, eligible: true, remaining };
+  paymentProofState = { ...state, eligible: true, pending_verification: false, remaining };
   box.hidden = false;
   box.removeAttribute("hidden");
   renderPaymentProof();
