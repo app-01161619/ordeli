@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-13-01">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-13-02">
 </head>
 <body>
   <main id="customerApp">
@@ -87,6 +87,11 @@
           <button id="saveFulfillmentButton" class="tracking-primary-button" type="button">Save Fulfillment</button>
         </section>
 
+        <section id="trackingFulfillmentNoticeCard" class="tracking-card tracking-fulfillment-notice" hidden>
+          <strong id="trackingFulfillmentNoticeTitle"></strong>
+          <p id="trackingFulfillmentNoticeText"></p>
+        </section>
+
         <section class="tracking-card tracking-payment-card">
           <div class="tracking-section-heading">
             <div>
@@ -135,11 +140,6 @@
             </div>
             <button id="submitPaymentProofButton" class="tracking-primary-button" type="button">Submit Payment</button>
           </div>
-        </section>
-
-        <section id="trackingFulfillmentNoticeCard" class="tracking-card tracking-fulfillment-notice" hidden>
-          <strong id="trackingFulfillmentNoticeTitle"></strong>
-          <p id="trackingFulfillmentNoticeText"></p>
         </section>
 
         <section id="customerRescheduleBox" class="tracking-card customer-reschedule-box" hidden>

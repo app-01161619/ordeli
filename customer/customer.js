@@ -294,8 +294,11 @@ function renderFulfillment() {
   const state = fulfillmentState || {};
   renderCustomerReschedule();
 
-  // The Fulfillment card does not appear until every production stage is complete.
-  const productionComplete = Boolean(state.production_completed);
+  // The server's fulfillment payload is calculated from every active item in the order.
+  // Keep the whole-order gate authoritative for multi-item orders.
+  const productionComplete = state.production_completed === true
+    || (Number(state.production_items_total) > 0
+      && Number(state.production_items_complete) === Number(state.production_items_total));
   card.hidden = !productionComplete;
   if (!productionComplete) return;
 
