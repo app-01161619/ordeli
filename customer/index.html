@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-12-06">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-12-16">
 </head>
 <body>
   <main id="customerApp">
@@ -61,7 +61,12 @@
           <div id="trackingStageList" class="tracking-stage-list"></div>
         </section>
 
-        <section id="trackingFulfillmentCard" class="tracking-card tracking-fulfillment-card">
+        <div id="trackingActionBar" class="tracking-action-bar">
+          <button id="openPaymentButton" class="secondary-button" type="button">Payment</button>
+          <button id="openFulfillmentButton" class="secondary-button" type="button" hidden>Fulfillment</button>
+        </div>
+
+        <dialog id="trackingFulfillmentCard" class="tracking-modal tracking-fulfillment-card">
           <div class="tracking-section-heading">
             <div>
               <h3>Fulfillment</h3>
@@ -69,6 +74,7 @@
             </div>
             <strong id="fulfillmentCurrent">Not selected yet</strong>
           </div>
+          <button class="tracking-modal-close secondary-button" data-close-modal="trackingFulfillmentCard" type="button">Close</button>
           <div id="fulfillmentOptions" class="fulfillment-options" hidden>
             <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="shop"><span><strong>Pickup at Shop</strong><small>Pick up from the seller's shop.</small></span></label>
             <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="location"><span><strong>Pickup at Location</strong><small>Choose one of the seller's upcoming pickup events.</small></span></label>
@@ -80,15 +86,16 @@
           </div>
           <button id="saveFulfillmentButton" class="tracking-primary-button" type="button">Save Fulfillment</button>
           <p id="fulfillmentNotice" class="tracking-inline-notice" role="status"></p>
-        </section>
+        </dialog>
 
-        <section id="trackingPaymentCard" class="tracking-card tracking-payment-card">
+        <dialog id="trackingPaymentCard" class="tracking-modal tracking-payment-card">
           <div class="tracking-section-heading">
             <div>
               <h3>Payment</h3>
               <p id="trackingPaymentStatusText">Payment status</p>
             </div>
           </div>
+          <button class="tracking-modal-close secondary-button" data-close-modal="trackingPaymentCard" type="button">Close</button>
           <div class="tracking-payment-grid">
             <div><span>Total</span><strong id="trackingPaymentTotal">₱0.00</strong></div>
             <div><span>Paid</span><strong id="trackingPaymentPaid">₱0.00</strong></div>
@@ -111,7 +118,7 @@
             </div>
             <p id="paymentProofMessage" class="tracking-inline-notice" aria-live="polite"></p>
             <button id="submitPaymentProofButton" class="tracking-primary-button" type="button" hidden>Submit Payment Proof</button>
-          </section>
+          </dialog>
         </section>
 
         <section id="trackingFulfillmentNoticeCard" class="tracking-card tracking-fulfillment-notice" hidden>
@@ -186,6 +193,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-12-15"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-12-16"></script>
 </body>
 </html>

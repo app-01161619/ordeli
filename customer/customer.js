@@ -252,13 +252,11 @@ function fulfillmentLabel(value) {
 function moveWholeOrderCards(orderItemCount) {
   const orderCard = $("trackingOrderCard");
   const summaryCards = $("trackingOrderSummaryCards");
-  const fulfillmentCard = $("trackingFulfillmentCard");
-  const paymentCard = $("trackingPaymentCard");
-  if (!orderCard || !summaryCards || !fulfillmentCard || !paymentCard) return;
+  const actionBar = $("trackingActionBar");
+  if (!orderCard || !summaryCards || !actionBar) return;
 
   if (orderItemCount > 1) {
-    if (fulfillmentCard.parentElement !== summaryCards) summaryCards.appendChild(fulfillmentCard);
-    if (paymentCard.parentElement !== summaryCards) summaryCards.appendChild(paymentCard);
+    if (actionBar.parentElement !== summaryCards) summaryCards.appendChild(actionBar);
   } else {
     const content = $("trackingContent");
     const noticeCard = $("trackingFulfillmentNoticeCard");
@@ -269,10 +267,9 @@ function moveWholeOrderCards(orderItemCount) {
     if (content) {
       const anchor = viewButton || noticeCard || rescheduleBox || reviewBox || cancellationBox;
       if (anchor) {
-        content.insertBefore(fulfillmentCard, anchor);
-        content.insertBefore(paymentCard, anchor);
+        content.insertBefore(actionBar, anchor);
       } else {
-        content.append(fulfillmentCard, paymentCard);
+        content.append(actionBar);
       }
     }
     summaryCards.replaceChildren();
@@ -281,6 +278,7 @@ function moveWholeOrderCards(orderItemCount) {
 
 function renderFulfillment() {
   const card = $("trackingFulfillmentCard");
+  const openButton = $("openFulfillmentButton");
   if (!card) return;
   const state = fulfillmentState || {};
   const orderItemCount = Array.isArray(trackingPayload?.order_items) ? trackingPayload.order_items.length : 1;
@@ -311,7 +309,8 @@ function renderFulfillment() {
     }
   }
 
-  card.hidden = !productionReady;
+  card.hidden = false;
+  if (openButton) openButton.hidden = !productionReady;
   if (!productionReady) {
     $("fulfillmentCurrent").textContent = "Not available yet";
     $("fulfillmentRequirement").textContent = state.handed_over_at
@@ -443,11 +442,13 @@ async function loadCustomerPaymentProof(publicToken) {
 
 function renderPaymentProof() {
   const box = $("paymentProofBox");
+  const openButton = $("openPaymentButton");
   if (!box) return;
   const state = paymentProofState || {};
   const remaining = Number(state.remaining ?? trackingPayload?.payment?.remaining);
   const eligible = Boolean(state.eligible) || (Number.isFinite(remaining) && remaining > 0);
   box.hidden = !eligible;
+  if (openButton) openButton.hidden = !eligible;
   const hint = $("paymentProofHint");
   const message = $("paymentProofMessage");
   const submit = $("submitPaymentProofButton");
@@ -769,6 +770,17 @@ $("trackingRefreshButton").addEventListener("click", () => {
 $("trackingViewOrderButton").addEventListener("click", () => {
   trackingOrderVisible = !trackingOrderVisible;
   if (trackingPayload) renderCustomerTracking(trackingPayload);
+});
+
+$("openPaymentButton")?.addEventListener("click", () => $("trackingPaymentCard")?.showModal());
+$("openFulfillmentButton")?.addEventListener("click", () => $("trackingFulfillmentCard")?.showModal());
+document.querySelectorAll("[data-close-modal]").forEach(button => {
+  button.addEventListener("click", () => $(button.dataset.closeModal)?.close());
+});
+document.querySelectorAll(".tracking-modal").forEach(dialog => {
+  dialog.addEventListener("click", event => {
+    if (event.target === dialog) dialog.close();
+  });
 });
 
 function bootCustomerTracking() {
