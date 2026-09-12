@@ -171,6 +171,7 @@ function renderTrackingStages(stages) {
     meta.append(status);
     if (stage.status === "finished" && stage.finished_at) {
       const finishedAt = document.createElement("time");
+      finishedAt.className = "tracking-stage-status-time";
       finishedAt.dateTime = stage.finished_at;
       finishedAt.textContent = formatDateTime(stage.finished_at);
       meta.append(finishedAt);
@@ -503,9 +504,14 @@ function renderPaymentProof() {
   if (pendingNote) {
     const shopName = trackingPayload?.shop?.name || "the shop";
     pendingNote.hidden = !pendingVerification;
-    pendingNote.textContent = pendingVerification
-      ? `Your payment is being verified by ${shopName}. Once the payment is verified, the amount will be deducted from your remaining balance.`
-      : "";
+    pendingNote.replaceChildren();
+    if (pendingVerification) {
+      const prefix = document.createTextNode("Your payment is being verified by ");
+      const shopStrong = document.createElement("strong");
+      shopStrong.textContent = shopName;
+      const suffix = document.createTextNode(". Once the payment is verified, the amount will be deducted from your remaining balance.");
+      pendingNote.append(prefix, shopStrong, suffix);
+    }
   }
 
   const hint = $("paymentProofHint");

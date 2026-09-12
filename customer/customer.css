@@ -605,3 +605,35 @@ button:focus-visible {
 .payment-history-heading::after { content:'+'; font-size:18px; line-height:1; color:#777; }
 .payment-history-section[open] .payment-history-heading::after { content:'−'; }
 .payment-history-section[open] .payment-history-heading { margin-bottom:8px; }
+
+/* Customer screen final compact-layout refinements */
+.tracking-order-meta { margin-bottom: 22px; }
+.tracking-order-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.tracking-order-inline .tracking-kicker { margin-bottom: 0; }
+.tracking-order-inline > strong { font-size: 20px; }
+.tracking-stage-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.tracking-stage-status-time {
+  color: #777;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.tracking-stage-meta > .tracking-status-badge {
+  font-size: 12px;
+}
+@media (max-width: 640px) {
+  .tracking-order-inline { gap: 9px; }
+  .tracking-order-inline > strong { font-size: 18px; }
+  .tracking-stage-meta { gap: 10px; }
+}
