@@ -550,7 +550,7 @@ button:focus-visible {
   opacity: 1 !important;
 }
 .tracking-photo-button:disabled { opacity: .65 !important; }
-.add-payment-button { display: block; visibility: visible; }
+.add-payment-button { display: inline-flex; width: 100%; visibility: visible; }
 .tracking-payment-card { margin-top: 12px; }
 
 
