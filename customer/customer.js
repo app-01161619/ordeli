@@ -296,22 +296,17 @@ function renderFulfillment() {
 
   // The server's fulfillment payload is calculated from every active item in the order.
   // Keep the whole-order gate authoritative for multi-item orders.
-  const trackedItems = Array.isArray(trackingPayload?.order_items) ? trackingPayload.order_items : [];
-  const activeTrackedItems = trackedItems.filter((item) => !item?.cancelled);
-  const trackedItemsComplete = activeTrackedItems.length > 0
-    && activeTrackedItems.every((item) => String(item?.production_status || '').toLowerCase() === 'completed');
-  const productionComplete = trackedItems.length > 0
-    ? trackedItemsComplete
-    : state.production_completed === true
-      || (
-        Number.isFinite(Number(state.production_items_total))
-        && Number(state.production_items_total) > 0
-        && Number(state.production_items_complete) === Number(state.production_items_total)
-      );
+  const productionComplete = state.production_completed === true
+    || (Number(state.production_items_total) > 0
+      && Number(state.production_items_complete) === Number(state.production_items_total));
   card.hidden = !productionComplete;
   if (!productionComplete) return;
 
-  const fullyPaid = Boolean(state.fully_paid);
+  const trackingPayment = trackingPayload?.payment || {};
+  const trackingPaid = Number(trackingPayment.paid);
+  const trackingTotal = Number(trackingPayment.total);
+  const trackingFullyPaid = Number.isFinite(trackingPaid) && Number.isFinite(trackingTotal) && trackingTotal > 0 && trackingPaid >= trackingTotal;
+  const fullyPaid = trackingFullyPaid || Boolean(state.fully_paid);
   const ready = Boolean(fullyPaid && !state.handed_over_at);
   const statusCard = $("trackingFulfillmentNoticeCard");
   const statusTitle = $("trackingFulfillmentNoticeTitle");
