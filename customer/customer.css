@@ -471,11 +471,6 @@ button:focus-visible {
   line-height: 1.2;
   cursor: pointer;
 }
-.payment-proof-upload-button.is-disabled {
-  opacity: .5;
-  cursor: not-allowed;
-  pointer-events: none;
-}
 .payment-proof-amount { display: grid; gap: 5px; }
 .payment-proof-amount span { color: #555; font-size: 13px; font-weight: 700; }
 .payment-proof-amount input { width: 100%; padding: 10px 12px; border: 1px solid #d9dde3; border-radius: 10px; }
