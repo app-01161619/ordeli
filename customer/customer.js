@@ -395,7 +395,7 @@ function revokePaymentPreview() {
 }
 
 function renderPaymentProof() {
-  const addButton = $("addPaymentButton");
+  const addButton = $("customerAddPaymentButton");
   const box = $("paymentProofBox");
   if (!addButton || !box) return;
 
@@ -404,6 +404,7 @@ function renderPaymentProof() {
   const remaining = Number.isFinite(Number(state.remaining)) ? Number(state.remaining) : payloadRemaining;
   const eligible = Boolean((state.eligible ?? Number.isFinite(payloadRemaining)) && remaining > 0);
   if (Number.isFinite(remaining)) state.remaining = remaining;
+  addButton.disabled = false;
   addButton.hidden = !eligible;
 
   const hint = $("paymentProofHint");
@@ -932,15 +933,21 @@ $("fulfillmentEventSelect")?.addEventListener("change", () => {
 $("choosePaymentProofButton")?.addEventListener("click", () => $("paymentProofFile")?.click());
 $("paymentProofFile")?.addEventListener("change", handlePaymentProofSelection);
 $("submitPaymentProofButton")?.addEventListener("click", submitCustomerPaymentProof);
-$("addPaymentButton")?.addEventListener("click", openAddPaymentForm);
-// Delegated fallback: keeps Add Payment functional even if the button is re-rendered
-// or moved by the page layout after initial module setup.
-document.addEventListener("click", (event) => {
-  const button = event.target?.closest?.("#addPaymentButton");
+function handleAddPaymentInteraction(event) {
+  const button = event.target?.closest?.("#customerAddPaymentButton");
   if (!button) return;
   event.preventDefault();
+  event.stopPropagation();
   openAddPaymentForm();
-});
+}
+
+// Capture-phase delegation handles clicks even when the payment card is moved or
+// another document-level handler attempts to intercept the event.
+document.addEventListener("pointerup", handleAddPaymentInteraction, true);
+document.addEventListener("click", handleAddPaymentInteraction, true);
+
+window.ordeliOpenCustomerAddPayment = openAddPaymentForm;
+$("customerAddPaymentButton")?.addEventListener("click", openAddPaymentForm);
 $("clearPaymentProofButton")?.addEventListener("click", () => {
   const input = $("paymentProofFile");
   if (input) input.value = "";
