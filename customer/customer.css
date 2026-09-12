@@ -465,3 +465,64 @@ button:focus-visible {
   object-fit: contain;
   border-radius: 12px;
 }
+
+/* Customer tracking compact layout refresh */
+.tracking-page { padding: 12px 12px 28px; }
+.tracking-header { max-width: 680px; margin-bottom: 12px; }
+.tracking-brand { gap: 0; }
+.tracking-brand-mark { display: none !important; }
+.tracking-brand strong { font-size: 18px; line-height: 1.1; }
+.tracking-brand span:last-child { margin-top: 1px; font-size: 11px; }
+.tracking-card { max-width: 680px; margin-bottom: 10px; padding: 15px; border-radius: 12px; box-shadow: 0 3px 12px rgba(0,0,0,.035); }
+.tracking-order-meta { margin-bottom: 12px; gap: 10px; }
+.tracking-order-meta strong { font-size: 16px; }
+.tracking-status-badge { padding: 5px 8px; font-size: 11px; }
+.tracking-product-heading { margin-bottom: 13px; }
+.tracking-product-heading h2 { margin-bottom: 3px; font-size: 20px; }
+.tracking-product-heading p { font-size: 12px; }
+.tracking-section-heading h3 { margin-bottom: 2px; font-size: 15px; }
+.tracking-section-heading p { font-size: 12px; line-height: 1.35; }
+.tracking-stage-list { margin-top: 10px; }
+.tracking-stage-row { grid-template-columns: 24px 1fr; gap: 9px; padding: 8px 0; }
+.tracking-stage-icon { width: 24px; height: 24px; font-size: 11px; }
+.tracking-stage-body { gap: 8px; }
+.tracking-stage-body strong, .tracking-stage-body span { font-size: 12px; }
+.tracking-photo-button { margin-top: 6px; padding: 5px 9px; font-size: 11px; }
+.tracking-payment-card { margin-top: 10px; }
+.tracking-payment-grid { gap: 7px; margin-top: 10px; }
+.tracking-payment-grid > div { padding: 10px; border-radius: 9px; }
+.tracking-payment-grid span { margin-bottom: 3px; font-size: 10px; }
+.tracking-payment-grid strong { font-size: 14px; }
+.tracking-primary-button { margin-top: 10px; }
+.add-payment-button { font-weight: 700; }
+.payment-proof-box { margin-top: 12px; padding-top: 12px; gap: 9px; }
+.payment-proof-header { display: grid; gap: 3px; }
+.payment-proof-header strong { font-size: 14px; }
+.payment-proof-header p { font-size: 12px; line-height: 1.35; }
+.payment-form-field { display: grid; gap: 6px; }
+.payment-form-label { font-size: 12px; font-weight: 700; color: #333; }
+.payment-proof-box button { margin-top: 0; }
+.payment-proof-preview { display: grid; gap: 7px; margin-top: 2px; }
+.payment-proof-preview img { display: block; width: 100%; max-height: 230px; object-fit: contain; background: #f4f6f8; border: 1px solid #e1e5e9; border-radius: 10px; }
+.payment-proof-clear { justify-self: start; font-size: 12px; padding: 8px 10px; }
+.payment-amount-wrap { display: grid; grid-template-columns: 26px 1fr; align-items: center; border: 1px solid #d9dde3; border-radius: 10px; overflow: hidden; background: #fff; }
+.payment-amount-wrap > span { display: flex; justify-content: center; color: #666; font-weight: 700; }
+.payment-amount-wrap input { width: 100%; padding: 11px 11px 11px 0; border: 0; outline: 0; background: transparent; }
+.payment-form-field small { color: #777; font-size: 11px; }
+.payment-proof-box .tracking-inline-notice { margin-top: 0; }
+.tracking-fulfillment-card { margin-top: 10px; }
+.tracking-fulfillment-notice, .customer-review-box, .customer-cancellation-box, .customer-reschedule-box { margin-top: 10px; }
+.tracking-order-toggle { max-width: 680px; margin-bottom: 10px; padding: 11px 14px; }
+.tracking-order-card { margin-bottom: 0; }
+
+@media (max-width: 640px) {
+  .tracking-page { padding: 10px 10px 24px; }
+  .tracking-card { padding: 13px; border-radius: 11px; }
+  .tracking-header { margin-bottom: 10px; }
+  .tracking-payment-grid { grid-template-columns: repeat(3, 1fr); }
+  .tracking-payment-grid > div { padding: 8px; }
+  .tracking-payment-grid strong { font-size: 13px; }
+  .tracking-payment-grid span { font-size: 9px; }
+  .tracking-stage-body { align-items: flex-start; }
+  .tracking-stage-row { align-items: start; }
+}
