@@ -352,10 +352,10 @@ function renderFulfillment() {
   const notice = $("fulfillmentNotice");
   const statusCard = $("trackingFulfillmentNoticeCard");
 
-  // There is only one fulfillment presentation. Never render the old courier card.
   if (statusCard) statusCard.hidden = true;
 
   current.textContent = savedSelection ? fulfillmentLabel(fulfillmentType) : "Not selected yet";
+  savedContent.replaceChildren();
 
   if (savedSelection) {
     requirement.textContent = "Your fulfillment method has been saved.";
@@ -364,55 +364,52 @@ function renderFulfillment() {
     saveButton.hidden = true;
     notice.textContent = "";
 
-    // Render the saved fulfillment details directly into the visible card body.
-    // Do not rely on the hidden attribute for this state.
-    savedContent.hidden = false;
-    savedContent.removeAttribute("hidden");
-    savedContent.style.display = "block";
-    savedContent.replaceChildren();
+    const wrapper = document.createElement("div");
+    wrapper.className = "fulfillment-saved-message";
 
     if (fulfillmentType === "shop") {
-      savedContent.innerHTML = `
-        <div class="fulfillment-saved-message">
-          <span class="tracking-kicker">PICKUP AT SHOP</span>
-          <p>Please pick up your order at the shop.</p>
-          <div class="fulfillment-detail-block">
-            <span class="fulfillment-detail-label">Shop address</span>
-            <strong class="fulfillment-address-value">${shopAddress ? escapeHtml(shopAddress) : "The shop address is currently unavailable."}</strong>
-          </div>
-        </div>`;
+      const message = document.createElement("p");
+      message.textContent = "Please pick up your order at the shop.";
+
+      const label = document.createElement("span");
+      label.className = "fulfillment-detail-label";
+      label.textContent = "Shop address";
+
+      const address = document.createElement("strong");
+      address.className = "fulfillment-address-value";
+      address.textContent = shopAddress || "The shop address is currently unavailable.";
+
+      wrapper.append(message, label, address);
     } else if (fulfillmentType === "location") {
       const events = getAvailablePickupEvents(state);
-      const event = state.event || events.find((e) => e.id === state.event_id) || events.find((e) => e.id === trackingPayload?.order?.event_id) || null;
+      const selectedEventId = state.event_id || trackingPayload?.order?.event_id || null;
+      const event = state.event || events.find((e) => e.id === selectedEventId) || null;
+
+      const message = document.createElement("p");
       if (event) {
+        const location = event.location || event.name || "the pickup location";
         const date = formatEventDate(event.event_date);
         const time = formatEventTime(event.start_time, event.end_time);
-        const location = event.location || event.name || "the pickup location";
-        savedContent.innerHTML = `
-          <div class="fulfillment-saved-message">
-            <span class="tracking-kicker">PICKUP AT LOCATION</span>
-            <p>Please pick up your order at <strong>${escapeHtml(location)}</strong>${date ? ` on <strong>${escapeHtml(date)}</strong>` : ""}${time ? ` from <strong>${escapeHtml(time)}</strong>` : ""}.</p>
-          </div>`;
+        message.textContent = `Please pick up your order at ${location}${date ? ` on ${date}` : ""}${time ? ` from ${time}` : ""}.`;
       } else {
-        savedContent.innerHTML = `
-          <div class="fulfillment-saved-message">
-            <span class="tracking-kicker">PICKUP AT LOCATION</span>
-            <p>Your pickup location has been saved, but the event details are unavailable right now.</p>
-          </div>`;
+        message.textContent = "Your pickup location has been saved, but the event details are unavailable right now.";
       }
+      wrapper.append(message);
     } else if (fulfillmentType === "courier") {
-      savedContent.innerHTML = `
-        <div class="fulfillment-saved-message">
-          <span class="tracking-kicker">COURIER DELIVERY</span>
-          <p>Thank you for your purchase!</p>
-          <p>Please wait for <strong>${escapeHtml(shopName)}</strong> to contact you to arrange your delivery.</p>
-        </div>`;
+      const message = document.createElement("p");
+      message.textContent = "Thank you for your purchase!";
+      const delivery = document.createElement("p");
+      delivery.textContent = `Please wait for ${shopName} to contact you to arrange your delivery.`;
+      wrapper.append(message, delivery);
     }
+
+    savedContent.appendChild(wrapper);
+    savedContent.hidden = false;
+    savedContent.removeAttribute("hidden");
     return;
   }
 
   savedContent.hidden = true;
-  savedContent.replaceChildren();
   options.hidden = !ready;
   eventPicker.hidden = true;
   saveButton.hidden = !ready;
@@ -449,7 +446,6 @@ function renderFulfillment() {
     });
   }
 }
-
 
 function renderCustomerReschedule() {
   const box = $("customerRescheduleBox");
