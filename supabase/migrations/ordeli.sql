@@ -1370,3 +1370,881 @@ commit;
 -- versioned migrations folder next, so the database can become fully
 -- reproducible from source control.
 -- ============================================================
+
+-- ============================================================
+-- LIVE DATABASE INCREMENTAL CHANGES
+-- Applied to the live Ordeli project after the baseline ordeli.sql
+-- ============================================================
+
+BEGIN;
+
+-- ============================================================
+-- SHOP GEOLOCATION
+-- ============================================================
+
+ALTER TABLE public.sellers
+  ADD COLUMN IF NOT EXISTS shop_latitude double precision,
+  ADD COLUMN IF NOT EXISTS shop_longitude double precision;
+
+-- ============================================================
+-- PRODUCT MEDIA
+-- ============================================================
+
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS image_path text;
+
+-- ============================================================
+-- SELLER BRANCHES
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.seller_branches (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id uuid NOT NULL REFERENCES public.sellers(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  address text NOT NULL,
+  latitude double precision NOT NULL,
+  longitude double precision NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  is_default boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT seller_branches_name_check
+    CHECK (length(trim(name)) > 0),
+  CONSTRAINT seller_branches_address_check
+    CHECK (length(trim(address)) > 0),
+  CONSTRAINT seller_branches_latitude_check
+    CHECK (latitude >= -90 AND latitude <= 90),
+  CONSTRAINT seller_branches_longitude_check
+    CHECK (longitude >= -180 AND longitude <= 180)
+);
+
+CREATE INDEX IF NOT EXISTS seller_branches_seller_id_idx
+  ON public.seller_branches(seller_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS seller_branches_one_default_per_seller
+  ON public.seller_branches(seller_id)
+  WHERE is_default = true;
+
+ALTER TABLE public.seller_branches ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS seller_branches_select_own ON public.seller_branches;
+CREATE POLICY seller_branches_select_own
+ON public.seller_branches
+FOR SELECT
+TO authenticated
+USING ((select auth.uid()) = seller_id);
+
+DROP POLICY IF EXISTS seller_branches_insert_own ON public.seller_branches;
+CREATE POLICY seller_branches_insert_own
+ON public.seller_branches
+FOR INSERT
+TO authenticated
+WITH CHECK ((select auth.uid()) = seller_id);
+
+DROP POLICY IF EXISTS seller_branches_update_own ON public.seller_branches;
+CREATE POLICY seller_branches_update_own
+ON public.seller_branches
+FOR UPDATE
+TO authenticated
+USING ((select auth.uid()) = seller_id)
+WITH CHECK ((select auth.uid()) = seller_id);
+
+DROP POLICY IF EXISTS seller_branches_delete_own ON public.seller_branches;
+CREATE POLICY seller_branches_delete_own
+ON public.seller_branches
+FOR DELETE
+TO authenticated
+USING ((select auth.uid()) = seller_id);
+
+-- ============================================================
+-- ORDER PICKUP BRANCH
+-- ============================================================
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS pickup_branch_id uuid;
+
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_pickup_branch_id_fkey;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_pickup_branch_id_fkey
+  FOREIGN KEY (pickup_branch_id)
+  REFERENCES public.seller_branches(id)
+  ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS orders_pickup_branch_id_idx
+  ON public.orders(pickup_branch_id);
+
+-- ============================================================
+-- PRODUCT IMAGE STORAGE
+-- ============================================================
+
+INSERT INTO storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+VALUES (
+  'product-images',
+  'product-images',
+  false,
+  8388608,
+  ARRAY['image/jpeg','image/png','image/webp']
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  public = false,
+  file_size_limit = 8388608,
+  allowed_mime_types = ARRAY['image/jpeg','image/png','image/webp'];
+
+DROP POLICY IF EXISTS product_images_insert_own ON storage.objects;
+CREATE POLICY product_images_insert_own
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'product-images'
+  AND (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+DROP POLICY IF EXISTS product_images_select_own ON storage.objects;
+CREATE POLICY product_images_select_own
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'product-images'
+  AND (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+DROP POLICY IF EXISTS product_images_update_own ON storage.objects;
+CREATE POLICY product_images_update_own
+ON storage.objects
+FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'product-images'
+  AND (storage.foldername(name))[1] = (select auth.uid())::text
+)
+WITH CHECK (
+  bucket_id = 'product-images'
+  AND (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+DROP POLICY IF EXISTS product_images_delete_own ON storage.objects;
+CREATE POLICY product_images_delete_own
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'product-images'
+  AND (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+-- ============================================================
+-- CUSTOMER FULFILLMENT: CURRENT VERSION
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.get_customer_fulfillment(p_public_token text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO public
+AS $function$
+declare
+  v_qr public.qr_codes%rowtype;
+  v_item public.order_items%rowtype;
+  v_order public.orders%rowtype;
+  v_shop_name text;
+  v_shop_address text;
+  v_shop_latitude double precision;
+  v_shop_longitude double precision;
+  v_shop_logo_path text;
+  v_total numeric(12,2) := 0;
+  v_paid numeric(12,2) := 0;
+  v_production_complete boolean := false;
+  v_current_event jsonb := null;
+  v_current_branch jsonb := null;
+  v_events jsonb := '[]'::jsonb;
+  v_branches jsonb := '[]'::jsonb;
+  v_items_total integer := 0;
+  v_items_complete integer := 0;
+begin
+  if nullif(trim(coalesce(p_public_token,'')),'') is null then
+    raise exception 'Tracking token is required.';
+  end if;
+
+  select q.* into v_qr
+  from public.qr_codes q
+  where q.public_token=p_public_token
+    and q.status='assigned'
+    and q.order_item_id is not null
+  limit 1;
+
+  if not found then
+    raise exception 'This tracking link is unavailable.';
+  end if;
+
+  select oi.* into v_item
+  from public.order_items oi
+  where oi.id=v_qr.order_item_id;
+
+  if not found then
+    raise exception 'This tracking link is unavailable.';
+  end if;
+
+  select * into v_order
+  from public.orders
+  where id=v_item.order_id;
+
+  if not found then
+    raise exception 'This order is unavailable.';
+  end if;
+
+  select shop_name,shop_address,shop_latitude,shop_longitude,shop_logo_path
+  into v_shop_name,v_shop_address,v_shop_latitude,v_shop_longitude,v_shop_logo_path
+  from public.sellers
+  where id=v_order.seller_id;
+
+  select coalesce(sum(oi.total_price),0)::numeric(12,2),count(*)::integer
+  into v_total,v_items_total
+  from public.order_items oi
+  where oi.order_id=v_order.id
+    and oi.seller_id=v_order.seller_id
+    and oi.cancelled_at is null;
+
+  select coalesce(sum(p.amount),0)::numeric(12,2)
+  into v_paid
+  from public.payments p
+  where p.order_id=v_order.id
+    and p.seller_id=v_order.seller_id
+    and (p.proof_status is null or p.proof_status='confirmed');
+
+  select count(*)::integer into v_items_complete
+  from public.order_items oi
+  where oi.order_id=v_order.id
+    and oi.seller_id=v_order.seller_id
+    and oi.cancelled_at is null
+    and (
+      jsonb_array_length(coalesce(oi.workflow_snapshot,'[]'::jsonb))=0
+      or not exists (
+        select 1
+        from jsonb_array_elements(coalesce(oi.workflow_snapshot,'[]'::jsonb)) st
+        where not exists (
+          select 1
+          from public.stage_logs sl
+          where sl.order_item_id=oi.id
+            and sl.stage_order=(st->>'stage_order')::integer
+            and sl.action='finished'
+            and not exists (
+              select 1
+              from public.stage_logs newer
+              where newer.order_item_id=sl.order_item_id
+                and newer.stage_order=sl.stage_order
+                and newer.action='sent_back'
+                and newer.occurred_at>sl.occurred_at
+            )
+        )
+      )
+    );
+
+  v_production_complete := v_items_total > 0 and v_items_complete = v_items_total;
+
+  if v_order.event_id is not null then
+    select jsonb_build_object(
+      'id',e.id,
+      'name',e.name,
+      'location',e.location,
+      'event_date',e.event_date,
+      'start_time',e.start_time,
+      'end_time',e.end_time,
+      'status',e.status
+    )
+    into v_current_event
+    from public.events e
+    where e.id=v_order.event_id
+      and e.seller_id=v_order.seller_id;
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id',e.id,
+        'name',e.name,
+        'location',e.location,
+        'event_date',e.event_date,
+        'start_time',e.start_time,
+        'end_time',e.end_time,
+        'notes',e.notes
+      )
+      order by e.event_date,e.start_time nulls last,e.name
+    ),'[]'::jsonb
+  )
+  into v_events
+  from public.events e
+  where e.seller_id=v_order.seller_id
+    and lower(e.status) in ('upcoming','ready','active')
+    and e.event_date>=current_date;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id',b.id,
+        'name',b.name,
+        'address',b.address,
+        'latitude',b.latitude,
+        'longitude',b.longitude,
+        'is_active',b.is_active,
+        'is_default',b.is_default
+      )
+      order by b.is_default desc,b.name
+    ),'[]'::jsonb
+  )
+  into v_branches
+  from public.seller_branches b
+  where b.seller_id=v_order.seller_id
+    and b.is_active=true;
+
+  if v_order.pickup_branch_id is not null then
+    select jsonb_build_object(
+      'id',b.id,
+      'name',b.name,
+      'address',b.address,
+      'latitude',b.latitude,
+      'longitude',b.longitude,
+      'is_active',b.is_active,
+      'is_default',b.is_default
+    )
+    into v_current_branch
+    from public.seller_branches b
+    where b.id=v_order.pickup_branch_id
+      and b.seller_id=v_order.seller_id;
+  end if;
+
+  return jsonb_build_object(
+    'order_id',v_order.id,
+    'order_number',v_order.order_number,
+    'customer_name',(select c.name from public.customers c where c.id=v_order.customer_id),
+    'shop',jsonb_build_object(
+      'name',v_shop_name,
+      'address',v_shop_address,
+      'latitude',v_shop_latitude,
+      'longitude',v_shop_longitude,
+      'logo_path',v_shop_logo_path
+    ),
+    'branches',v_branches,
+    'pickup_branch_id',v_order.pickup_branch_id,
+    'pickup_branch',v_current_branch,
+    'production_completed',v_production_complete,
+    'production_items_total',v_items_total,
+    'production_items_complete',v_items_complete,
+    'payment_total',v_total,
+    'payment_paid',v_paid,
+    'payment_remaining',greatest(v_total-v_paid,0),
+    'fully_paid',v_paid>=v_total,
+    'fulfillment_type',v_order.fulfillment_type,
+    'pickup_status',v_order.pickup_status,
+    'handed_over_at',v_order.handed_over_at,
+    'event',v_current_event,
+    'events',v_events
+  );
+end;
+$function$;
+
+-- ============================================================
+-- CUSTOMER FULFILLMENT SAVE: CURRENT VERSION
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.set_customer_fulfillment(
+  p_public_token text,
+  p_fulfillment_type text,
+  p_event_id uuid DEFAULT NULL::uuid,
+  p_branch_id uuid DEFAULT NULL::uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO public
+AS $function$
+declare
+  v_qr public.qr_codes%rowtype;
+  v_item public.order_items%rowtype;
+  v_order public.orders%rowtype;
+  v_event public.events%rowtype;
+  v_branch public.seller_branches%rowtype;
+  v_total numeric(12,2) := 0;
+  v_paid numeric(12,2) := 0;
+  v_items_total integer := 0;
+  v_items_complete integer := 0;
+  v_next_fulfillment text;
+  v_next_pickup_status text;
+begin
+  if nullif(trim(p_public_token), '') is null then
+    raise exception 'Tracking token is required.';
+  end if;
+
+  if p_fulfillment_type not in ('shop','location','courier') then
+    raise exception 'Invalid fulfillment type.';
+  end if;
+
+  select * into v_qr
+  from public.qr_codes
+  where public_token = p_public_token
+    and status = 'assigned'
+  limit 1;
+
+  if not found or v_qr.order_item_id is null then
+    raise exception 'Tracking link not found.';
+  end if;
+
+  select * into v_item
+  from public.order_items
+  where id = v_qr.order_item_id
+    and cancelled_at is null
+  limit 1;
+
+  if not found then
+    raise exception 'Order item not found.';
+  end if;
+
+  select * into v_order
+  from public.orders
+  where id = v_item.order_id
+    and cancelled_at is null
+  for update;
+
+  if not found then
+    raise exception 'Order not found.';
+  end if;
+
+  select coalesce(sum(oi.total_price),0)::numeric(12,2), count(*)::integer
+  into v_total,v_items_total
+  from public.order_items oi
+  where oi.order_id=v_order.id
+    and oi.cancelled_at is null;
+
+  select count(*)::integer into v_items_complete
+  from public.order_items oi
+  where oi.order_id=v_order.id
+    and oi.cancelled_at is null
+    and (
+      jsonb_array_length(coalesce(oi.workflow_snapshot,'[]'::jsonb))=0
+      or (
+        select count(*)
+        from jsonb_array_elements(coalesce(oi.workflow_snapshot,'[]'::jsonb)) st
+        where exists (
+          select 1
+          from public.stage_logs sl
+          where sl.order_item_id=oi.id
+            and sl.stage_order=(st->>'stage_order')::integer
+            and sl.action='finished'
+            and not exists (
+              select 1
+              from public.stage_logs newer
+              where newer.order_item_id=oi.id
+                and newer.stage_order=sl.stage_order
+                and newer.action='sent_back'
+                and newer.occurred_at>sl.occurred_at
+            )
+        )
+      ) = jsonb_array_length(coalesce(oi.workflow_snapshot,'[]'::jsonb))
+    );
+
+  select coalesce(sum(p.amount),0)::numeric(12,2)
+  into v_paid
+  from public.payments p
+  where p.order_id=v_order.id
+    and (p.proof_status is null or p.proof_status='confirmed');
+
+  if v_items_total=0 then
+    raise exception 'There are no active items in this order.';
+  end if;
+
+  if v_items_complete<>v_items_total then
+    raise exception 'Production must be completed before choosing fulfillment.';
+  end if;
+
+  if v_paid<v_total then
+    raise exception 'Payment must be fully confirmed before choosing fulfillment.';
+  end if;
+
+  if p_fulfillment_type='location' then
+    select * into v_event
+    from public.events
+    where id=p_event_id
+      and seller_id=v_order.seller_id
+      and lower(status) in ('upcoming','ready','active')
+      and event_date>=current_date
+    limit 1;
+
+    if not found then
+      raise exception 'Selected pickup event is not available.';
+    end if;
+
+    v_next_fulfillment:='location';
+    v_next_pickup_status:='scheduled';
+    p_branch_id:=null;
+
+  elsif p_fulfillment_type='shop' then
+
+    if p_branch_id is not null then
+      select * into v_branch
+      from public.seller_branches
+      where id=p_branch_id
+        and seller_id=v_order.seller_id
+        and is_active=true
+      limit 1;
+
+      if not found then
+        raise exception 'Selected shop branch is not available.';
+      end if;
+    end if;
+
+    v_next_fulfillment:='shop';
+    v_next_pickup_status:='not_scheduled';
+    p_event_id:=null;
+
+  else
+    v_next_fulfillment:='courier';
+    v_next_pickup_status:='not_scheduled';
+    p_event_id:=null;
+    p_branch_id:=null;
+  end if;
+
+  update public.orders
+  set fulfillment_type=v_next_fulfillment,
+      event_id=p_event_id,
+      pickup_branch_id=p_branch_id,
+      pickup_status=v_next_pickup_status,
+      updated_at=now()
+  where id=v_order.id;
+
+  return jsonb_build_object(
+    'order_id',v_order.id,
+    'fulfillment_type',v_next_fulfillment,
+    'event_id',p_event_id,
+    'pickup_branch_id',p_branch_id,
+    'pickup_status',v_next_pickup_status
+  );
+end;
+$function$;
+
+-- ============================================================
+-- CUSTOMER TRACKING: CURRENT VERSION WITH MEDIA + BRANCH
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.get_customer_tracking(p_public_token text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO public
+AS $function$
+declare
+  v_qr public.qr_codes%rowtype;
+  v_order public.orders%rowtype;
+  v_seller public.sellers%rowtype;
+  v_item public.order_items%rowtype;
+  v_items jsonb := '[]'::jsonb;
+  v_history jsonb := '[]'::jsonb;
+  v_stages jsonb := '[]'::jsonb;
+  v_stage jsonb;
+  v_latest_action text;
+  v_latest_at timestamptz;
+  v_latest_proof_path text;
+  v_total numeric(12,2) := 0;
+  v_paid numeric(12,2) := 0;
+  v_payment_status text;
+  v_target_stage integer;
+  v_stage_status text;
+  v_all_done boolean := true;
+  v_has_active_stage boolean := false;
+  v_pickup_branch jsonb := null;
+begin
+  if p_public_token is null or length(trim(p_public_token)) < 16 then
+    raise exception 'Invalid tracking link.' using errcode = '22023';
+  end if;
+
+  select * into v_qr
+  from public.qr_codes
+  where public_token=trim(p_public_token)
+    and status='assigned'
+    and order_item_id is not null;
+
+  if not found then
+    raise exception 'Tracking link not found or no longer available.' using errcode='P0002';
+  end if;
+
+  select * into v_item
+  from public.order_items
+  where id=v_qr.order_item_id
+    and seller_id=v_qr.seller_id;
+
+  if not found then
+    raise exception 'Tracked order item was not found.' using errcode='P0002';
+  end if;
+
+  select * into v_order
+  from public.orders
+  where id=v_item.order_id
+    and seller_id=v_qr.seller_id;
+
+  if not found then
+    raise exception 'Tracked order was not found.' using errcode='P0002';
+  end if;
+
+  select * into v_seller
+  from public.sellers
+  where id=v_qr.seller_id;
+
+  if not found then
+    raise exception 'Shop was not found.' using errcode='P0002';
+  end if;
+
+  if v_order.pickup_branch_id is not null then
+    select jsonb_build_object(
+      'id',b.id,
+      'name',b.name,
+      'address',b.address,
+      'latitude',b.latitude,
+      'longitude',b.longitude,
+      'is_active',b.is_active,
+      'is_default',b.is_default
+    )
+    into v_pickup_branch
+    from public.seller_branches b
+    where b.id=v_order.pickup_branch_id
+      and b.seller_id=v_order.seller_id;
+  end if;
+
+  select
+    coalesce(sum(oi.total_price),0),
+    coalesce((
+      select sum(p.amount)
+      from public.payments p
+      where p.order_id=v_order.id
+        and p.seller_id=v_order.seller_id
+        and (p.proof_status is null or p.proof_status='confirmed')
+    ),0)
+  into v_total,v_paid
+  from public.order_items oi
+  where oi.order_id=v_order.id
+    and oi.seller_id=v_order.seller_id
+    and oi.cancelled_at is null;
+
+  if v_paid<=0 then
+    v_payment_status:='unpaid';
+  elsif v_paid<v_total then
+    if exists (
+      select 1 from public.payments p
+      where p.order_id=v_order.id
+        and p.seller_id=v_order.seller_id
+        and p.proof_status='pending_verification'
+    ) then
+      v_payment_status:='pending_verification';
+    elsif exists (
+      select 1 from public.payments p
+      where p.order_id=v_order.id
+        and p.seller_id=v_order.seller_id
+        and p.proof_status='rejected'
+    ) then
+      v_payment_status:='rejected';
+    else
+      v_payment_status:='partially_paid';
+    end if;
+  else
+    v_payment_status:='fully_paid';
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id',p.id,
+        'amount',p.amount,
+        'payment_type',p.payment_type,
+        'proof_status',p.proof_status,
+        'payment_method',p.payment_method,
+        'rejection_reason',p.rejection_reason,
+        'created_at',p.created_at,
+        'source',case when p.proof_path like 'incoming/%' then 'customer' else 'seller' end
+      ) order by p.created_at
+    ),'[]'::jsonb
+  ) into v_history
+  from public.payments p
+  where p.order_id=v_order.id
+    and p.seller_id=v_order.seller_id;
+
+  if jsonb_typeof(v_item.workflow_snapshot)='array' then
+    for v_stage in
+      select value from jsonb_array_elements(v_item.workflow_snapshot)
+      order by (value->>'stage_order')::integer
+    loop
+      v_target_stage:=(v_stage->>'stage_order')::integer;
+
+      select sl.action,sl.occurred_at,sl.proof_photo_path
+      into v_latest_action,v_latest_at,v_latest_proof_path
+      from public.stage_logs sl
+      where sl.order_item_id=v_item.id
+        and sl.stage_order=v_target_stage
+      order by sl.occurred_at desc
+      limit 1;
+
+      if v_latest_action='finished' then
+        v_stage_status:='finished';
+      else
+        if v_all_done and not v_has_active_stage then
+          v_stage_status:='in_progress';
+          v_has_active_stage:=true;
+        else
+          v_stage_status:='upcoming';
+          v_all_done:=false;
+        end if;
+      end if;
+
+      if v_stage_status<>'finished' then
+        v_all_done:=false;
+      end if;
+
+      v_stages:=v_stages||jsonb_build_array(
+        jsonb_build_object(
+          'stage_order',v_target_stage,
+          'name',coalesce(v_stage->>'name','Stage'),
+          'status',v_stage_status,
+          'has_photo',(v_stage_status='finished' and v_latest_proof_path is not null),
+          'finished_at',case when v_stage_status='finished' then v_latest_at else null end
+        )
+      );
+    end loop;
+  end if;
+
+  if jsonb_array_length(v_stages)=0 or not exists (
+    select 1 from jsonb_array_elements(v_stages) s
+    where s->>'status'<>'finished'
+  ) then
+    v_all_done:=true;
+  else
+    v_all_done:=false;
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id',oi.id,
+        'product_name',oi.product_name,
+        'quantity',oi.quantity,
+        'cancelled',oi.cancelled_at is not null,
+        'product_image_path',(
+          select p.image_path
+          from public.products p
+          where p.id=oi.product_id
+            and p.seller_id=oi.seller_id
+        ),
+        'production_status',case
+          when oi.cancelled_at is not null then 'cancelled'
+          when jsonb_typeof(oi.workflow_snapshot)<>'array'
+            or jsonb_array_length(oi.workflow_snapshot)=0 then 'completed'
+          when not exists (
+            select 1
+            from jsonb_array_elements(oi.workflow_snapshot) s
+            where not exists (
+              select 1
+              from public.stage_logs sl
+              where sl.order_item_id=oi.id
+                and sl.stage_order=(s->>'stage_order')::integer
+                and sl.action='finished'
+                and sl.occurred_at=(
+                  select max(sl2.occurred_at)
+                  from public.stage_logs sl2
+                  where sl2.order_item_id=oi.id
+                    and sl2.stage_order=sl.stage_order
+                )
+            )
+          ) then 'completed'
+          else 'in_progress'
+        end
+      ) order by oi.created_at
+    ),'[]'::jsonb
+  ) into v_items
+  from public.order_items oi
+  where oi.order_id=v_order.id
+    and oi.seller_id=v_order.seller_id;
+
+  return jsonb_build_object(
+    'shop',jsonb_build_object(
+      'name',v_seller.shop_name,
+      'address',v_seller.shop_address,
+      'latitude',v_seller.shop_latitude,
+      'longitude',v_seller.shop_longitude,
+      'logo_path',v_seller.shop_logo_path
+    ),
+    'order',jsonb_build_object(
+      'order_number',v_order.order_number,
+      'created_at',v_order.created_at,
+      'cancelled_at',v_order.cancelled_at,
+      'handed_over_at',v_order.handed_over_at,
+      'fulfillment_type',v_order.fulfillment_type,
+      'pickup_status',v_order.pickup_status,
+      'event_id',v_order.event_id,
+      'pickup_branch_id',v_order.pickup_branch_id
+    ),
+    'pickup_branch',v_pickup_branch,
+    'item',jsonb_build_object(
+      'id',v_item.id,
+      'product_name',v_item.product_name,
+      'quantity',v_item.quantity,
+      'total_price',v_item.total_price,
+      'cancelled_at',v_item.cancelled_at,
+      'production_completed',v_all_done,
+      'production_stages',v_stages,
+      'product_image_path',(
+        select p.image_path
+        from public.products p
+        where p.id=v_item.product_id
+          and p.seller_id=v_item.seller_id
+      )
+    ),
+    'order_items',v_items,
+    'payment',jsonb_build_object(
+      'total',round(v_total,2),
+      'paid',round(v_paid,2),
+      'remaining',round(greatest(v_total-v_paid,0),2),
+      'status',v_payment_status,
+      'history',v_history
+    )
+  );
+end;
+$function$;
+
+-- ============================================================
+-- RPC GRANTS
+-- ============================================================
+
+GRANT EXECUTE ON FUNCTION public.get_customer_fulfillment(text)
+TO anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.get_customer_tracking(text)
+TO anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.set_customer_fulfillment(text,text,uuid,uuid)
+TO anon, authenticated;
+
+COMMIT;
+
+-- ============================================================
+-- IMPORTANT RESTORE NOTE
+-- ============================================================
+-- This file is a CURRENT SCHEMA restore, assembled from:
+--   1) the uploaded Ordeli baseline ordeli.sql
+--   2) the live database changes applied afterwards
+--
+-- It is intended to recreate database structure, functions, RLS,
+-- indexes, storage buckets/policies, and related configuration.
+-- It does NOT contain production row data or Supabase Auth users.
+--
+-- The QR generator fix discussed later (globally unique QR codes
+-- across sellers with the product UUID portion in the code) was
+-- provided as a query but was NOT applied to the live database at
+-- the time this file was generated, so it is intentionally not
+-- included here.
+-- ============================================================
