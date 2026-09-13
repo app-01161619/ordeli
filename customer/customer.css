@@ -226,3 +226,47 @@ button:focus-visible { outline: 3px solid rgba(32, 138, 239, .25); outline-offse
 .customer-photo-viewer-inner { padding: 12px; background: #fff; border-radius: 16px; }
 .customer-photo-viewer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 #customerPhotoViewerImage { display: block; width: 100%; max-height: 74vh; object-fit: contain; border-radius: 10px; }
+
+/* Customer tracking follows the device theme because it has no seller session/settings. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --customer-background: #0d1117;
+    --customer-surface: #171b21;
+    --customer-surface-muted: #20262f;
+    --customer-text: #f5f7fa;
+    --customer-muted: #aab4c0;
+    --customer-border: #303844;
+    --customer-border-strong: #46515f;
+    --customer-primary: #4aa3ff;
+  }
+  body, .tracking-page { background: var(--customer-background); color: var(--customer-text); }
+  .tracking-card { background: var(--customer-surface); border-color: var(--customer-border); box-shadow: 0 10px 30px rgba(0, 0, 0, .24); }
+  .tracking-brand span, .tracking-state-card p, .tracking-product-heading p,
+  .tracking-section-heading p, .tracking-stage-meta > span, .tracking-stage-status-time,
+  .tracking-stage-empty, .tracking-payment-grid span, .payment-proof-header p,
+  .payment-form-field small, .tracking-inline-notice, .customer-cancellation-box p,
+  .fulfillment-option small, .payment-history-row span, .payment-history-empty { color: var(--customer-muted); }
+  .tracking-kicker { color: var(--customer-muted); }
+  .tracking-payment-grid > div, .tracking-stage-icon, .tracking-stage-empty,
+  .payment-pending-note, .payment-history-row, .fulfillment-shop-address,
+  .fulfillment-option, .customer-shop-logo-wrap { background: var(--customer-surface-muted); border-color: var(--customer-border); }
+  .tracking-stage-row, .payment-history-section { border-color: var(--customer-border); }
+  .tracking-select, .customer-review-box textarea, .payment-amount-wrap,
+  .payment-amount-wrap input { background: var(--customer-surface-muted); color: var(--customer-text); border-color: var(--customer-border-strong); }
+  .payment-amount-wrap input::placeholder, .customer-review-box textarea::placeholder { color: #8793a1; }
+  .secondary-button { background: var(--customer-surface-muted); color: var(--customer-text); border: 1px solid var(--customer-border); }
+  .secondary-button:hover { background: #29313b; }
+  .tracking-spinner { border-color: #39434f; border-top-color: var(--customer-primary); }
+  .tracking-error-icon { background: #4a2429; color: #ff8585; }
+  .tracking-status-badge { background: #193452; color: #8fc7ff; }
+  .tracking-status-badge.is-complete { background: #183b2a; color: #75d99b; }
+  .tracking-status-badge.is-cancelled { background: #4a2429; color: #ff8585; }
+  .tracking-photo-button { background: #193452; color: #8fc7ff; }
+  .tracking-stage-row.is-finished .tracking-stage-icon { background: #183b2a; color: #75d99b; }
+  .tracking-stage-row.is-in_progress .tracking-stage-icon { background: #193452; color: #8fc7ff; }
+  .payment-history-row.is-rejected { background: #422326; border-color: #6d3439; }
+  .payment-history-row p { color: #ff8585; }
+  .customer-review-stars button { color: #59636f; }
+  .customer-photo-viewer-inner { background: var(--customer-surface); }
+}

@@ -3957,6 +3957,87 @@ body[data-ordeli-theme="dark"], body[data-ordeli-theme="system"] { background:va
   background: var(--primary);
 }
 
+/* Final dark-mode pass for legacy light-authored surfaces. */
+[data-ordeli-effective-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-ordeli-effective-theme="dark"] .auth-card,
+[data-ordeli-effective-theme="dark"] .dashboard-panel,
+[data-ordeli-effective-theme="dark"] .order-card,
+[data-ordeli-effective-theme="dark"] .order-detail-panel,
+[data-ordeli-effective-theme="dark"] .event-card,
+[data-ordeli-effective-theme="dark"] .product-card,
+[data-ordeli-effective-theme="dark"] .workflow-card,
+[data-ordeli-effective-theme="dark"] .modal-card,
+[data-ordeli-effective-theme="dark"] .home-menu,
+[data-ordeli-effective-theme="dark"] .map-picker-dialog {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .28);
+}
+
+[data-ordeli-effective-theme="dark"] .brand-block p,
+[data-ordeli-effective-theme="dark"] .auth-subtitle,
+[data-ordeli-effective-theme="dark"] .page-subtitle,
+[data-ordeli-effective-theme="dark"] .section-heading p,
+[data-ordeli-effective-theme="dark"] .order-card-meta,
+[data-ordeli-effective-theme="dark"] .form-help,
+[data-ordeli-effective-theme="dark"] .field-help,
+[data-ordeli-effective-theme="dark"] .product-card p,
+[data-ordeli-effective-theme="dark"] .event-card p {
+  color: var(--text-muted);
+}
+
+[data-ordeli-effective-theme="dark"] .form-group input,
+[data-ordeli-effective-theme="dark"] .form-group textarea,
+[data-ordeli-effective-theme="dark"] .form-group select,
+[data-ordeli-effective-theme="dark"] .qr-create-card input,
+[data-ordeli-effective-theme="dark"] .qr-create-card select,
+[data-ordeli-effective-theme="dark"] .event-reschedule-picker input,
+[data-ordeli-effective-theme="dark"] .event-reschedule-picker select,
+[data-ordeli-effective-theme="dark"] .production-scanned-item textarea {
+  background: var(--surface-muted);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+[data-ordeli-effective-theme="dark"] .secondary-button,
+[data-ordeli-effective-theme="dark"] .choice-row,
+[data-ordeli-effective-theme="dark"] .orders-queue-summary,
+[data-ordeli-effective-theme="dark"] .detected-product,
+[data-ordeli-effective-theme="dark"] .payment-summary,
+[data-ordeli-effective-theme="dark"] .sms-draft-message,
+[data-ordeli-effective-theme="dark"] .event-reschedule-picker {
+  background: var(--surface-muted);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+[data-ordeli-effective-theme="dark"] .secondary-button:hover {
+  background: #29313b;
+}
+
+[data-ordeli-effective-theme="dark"] .home-menu-backdrop {
+  background: rgba(0, 0, 0, .68);
+}
+
+[data-ordeli-effective-theme="dark"] .home-menu-item-danger {
+  color: #ff8585;
+}
+
+[data-ordeli-effective-theme="dark"] .shop-logo-dropzone,
+[data-ordeli-effective-theme="dark"] .logo-preview,
+[data-ordeli-effective-theme="dark"] .customer-photo-viewer {
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+[data-ordeli-effective-theme="dark"] ::placeholder {
+  color: #8793a1;
+}
+
 /* Existing operational cards were authored primarily for the light theme. */
 [data-ordeli-effective-theme="dark"] .production-work-toolbar,
 [data-ordeli-effective-theme="dark"] .production-work-card,
