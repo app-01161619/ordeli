@@ -363,13 +363,24 @@ function renderFulfillment() {
     eventPicker.hidden = true;
     saveButton.hidden = true;
     notice.textContent = "";
+
+    // Render the saved fulfillment details directly into the visible card body.
+    // Do not rely on the hidden attribute for this state.
     savedContent.hidden = false;
+    savedContent.removeAttribute("hidden");
+    savedContent.style.display = "block";
+    savedContent.replaceChildren();
 
     if (fulfillmentType === "shop") {
       savedContent.innerHTML = `
-        <span class="tracking-kicker">SHOP ADDRESS</span>
-        ${shopAddress ? `<strong class="fulfillment-address-value">${escapeHtml(shopAddress)}</strong>` : `<p>The shop address is currently unavailable.</p>`}
-        <p>Please pick up your order at the shop.</p>`;
+        <div class="fulfillment-saved-message">
+          <span class="tracking-kicker">PICKUP AT SHOP</span>
+          <p>Please pick up your order at the shop.</p>
+          <div class="fulfillment-detail-block">
+            <span class="fulfillment-detail-label">Shop address</span>
+            <strong class="fulfillment-address-value">${shopAddress ? escapeHtml(shopAddress) : "The shop address is currently unavailable."}</strong>
+          </div>
+        </div>`;
     } else if (fulfillmentType === "location") {
       const events = getAvailablePickupEvents(state);
       const event = state.event || events.find((e) => e.id === state.event_id) || events.find((e) => e.id === trackingPayload?.order?.event_id) || null;
@@ -377,12 +388,25 @@ function renderFulfillment() {
         const date = formatEventDate(event.event_date);
         const time = formatEventTime(event.start_time, event.end_time);
         const location = event.location || event.name || "the pickup location";
-        savedContent.innerHTML = `<p>Please pick up your order at <strong>${escapeHtml(location)}</strong> on <strong>${escapeHtml(date)}</strong>${time ? ` from <strong>${escapeHtml(time)}</strong>` : ""}.</p>`;
+        savedContent.innerHTML = `
+          <div class="fulfillment-saved-message">
+            <span class="tracking-kicker">PICKUP AT LOCATION</span>
+            <p>Please pick up your order at <strong>${escapeHtml(location)}</strong>${date ? ` on <strong>${escapeHtml(date)}</strong>` : ""}${time ? ` from <strong>${escapeHtml(time)}</strong>` : ""}.</p>
+          </div>`;
       } else {
-        savedContent.innerHTML = `<p>Your pickup location has been saved, but the event details are unavailable right now.</p>`;
+        savedContent.innerHTML = `
+          <div class="fulfillment-saved-message">
+            <span class="tracking-kicker">PICKUP AT LOCATION</span>
+            <p>Your pickup location has been saved, but the event details are unavailable right now.</p>
+          </div>`;
       }
     } else if (fulfillmentType === "courier") {
-      savedContent.innerHTML = `<p>Thank you for your purchase! Please wait for <strong>${escapeHtml(shopName)}</strong> to contact you to arrange your delivery.</p>`;
+      savedContent.innerHTML = `
+        <div class="fulfillment-saved-message">
+          <span class="tracking-kicker">COURIER DELIVERY</span>
+          <p>Thank you for your purchase!</p>
+          <p>Please wait for <strong>${escapeHtml(shopName)}</strong> to contact you to arrange your delivery.</p>
+        </div>`;
     }
     return;
   }
