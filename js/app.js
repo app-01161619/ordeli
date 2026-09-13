@@ -7961,22 +7961,131 @@ $("branchForm")?.addEventListener("submit",async e=>{
   e.preventDefault(); const user=await getCurrentUser(); const name=$("branchName").value.trim(); const address=$("branchAddress").value.trim(); const latitude=Number($("branchLatitude").value); const longitude=Number($("branchLongitude").value); if(!name||!address||!Number.isFinite(latitude)||latitude<-90||latitude>90||!Number.isFinite(longitude)||longitude<-180||longitude>180){$("branchMessage").textContent="Branch name, address, latitude, and longitude are required.";return;}
   try { const id=$("branchId").value; const payload={name,address,latitude,longitude,is_active:true,updated_at:new Date().toISOString()}; let result; if(id) result=await supabase.from("seller_branches").update(payload).eq("id",id).eq("seller_id",user.id).select().single(); else result=await supabase.from("seller_branches").insert({...payload,seller_id:user.id}).select().single(); if(result.error) throw result.error; closeBranchEditor(); await refreshSellerBranches(); } catch(error){$("branchMessage").textContent=error.message||"Unable to save branch.";}
 });
-$("useShopLocationButton")?.addEventListener("click",()=>captureGeolocation("shopLatitude","shopLongitude","shopLocationMessage"));
-$("useBranchLocationButton")?.addEventListener("click",()=>captureGeolocation("branchLatitude","branchLongitude","branchMessage"));
-$("openShopMapsButton")?.addEventListener("click",()=>{
-  const address=$("shopAddress")?.value?.trim() || "";
-  const latitude=Number($("shopLatitude")?.value);
-  const longitude=Number($("shopLongitude")?.value);
-  const query=Number.isFinite(latitude)&&Number.isFinite(longitude)?`${latitude},${longitude}`:address;
-  if(!query){
-    $("shopLocationMessage").textContent="Enter your shop address first, then open Maps to locate it.";
-    $("shopAddress")?.focus();
+const locationPickerState = { target: null, map: null, marker: null, lat: null, lng: null, zoom: 17 };
+
+function setLocationInputs(latId, longId, latitude, longitude) {
+  $(latId).value = Number(latitude).toFixed(6);
+  $(longId).value = Number(longitude).toFixed(6);
+}
+
+function captureGeolocation(latId, longId, messageId, onComplete) {
+  const message = $(messageId);
+  if (!navigator.geolocation) {
+    if (message) message.textContent = "Geolocation is not available on this device.";
     return;
   }
-  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,"_blank","noopener,noreferrer");
-  $("shopLocationMessage").textContent="Maps opened. Use the selected location to get its Latitude and Longitude, then enter them below.";
+  if (message) message.textContent = "Getting your location…";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      setLocationInputs(latId, longId, pos.coords.latitude, pos.coords.longitude);
+      if (message) {
+        const accuracy = Number.isFinite(pos.coords.accuracy) ? Math.round(pos.coords.accuracy) : null;
+        message.textContent = accuracy ? `Location found (about ±${accuracy} m). You can fine-tune it on the map.` : "Location found. You can fine-tune it on the map.";
+      }
+      if (typeof onComplete === "function") onComplete(pos);
+    },
+    (err) => {
+      if (message) message.textContent = err.code === 1 ? "Location permission was denied." : "Unable to get your current location.";
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+  );
+}
+
+function openMapPicker(target) {
+  const modal = $("mapPickerModal");
+  if (!modal || typeof L === "undefined") {
+    if (target === "shop") { $("shopSetupMessage").textContent = "Map picker is unavailable right now. Please refresh the page."; }
+    else { $("branchMessage").textContent = "Map picker is unavailable right now. Please refresh the page."; }
+    return;
+  }
+  locationPickerState.target = target;
+  const latId = target === "shop" ? "shopLatitude" : "branchLatitude";
+  const longId = target === "shop" ? "shopLongitude" : "branchLongitude";
+  const lat = Number($(latId).value);
+  const lng = Number($(longId).value);
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+  const initial = hasCoords ? [lat, lng] : [14.5995, 120.9842];
+  locationPickerState.lat = initial[0];
+  locationPickerState.lng = initial[1];
+  $("mapPickerTitle").textContent = target === "shop" ? "Choose shop location" : "Choose branch location";
+  $("mapPickerStatus").textContent = hasCoords ? "Adjust the pin if needed, then confirm." : "Move the map until the pin is exactly at your location.";
+  $("mapPickerLatitude").textContent = Number(initial[0]).toFixed(6);
+  $("mapPickerLongitude").textContent = Number(initial[1]).toFixed(6);
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  setTimeout(() => {
+    if (!locationPickerState.map) {
+      locationPickerState.map = L.map("mapPicker", { zoomControl: true }).setView(initial, 17);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 20,
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(locationPickerState.map);
+      locationPickerState.marker = L.marker(initial, { draggable: false }).addTo(locationPickerState.map);
+      locationPickerState.map.on("move", updateMapPickerFromCenter);
+    } else {
+      locationPickerState.map.setView(initial, 17);
+      locationPickerState.map.invalidateSize();
+    }
+    updateMapPickerFromCenter();
+  }, 50);
+}
+
+function updateMapPickerFromCenter() {
+  const map = locationPickerState.map;
+  if (!map) return;
+  const center = map.getCenter();
+  locationPickerState.lat = center.lat;
+  locationPickerState.lng = center.lng;
+  if (locationPickerState.marker) locationPickerState.marker.setLatLng(center);
+  $("mapPickerLatitude").textContent = center.lat.toFixed(6);
+  $("mapPickerLongitude").textContent = center.lng.toFixed(6);
+}
+
+function closeMapPicker() {
+  const modal = $("mapPickerModal");
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function confirmMapPicker() {
+  if (!Number.isFinite(locationPickerState.lat) || !Number.isFinite(locationPickerState.lng)) return;
+  const target = locationPickerState.target;
+  if (target === "shop") {
+    setLocationInputs("shopLatitude", "shopLongitude", locationPickerState.lat, locationPickerState.lng);
+    $("shopSetupMessage").textContent = "Shop location selected on map.";
+  } else {
+    setLocationInputs("branchLatitude", "branchLongitude", locationPickerState.lat, locationPickerState.lng);
+    $("branchLocationStatus").textContent = "Branch location selected on map.";
+  }
+  closeMapPicker();
+}
+
+$("useShopLocationButton")?.addEventListener("click", () => captureGeolocation("shopLatitude", "shopLongitude", "shopLocationStatus", (pos) => {
+  if (Number.isFinite(pos.coords.latitude) && Number.isFinite(pos.coords.longitude)) openMapPicker("shop");
+}));
+$("openShopMapButton")?.addEventListener("click", () => openMapPicker("shop"));
+$("useBranchLocationButton")?.addEventListener("click", () => captureGeolocation("branchLatitude", "branchLongitude", "branchLocationStatus", (pos) => {
+  if (Number.isFinite(pos.coords.latitude) && Number.isFinite(pos.coords.longitude)) openMapPicker("branch");
+}));
+$("openBranchMapButton")?.addEventListener("click", () => openMapPicker("branch"));
+$("closeMapPickerButton")?.addEventListener("click", closeMapPicker);
+$("confirmMapLocationButton")?.addEventListener("click", confirmMapPicker);
+$("useMapCurrentLocationButton")?.addEventListener("click", () => {
+  $("mapPickerStatus").textContent = "Getting your location…";
+  if (!navigator.geolocation) { $("mapPickerStatus").textContent = "Geolocation is not available on this device."; return; }
+  navigator.geolocation.getCurrentPosition((pos) => {
+    if (!locationPickerState.map) return;
+    locationPickerState.map.setView([pos.coords.latitude, pos.coords.longitude], 18);
+    const accuracy = Number.isFinite(pos.coords.accuracy) ? Math.round(pos.coords.accuracy) : null;
+    $("mapPickerStatus").textContent = accuracy ? `Current location found (about ±${accuracy} m). Fine-tune the map if needed.` : "Current location found. Fine-tune the map if needed.";
+    updateMapPickerFromCenter();
+  }, () => {
+    $("mapPickerStatus").textContent = "Unable to get your current location.";
+  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
 });
-function captureGeolocation(latId,longId,messageId){ if(!navigator.geolocation){$(messageId).textContent="Geolocation is not available on this device.";return;} $(messageId).textContent="Getting your location…"; navigator.geolocation.getCurrentPosition(pos=>{ $(latId).value=pos.coords.latitude.toFixed(6); $(longId).value=pos.coords.longitude.toFixed(6); $(messageId).textContent="Location captured."; },err=>{ $(messageId).textContent=err.code===1?"Location permission was denied. Allow location access in your browser/site settings and try again.":"Unable to get your current location."; },{enableHighAccuracy:true,timeout:10000,maximumAge:60000}); }
+$("mapPickerModal")?.addEventListener("click", (event) => { if (event.target?.dataset?.mapPickerClose === "true") closeMapPicker(); });
+
 
 // ============================================================
 // COMMON HELPERS

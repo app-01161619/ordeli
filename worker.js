@@ -4,7 +4,7 @@ const SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(self), microphone=(), geolocation=(self), payment=()",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-  "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com https://kbgdxhshxkhuelbxlggc.supabase.co; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; connect-src 'self' https://kbgdxhshxkhuelbxlggc.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; img-src 'self' data: blob: https://kbgdxhshxkhuelbxlggc.supabase.co; media-src 'self' blob: https://kbgdxhshxkhuelbxlggc.supabase.co; style-src 'self'; font-src 'self' data:; manifest-src 'self'; worker-src 'self' blob:"
+  "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com https://kbgdxhshxkhuelbxlggc.supabase.co; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; connect-src 'self' https://kbgdxhshxkhuelbxlggc.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; img-src 'self' data: blob: https://kbgdxhshxkhuelbxlggc.supabase.co https://*.tile.openstreetmap.org; media-src 'self' blob: https://kbgdxhshxkhuelbxlggc.supabase.co; style-src 'self' https://unpkg.com; font-src 'self' data:; manifest-src 'self'; worker-src 'self' blob:"
 };
 
 const MAX_PAYMENT_PROOF_BYTES = 8 * 1024 * 1024;

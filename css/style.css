@@ -3451,8 +3451,20 @@ a:hover {
 .product-card.has-product-image { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; }
 @media (max-width:640px) { .shop-location-grid { grid-template-columns:1fr; } .product-card.has-product-image { grid-template-columns:auto 1fr; } .product-card.has-product-image .product-card-actions { grid-column:1 / -1; } }
 
-/* SHOP SETUP LOCATION ACTIONS */
-.shop-location-actions { display:flex; flex-wrap:wrap; gap:10px; margin:8px 0 10px; }
-.shop-location-actions button { width:auto; flex:1 1 220px; }
-.shop-location-status { min-height:1.25em; margin:8px 0 0; }
-@media (max-width:640px) { .shop-location-actions button { flex-basis:100%; } }
+/* Precise shop/branch location picker */
+.shop-location-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 10px; }
+.location-status { min-height:1.25em; margin:0 0 14px; color:#667085; font-size:13px; line-height:1.45; }
+.map-picker-modal { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px; }
+.map-picker-modal[hidden] { display:none; }
+.map-picker-backdrop { position:absolute; inset:0; background:rgba(15,23,42,.58); backdrop-filter:blur(2px); }
+.map-picker-dialog { position:relative; width:min(760px,100%); max-height:92vh; overflow:auto; background:#fff; border-radius:20px; box-shadow:0 24px 80px rgba(0,0,0,.25); padding:20px; }
+.map-picker-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.map-picker-header h2 { margin:4px 0 0; }
+.map-picker-help { margin:8px 0 14px; color:#667085; }
+.map-picker-map { height:420px; border-radius:16px; overflow:hidden; border:1px solid #e5e7eb; background:#f2f4f7; }
+.map-picker-details { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+.map-picker-details > div { padding:11px 12px; border:1px solid #e5e7eb; border-radius:12px; background:#f8fafc; }
+.map-picker-details span { display:block; font-size:12px; color:#667085; margin-bottom:4px; }
+.map-picker-details strong { font-size:14px; }
+.map-picker-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
+@media (max-width:640px) { .shop-location-actions { grid-template-columns:1fr; } .map-picker-dialog { padding:16px; border-radius:16px; } .map-picker-map { height:52vh; min-height:320px; } .map-picker-details { grid-template-columns:1fr; } .map-picker-actions { flex-direction:column; } }

@@ -9,6 +9,7 @@
 <link href="./manifest.webmanifest" rel="manifest"/>
 <link href="./icons/apple-touch-icon.png" rel="apple-touch-icon"/>
 <link href="./css/style.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <title>Ordeli</title>
 </head>
 <body>
@@ -128,15 +129,15 @@
 <textarea id="shopAddress" maxlength="500" required="" rows="4"></textarea>
 <p class="field-help">Used as the default pickup location when no branches are configured.</p>
 </div>
-<div class="shop-location-actions">
-<button id="useShopLocationButton" class="secondary-button" type="button">Use my current location</button>
-<button id="openShopMapsButton" class="secondary-button" type="button">Open Maps</button>
-</div>
 <div class="shop-location-grid">
 <div class="form-group"><label for="shopLatitude">Latitude</label><input id="shopLatitude" inputmode="decimal" type="number" min="-90" max="90" step="0.000001" required></div>
 <div class="form-group"><label for="shopLongitude">Longitude</label><input id="shopLongitude" inputmode="decimal" type="number" min="-180" max="180" step="0.000001" required></div>
 </div>
-<p class="field-help shop-location-status" id="shopLocationMessage" role="status" aria-live="polite"></p>
+<div class="shop-location-actions">
+<button id="useShopLocationButton" class="secondary-button" type="button">📍 Use my current location</button>
+<button id="openShopMapButton" class="secondary-button" type="button">🗺️ Choose location on map</button>
+</div>
+<p id="shopLocationStatus" class="location-status" role="status" aria-live="polite"></p>
 <div class="form-group">
 <label for="shopLogo">Shop Logo <span class="optional">Optional</span></label>
 <div class="shop-logo-uploader" id="shopLogoUploader">
@@ -165,7 +166,11 @@
 <div class="form-group"><label for="branchName">Branch Name</label><input id="branchName" maxlength="150" required></div>
 <div class="form-group"><label for="branchAddress">Branch Address</label><textarea id="branchAddress" maxlength="500" rows="3" required></textarea></div>
 <div class="shop-location-grid"><div class="form-group"><label for="branchLatitude">Latitude</label><input id="branchLatitude" inputmode="decimal" type="number" min="-90" max="90" step="0.000001" required></div><div class="form-group"><label for="branchLongitude">Longitude</label><input id="branchLongitude" inputmode="decimal" type="number" min="-180" max="180" step="0.000001" required></div></div>
-<button id="useBranchLocationButton" class="secondary-button" type="button">Use my current location</button>
+<div class="shop-location-actions">
+<button id="useBranchLocationButton" class="secondary-button" type="button">📍 Use my current location</button>
+<button id="openBranchMapButton" class="secondary-button" type="button">🗺️ Choose location on map</button>
+</div>
+<p id="branchLocationStatus" class="location-status" role="status" aria-live="polite"></p>
 <div class="editor-actions"><button id="cancelBranchButton" class="secondary-button" type="button">Cancel</button><button id="saveBranchButton" type="submit">Save Branch</button></div>
 <p class="form-message" id="branchMessage" role="alert"></p>
 </form>
@@ -779,5 +784,31 @@
 </aside><div class="home-menu-backdrop" hidden="" id="homeMenuBackdrop"></div></main>
 <script defer="" src="./js/boot.js"></script>
 <script defer="" src="./js/register-sw.js"></script>
+
+<div id="mapPickerModal" class="map-picker-modal" hidden aria-hidden="true">
+  <div class="map-picker-backdrop" data-map-picker-close="true"></div>
+  <section class="map-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="mapPickerTitle">
+    <div class="map-picker-header">
+      <div>
+        <span class="eyebrow">SHOP LOCATION</span>
+        <h2 id="mapPickerTitle">Choose location on map</h2>
+      </div>
+      <button id="closeMapPickerButton" class="secondary-button" type="button" aria-label="Close map">Close</button>
+    </div>
+    <p class="map-picker-help">Move the map until the pin is exactly at your shop, then confirm the location.</p>
+    <div id="mapPicker" class="map-picker-map"></div>
+    <div class="map-picker-details">
+      <div><span>Latitude</span><strong id="mapPickerLatitude">—</strong></div>
+      <div><span>Longitude</span><strong id="mapPickerLongitude">—</strong></div>
+    </div>
+    <div class="map-picker-actions">
+      <button id="useMapCurrentLocationButton" class="secondary-button" type="button">📍 Use my current location</button>
+      <button id="confirmMapLocationButton" type="button">Use this location</button>
+    </div>
+    <p id="mapPickerStatus" class="location-status" role="status" aria-live="polite"></p>
+  </section>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </body>
 </html>
