@@ -19,7 +19,7 @@
     }
   }, 10000);
 
-  import("./app.js?v=2026-09-13-01")
+  import("./app.js?v=2026-09-13-03")
     .then(() => {
       window.clearTimeout(timeoutId);
     })
