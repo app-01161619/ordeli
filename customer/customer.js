@@ -340,7 +340,11 @@ function renderFulfillment() {
     notice.textContent = "";
     savedContent.hidden = false;
 
-    if (fulfillmentType === "shop") {
+    if (lifecycleBlocked) {
+      savedContent.innerHTML = `<p>Your order has been handed over. Thank you for your purchase!</p>`;
+    } else if (state.pickup_status === "unclaimed") {
+      savedContent.innerHTML = `<p>Your pickup was unclaimed. You can reschedule pickup or switch to Courier Delivery below.</p>`;
+    } else if (fulfillmentType === "shop") {
       savedContent.innerHTML = `
         <span class="tracking-kicker">SHOP ADDRESS</span>
         ${shopAddress ? `<strong class="fulfillment-address-value">${escapeHtml(shopAddress)}</strong>` : `<p>The shop address is currently unavailable.</p>`}
