@@ -384,7 +384,15 @@ function renderFulfillment() {
     const wrapper = document.createElement("div");
     wrapper.className = "fulfillment-saved-message";
 
-    if (fulfillmentType === "shop") {
+    if (lifecycleBlocked) {
+      const message = document.createElement("p");
+      message.textContent = "Your order has been handed over. Thank you for your purchase!";
+      wrapper.append(message);
+    } else if (state.pickup_status === "unclaimed") {
+      const message = document.createElement("p");
+      message.textContent = "Your pickup was unclaimed. You can reschedule pickup or switch to Courier Delivery below.";
+      wrapper.append(message);
+    } else if (fulfillmentType === "shop") {
       const branch = state.pickup_branch || (Array.isArray(state.branches) ? state.branches.find((b) => b.id === state.pickup_branch_id) : null);
       const pickupName = branch?.name || shopName;
       const pickupAddress = branch?.address || shopAddress;
@@ -932,8 +940,8 @@ async function saveCustomerFulfillment() {
   const eventId = choice === "location" ? $("fulfillmentEventSelect")?.value || "" : null;
   const branchId = choice === "shop" ? $("fulfillmentBranchSelect")?.value || null : null;
   const availableBranches = Array.isArray(fulfillmentState?.branches) ? fulfillmentState.branches : [];
-  if (!choice) { $("fulfillmentNotice").textContent = "Choose a fulfillment option."; return; }
-  if (choice === "location" && !eventId) { $("fulfillmentNotice").textContent = "Choose a pickup event."; return; }
+  if (!choice) { const notice = $("fulfillmentNotice"); if (notice) notice.textContent = "Choose a fulfillment option."; return; }
+  if (choice === "location" && !eventId) { const notice = $("fulfillmentNotice"); if (notice) notice.textContent = "Choose a pickup event."; return; }
   if (choice === "shop" && availableBranches.length && !branchId) { const notice=$("fulfillmentNotice"); if (notice) notice.textContent = "Choose a shop branch."; return; }
 
   fulfillmentBusy = true;
@@ -993,7 +1001,8 @@ async function saveCustomerFulfillment() {
     }
   } catch (error) {
     console.error("Customer fulfillment save failed:", error);
-    $("fulfillmentNotice").textContent = error?.message || "Unable to save your fulfillment choice.";
+    const notice = $("fulfillmentNotice");
+    if (notice) notice.textContent = error?.message || "Unable to save your fulfillment choice.";
   } finally {
     fulfillmentBusy = false;
     if (button) { button.disabled = false; button.textContent = "Save Fulfillment"; }
