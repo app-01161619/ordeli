@@ -3756,3 +3756,44 @@ button.is-loading {
 @keyframes ordeli-button-spin {
   to { transform: rotate(360deg); }
 }
+
+/* Settings */
+.settings-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; max-width:980px; margin:0 auto; }
+.settings-card { background:var(--surface,#fff); border:1px solid var(--border,#e5e7eb); border-radius:var(--radius-lg,16px); padding:18px; box-shadow:0 8px 24px rgba(15,23,42,.05); }
+.settings-card-heading h2 { margin:0 0 4px; font-size:18px; }
+.settings-card-heading p { margin:0 0 14px; color:var(--text-muted,#68727d); font-size:13px; }
+.settings-row,.settings-switch-row { display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center; padding:13px 0; border-top:1px solid var(--border,#e5e7eb); }
+.settings-row strong,.settings-switch-row strong { display:block; font-size:14px; }
+.settings-row small,.settings-switch-row small { display:block; color:var(--text-muted,#68727d); font-size:12px; margin-top:3px; }
+.settings-row select { min-width:125px; border:1px solid var(--border-strong,#d2d6dc); border-radius:10px; padding:9px 10px; background:var(--surface,#fff); color:var(--text,#202124); }
+.settings-switch-row { cursor:pointer; }
+.settings-switch-row input { position:absolute; opacity:0; pointer-events:none; }
+.settings-switch { width:44px; height:24px; border-radius:999px; background:#d8dde4; position:relative; transition:.2s; }
+.settings-switch:after { content:""; position:absolute; width:18px; height:18px; top:3px; left:3px; background:#fff; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,.15); transition:.2s; }
+.settings-switch-row input:checked + .settings-switch { background:var(--primary,#208aef); }
+.settings-switch-row input:checked + .settings-switch:after { transform:translateX(20px); }
+.settings-secondary { margin-top:12px; width:100%; }
+.settings-status { display:flex; gap:10px; align-items:center; padding:12px; background:var(--surface-muted,#f8fafc); border:1px solid var(--border,#e5e7eb); border-radius:12px; }
+.settings-status strong { display:block; font-size:14px; }
+.settings-status small { display:block; margin-top:3px; color:var(--text-muted,#68727d); font-size:12px; }
+.settings-status-dot { width:10px; height:10px; border-radius:50%; background:#f59e0b; flex:0 0 auto; }
+.settings-status-dot[data-online="true"] { background:#16a34a; }
+.settings-stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+.settings-stat-grid > div { border:1px solid var(--border,#e5e7eb); border-radius:12px; padding:11px 12px; }
+.settings-stat-grid span { display:block; color:var(--text-muted,#68727d); font-size:11px; }
+.settings-stat-grid strong { display:block; margin-top:3px; font-size:16px; }
+.settings-logout-button { width:100%; margin-top:12px; }
+html[data-ordeliTextSize="small"] { font-size:14px; }
+html[data-ordeliTextSize="large"] { font-size:17px; }
+body[data-ordeliFont="inter"] { font-family:Inter,ui-sans-serif,system-ui,sans-serif; }
+body[data-ordeliFont="poppins"] { font-family:Poppins,ui-sans-serif,system-ui,sans-serif; }
+body[data-ordeliFont="nunito"] { font-family:Nunito,ui-sans-serif,system-ui,sans-serif; }
+body[data-ordeliCompact="true"] .app-container { padding-top:10px; padding-bottom:18px; }
+body[data-ordeliCompact="true"] .dashboard-panel, body[data-ordeliCompact="true"] .production-panel, body[data-ordeliCompact="true"] .order-detail-panel { margin-bottom:10px; }
+@media (prefers-color-scheme: dark) {
+  html[data-ordeli-theme="system"] { --surface:#17191d; --surface-muted:#20242a; --background:#0f1115; --text:#f3f4f6; --text-muted:#aab1bb; --border:#2d333b; --border-strong:#3a424c; }
+}
+html[data-ordeli-theme="dark"] { --surface:#17191d; --surface-muted:#20242a; --background:#0f1115; --text:#f3f4f6; --text-muted:#aab1bb; --border:#2d333b; --border-strong:#3a424c; }
+html[data-ordeli-theme="light"] { --surface:#fff; --surface-muted:#f8fafc; --background:#f5f6f8; --text:#202124; --text-muted:#68727d; --border:#e5e7eb; --border-strong:#d2d6dc; }
+body[data-ordeli-theme="dark"], body[data-ordeli-theme="system"] { background:var(--background); color:var(--text); }
+@media (max-width:760px){ .settings-grid{grid-template-columns:1fr;} .settings-row select{min-width:110px;} }
