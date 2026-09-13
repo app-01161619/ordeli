@@ -319,13 +319,19 @@
 </section>
 <section class="screen" hidden="" id="orderDetailScreen">
 <div class="app-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
-<header class="page-header">
+<header class="page-header order-detail-page-header">
 <div>
+<div class="order-detail-eyebrow">SCANNED ORDER</div>
 <h1 id="orderDetailTitle">Order</h1>
 <p class="page-subtitle" id="orderDetailCustomer"></p>
 </div>
 </header>
-<section class="order-detail-card" id="orderDetailCard">
+<section class="order-detail-card order-detail-modern-card" id="orderDetailCard">
+<div class="order-detail-quick-meta" id="orderDetailQuickMeta" aria-label="Order summary">
+  <div><span>ITEMS</span><strong id="orderDetailItemCount">0</strong></div>
+  <div><span>STAGES</span><strong id="orderDetailStageSummary">—</strong></div>
+  <div><span>PAYMENT</span><strong id="orderDetailPaymentSummary">—</strong></div>
+</div>
 <div class="order-detail-heading">
 <div>
 <span class="detail-label">ORDER</span>

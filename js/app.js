@@ -6735,6 +6735,25 @@ async function loadOrderDetail(
   if ($("orderDetailMessage")) $("orderDetailMessage").hidden = isFreshOrder;
   if ($("orderDetailAddItemButton")) $("orderDetailAddItemButton").textContent = isFreshOrder ? "Add to This Order" : "Add Another Item";
 
+  const quickItemCount = $("orderDetailItemCount");
+  const quickStageSummary = $("orderDetailStageSummary");
+  const quickPaymentSummary = $("orderDetailPaymentSummary");
+  if (quickItemCount) quickItemCount.textContent = String(items.filter(item => !item.cancelled_at).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0));
+
+  let stageFinished = 0;
+  let stageTotal = 0;
+  items.filter(item => !item.cancelled_at).forEach(item => {
+    const workflow = normaliseWorkflowSnapshot(item.workflow_snapshot);
+    const logs = Array.isArray(item.stage_logs) ? item.stage_logs : [];
+    stageTotal += workflow.length;
+    stageFinished += workflow.filter(stage => {
+      const matches = logs.filter(log => Number(log.stage_order) === Number(stage.stage_order)).sort((a,b) => new Date(a.occurred_at || 0) - new Date(b.occurred_at || 0));
+      return matches[matches.length - 1]?.action === 'finished';
+    }).length;
+  });
+  if (quickStageSummary) quickStageSummary.textContent = stageTotal ? `${stageFinished}/${stageTotal}` : '—';
+  if (quickPaymentSummary) quickPaymentSummary.textContent = isFreshOrder ? 'Downpayment' : '—';
+
   let total = 0;
   items.forEach(item => {
     if (!item.cancelled_at) total += Number(item.total_price) || 0;
@@ -6780,6 +6799,7 @@ async function loadOrderDetail(
   });
 
   const paid = payments.filter(payment => !payment.proof_status || payment.proof_status === "confirmed").reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+  if (quickPaymentSummary) quickPaymentSummary.textContent = total > 0 && paid >= total ? 'Paid' : total > 0 ? `${formatPrice(Math.max(0, total - paid))} due` : '—';
   $("orderDetailTotal").textContent = formatPrice(total);
   $("orderDetailPaid").textContent = formatPrice(paid);
   currentOrderTotal = total;
