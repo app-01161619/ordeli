@@ -608,6 +608,10 @@ async function updateConnectivityIndicator() {
     return;
   }
   if (pending > 0) {
+    if (offlineSyncInProgress) {
+      indicator.textContent = `Syncing… · ${pending}`;
+      return;
+    }
     const rows = await getOfflineQueueRows({ includeFinished: false });
     const firstError = rows.find(row => row.status === "error" && row.lastError)?.lastError || "";
     const friendly = firstError.toLowerCase().includes("reservation")
@@ -5517,11 +5521,11 @@ async function reserveOfflineQrSeries(productId, seriesName, quantity) {
     if (error) throw error;
     const count = Number(data) || 0;
     await refreshOfflineQrCache();
-    alert(`${count} QR pair${count === 1 ? "" : "s"} reserved for this device.`);
+    showToast(`${count} QR pair${count === 1 ? "" : "s"} reserved for this device.`);
     await loadQrSeries();
   } catch (error) {
     console.error("Offline QR reservation failed:", error);
-    alert(error?.message || "Unable to reserve QR codes for offline use.");
+    showToast(error?.message || "Unable to reserve QR codes for offline use.", "error");
   }
 }
 
@@ -5533,12 +5537,12 @@ async function releaseOfflineQrReservations(productId, seriesName) {
       p_device_id: getOfflineDeviceId()
     });
     if (error) throw error;
-    alert(`${Number(data) || 0} reserved QR pair(s) released.`);
+    showToast(`${Number(data) || 0} reserved QR pair(s) released.`);
     await refreshOfflineQrCache();
     await loadQrSeries();
   } catch (error) {
     console.error("Offline QR release failed:", error);
-    alert(error?.message || "Unable to release QR reservations.");
+    showToast(error?.message || "Unable to release QR reservations.", "error");
   }
 }
 
