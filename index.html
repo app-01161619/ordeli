@@ -615,9 +615,10 @@
 <p>Add your first product to get started.</p>
 <button id="emptyAddProductButton" type="button">Add Product</button>
 </section>
-<section class="product-editor" hidden="" id="productEditor">
-<div class="editor-card">
-<h2 id="productEditorTitle">Add Product</h2>
+<section class="product-editor" hidden="" id="productEditor" aria-hidden="true">
+<div class="product-editor-backdrop" data-product-editor-close="true"></div>
+<div class="editor-card product-modal-card" role="dialog" aria-modal="true" aria-labelledby="productEditorTitle">
+<div class="product-modal-header"><div><span class="product-modal-eyebrow">PRODUCT</span><h2 id="productEditorTitle">Add Product</h2></div><button class="product-modal-close secondary-button" id="closeProductModalButton" type="button" aria-label="Close">×</button></div>
 <form id="productForm">
 <div class="form-group">
 <label for="productName">Product Name</label>
@@ -625,8 +626,14 @@
 </div>
 <div class="form-group">
 <label for="productImage">Product Photo <span class="optional">Optional</span></label>
-<input id="productImage" accept="image/jpeg,image/png,image/webp" type="file">
-<div id="productImagePreviewContainer" class="product-image-preview-container" hidden><img id="productImagePreview" alt="Product preview"><button id="removeProductImageButton" class="secondary-button" type="button">Remove Photo</button></div>
+<div class="product-photo-uploader" id="productPhotoUploader">
+<button class="product-photo-dropzone" id="productPhotoDropzone" type="button">
+<span class="product-photo-icon" aria-hidden="true">↥</span>
+<span class="product-photo-copy"><strong id="productPhotoTitle">Add a product photo</strong><small>JPG, PNG or WebP · Up to 8 MB</small></span>
+</button>
+<input id="productImage" accept="image/jpeg,image/png,image/webp" type="file" hidden>
+<div id="productImagePreviewContainer" class="product-image-preview-container" hidden><div class="product-image-preview-wrap"><img id="productImagePreview" alt="Product preview"><button id="removeProductImageButton" class="image-remove-button" type="button" aria-label="Remove photo">×</button></div><div><strong id="productPhotoSelectedName">Photo selected</strong><small>Ready to save</small></div></div>
+</div>
 </div>
 <div class="form-group">
 <label for="productPrice">Default Price</label>

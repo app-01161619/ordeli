@@ -3833,10 +3833,16 @@ async function openProductEditor(
     $("removeProductImageButton").dataset.remove = "false";
     if (product.image_path) {
       $("productImagePreviewContainer").hidden = false;
+      $("productPhotoTitle").textContent = "Current product photo";
+      $("productPhotoSelectedName").textContent = "Existing photo";
+      $("productPhotoUploader")?.classList.add("has-photo");
       loadSellerStorageImage(product.image_path, $("productImagePreview")).catch(() => {});
     } else {
       $("productImagePreviewContainer").hidden = true;
       $("productImagePreview").removeAttribute("src");
+      $("productPhotoTitle").textContent = "Add a product photo";
+      $("productPhotoSelectedName").textContent = "";
+      $("productPhotoUploader")?.classList.remove("has-photo");
     }
 
   } else {
@@ -3862,24 +3868,37 @@ async function openProductEditor(
     $("removeProductImageButton").dataset.remove = "false";
     $("productImagePreviewContainer").hidden = true;
     $("productImagePreview").removeAttribute("src");
+    $("productPhotoTitle").textContent = "Add a product photo";
+    $("productPhotoSelectedName").textContent = "";
+    $("productPhotoUploader")?.classList.remove("has-photo");
 
   }
 
 
 
-  await populateProductCancellationOptions(
-    product?.id || null,
-    product?.customer_cancellable_until_stage ?? ""
-  );
-  setProductCancellationUi(Boolean(product?.customer_cancellable_until_stage));
+  const cancellationSettings = $("productCancellationEnabled")?.closest(".product-cancellation-settings");
+  if (cancellationSettings) cancellationSettings.hidden = !Boolean(product);
 
-  $("productEditor")
-    .hidden =
-      false;
+  if (product) {
+    await populateProductCancellationOptions(
+      product.id,
+      product.customer_cancellable_until_stage ?? ""
+    );
+    setProductCancellationUi(Boolean(product.customer_cancellable_until_stage));
+  } else {
+    if ($("productCancellationEnabled")) $("productCancellationEnabled").checked = false;
+    if ($("productCancellationEnabled")) $("productCancellationEnabled").disabled = true;
+    if ($("productCancellationCutoff")) {
+      $("productCancellationCutoff").replaceChildren();
+      $("productCancellationCutoff").disabled = true;
+      $("productCancellationCutoff").value = "";
+    }
+  }
 
-
-  $("productName")
-    .focus();
+  $("productEditor").hidden = false;
+  $("productEditor").setAttribute("aria-hidden", "false");
+  document.body.classList.add("has-modal-open");
+  $("productName").focus();
 
 }
 
@@ -3905,10 +3924,12 @@ function closeProductEditor() {
     null;
 
 
-  $("productEditor")
-    .hidden =
-      true;
+  $("productEditor").hidden = true;
+  $("productEditor").setAttribute("aria-hidden", "true");
+  document.body.classList.remove("has-modal-open");
 
+  const cancellationSettings = $("productCancellationEnabled")?.closest(".product-cancellation-settings");
+  if (cancellationSettings) cancellationSettings.hidden = true;
 
   $("productName")
     .value =
@@ -3995,19 +4016,43 @@ async function loadSellerStorageImage(path, imageEl) {
   imageEl.src = data.signedUrl;
 }
 
+$("productPhotoDropzone")?.addEventListener("click", () => $("productImage")?.click());
+
 $("productImage")?.addEventListener("change", () => {
   const file = $("productImage").files?.[0];
   if (!file) return;
-  try { validateProductImage(file); } catch (error) { $("productImage").value = ""; $("productMessage").textContent = error.message; return; }
+  try {
+    validateProductImage(file);
+  } catch (error) {
+    $("productImage").value = "";
+    $("productMessage").textContent = error.message;
+    return;
+  }
   $("removeProductImageButton").dataset.remove = "false";
   $("productImagePreview").src = URL.createObjectURL(file);
   $("productImagePreviewContainer").hidden = false;
+  $("productPhotoSelectedName").textContent = file.name;
+  $("productPhotoTitle").textContent = "Photo selected";
+  $("productPhotoUploader")?.classList.add("has-photo");
 });
+
 $("removeProductImageButton")?.addEventListener("click", () => {
   $("productImage").value = "";
   $("removeProductImageButton").dataset.remove = "true";
   $("productImagePreview").removeAttribute("src");
   $("productImagePreviewContainer").hidden = true;
+  $("productPhotoSelectedName").textContent = "";
+  $("productPhotoTitle").textContent = "Add a product photo";
+  $("productPhotoUploader")?.classList.remove("has-photo");
+});
+
+$("closeProductModalButton")?.addEventListener("click", closeProductEditor);
+$("productEditor")?.addEventListener("click", event => {
+  if (event.target.matches("[data-product-editor-close=\"true\"]")) closeProductEditor();
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && $("productEditor") && !$("productEditor").hidden) closeProductEditor();
 });
 
 async function saveProduct() {
@@ -4189,10 +4234,7 @@ async function saveProduct() {
 
           image_path: imagePath,
 
-          customer_cancellable_until_stage:
-            $("productCancellationEnabled")?.checked && $("productCancellationCutoff")?.value
-              ? Number($("productCancellationCutoff").value)
-              : null
+          customer_cancellable_until_stage: null
 
         })
         .select()
