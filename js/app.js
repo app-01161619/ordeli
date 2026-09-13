@@ -824,7 +824,8 @@ const validRoutes = [
   "orders",
   "events",
   "updates",
-  "reviews"
+  "reviews",
+  "settings"
 ];
 
 
@@ -1205,6 +1206,13 @@ async function renderApplication() {
     if (getRoute() === "orders") {
       showScreen("orders");
       await loadOrders();
+      return;
+    }
+
+    if (getRoute() === "settings") {
+      showScreen("settings");
+      renderSettingsControls();
+      await renderSettingsSync();
       return;
     }
 
@@ -1608,7 +1616,12 @@ function renderOrdersList(filter) {
     return !state.completed && !state.cancelled;
   });
 
-  const firstActionableId = baseQueue.find(({ state }) => !state.cancelled && !state.completed && state.actionable)?.order.id || null;
+  // FIFO queue positions are derived from the current active queue only.
+  // Completed/cancelled history stays visible in its own filters but never
+  // consumes a position in the active working queue.
+  const activeQueue = baseQueue.filter(({ state }) => !state.cancelled && !state.completed);
+  const activePositionByOrderId = new Map(activeQueue.map(({ order }, index) => [order.id, index + 1]));
+  const firstActionableId = activeQueue.find(({ state }) => state.actionable)?.order.id || null;
   const list = $("ordersList");
   list.replaceChildren();
 
@@ -1620,7 +1633,7 @@ function renderOrdersList(filter) {
 
   $("ordersEmptyState").hidden = queue.length > 0;
   queue.forEach(({ order, state }, index) => {
-    const queuePosition = baseQueue.findIndex(item => item.order.id === order.id) + 1;
+    const queuePosition = activePositionByOrderId.get(order.id) || null;
     list.appendChild(createOrderListCard(order, paymentsByOrder.get(order.id) || [], {
       state,
       queuePosition,
@@ -3660,6 +3673,7 @@ $("homeMenuCloseButton")?.addEventListener("click", closeHomeMenu);
 $("homeMenuBackdrop")?.addEventListener("click", closeHomeMenu);
 $("homeMenuLogoutButton")?.addEventListener("click", async () => { closeHomeMenu(); await logout(); });
 $("homeMenuShopProfileButton")?.addEventListener("click", () => { closeHomeMenu(); navigate("shop-setup"); });
+$("homeMenuSettingsButton")?.addEventListener("click", () => { closeHomeMenu(); navigate("settings"); });
 document.querySelectorAll("[data-home-menu-route]").forEach(button => {
   button.addEventListener("click", () => {
     const route = button.dataset.homeMenuRoute;
@@ -8654,17 +8668,27 @@ async function renderSettingsSync() {
 }
 $("settingsSyncNowButton")?.addEventListener("click", async (event) => {
   const button = event.currentTarget;
+  const message = $("settingsSyncMessage");
   try {
     setLoading(button, true, "Syncing…");
-    scheduleOfflineSync(0);
-    await new Promise(r => setTimeout(r, 500));
+    message.textContent = "";
+    if (navigator.onLine && !runtimeOffline) {
+      await syncOfflineOrders();
+      message.className = "form-message success-message";
+      message.textContent = "Sync complete.";
+    } else {
+      scheduleOfflineSync(0);
+      message.className = "form-message success-message";
+      message.textContent = "You are offline. Pending changes will sync when you reconnect.";
+    }
     await renderSettingsSync();
-    $("settingsSyncMessage").className = "form-message success-message";
-    $("settingsSyncMessage").textContent = navigator.onLine ? "Sync check complete." : "You are offline. Changes will sync when you reconnect.";
   } catch (error) {
-    $("settingsSyncMessage").className = "form-message";
-    $("settingsSyncMessage").textContent = error?.message || "Unable to start sync.";
-  } finally { setLoading(button, false); }
+    message.className = "form-message";
+    message.textContent = error?.message || "Unable to sync pending changes.";
+    await renderSettingsSync();
+  } finally {
+    setLoading(button, false);
+  }
 });
 $("settingsPasswordForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
