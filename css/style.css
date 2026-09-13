@@ -3450,3 +3450,9 @@ a:hover {
 .product-card-image { width:72px; height:72px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb; flex:none; }
 .product-card.has-product-image { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; }
 @media (max-width:640px) { .shop-location-grid { grid-template-columns:1fr; } .product-card.has-product-image { grid-template-columns:auto 1fr; } .product-card.has-product-image .product-card-actions { grid-column:1 / -1; } }
+
+/* SHOP SETUP LOCATION ACTIONS */
+.shop-location-actions { display:flex; flex-wrap:wrap; gap:10px; margin:8px 0 10px; }
+.shop-location-actions button { width:auto; flex:1 1 220px; }
+.shop-location-status { min-height:1.25em; margin:8px 0 0; }
+@media (max-width:640px) { .shop-location-actions button { flex-basis:100%; } }

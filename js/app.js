@@ -7961,9 +7961,22 @@ $("branchForm")?.addEventListener("submit",async e=>{
   e.preventDefault(); const user=await getCurrentUser(); const name=$("branchName").value.trim(); const address=$("branchAddress").value.trim(); const latitude=Number($("branchLatitude").value); const longitude=Number($("branchLongitude").value); if(!name||!address||!Number.isFinite(latitude)||latitude<-90||latitude>90||!Number.isFinite(longitude)||longitude<-180||longitude>180){$("branchMessage").textContent="Branch name, address, latitude, and longitude are required.";return;}
   try { const id=$("branchId").value; const payload={name,address,latitude,longitude,is_active:true,updated_at:new Date().toISOString()}; let result; if(id) result=await supabase.from("seller_branches").update(payload).eq("id",id).eq("seller_id",user.id).select().single(); else result=await supabase.from("seller_branches").insert({...payload,seller_id:user.id}).select().single(); if(result.error) throw result.error; closeBranchEditor(); await refreshSellerBranches(); } catch(error){$("branchMessage").textContent=error.message||"Unable to save branch.";}
 });
-$("useShopLocationButton")?.addEventListener("click",()=>captureGeolocation("shopLatitude","shopLongitude","shopSetupMessage"));
+$("useShopLocationButton")?.addEventListener("click",()=>captureGeolocation("shopLatitude","shopLongitude","shopLocationMessage"));
 $("useBranchLocationButton")?.addEventListener("click",()=>captureGeolocation("branchLatitude","branchLongitude","branchMessage"));
-function captureGeolocation(latId,longId,messageId){ if(!navigator.geolocation){$(messageId).textContent="Geolocation is not available on this device.";return;} $(messageId).textContent="Getting your location…"; navigator.geolocation.getCurrentPosition(pos=>{ $(latId).value=pos.coords.latitude.toFixed(6); $(longId).value=pos.coords.longitude.toFixed(6); $(messageId).textContent="Location captured."; },err=>{ $(messageId).textContent=err.code===1?"Location permission was denied.":"Unable to get your current location."; },{enableHighAccuracy:true,timeout:10000,maximumAge:60000}); }
+$("openShopMapsButton")?.addEventListener("click",()=>{
+  const address=$("shopAddress")?.value?.trim() || "";
+  const latitude=Number($("shopLatitude")?.value);
+  const longitude=Number($("shopLongitude")?.value);
+  const query=Number.isFinite(latitude)&&Number.isFinite(longitude)?`${latitude},${longitude}`:address;
+  if(!query){
+    $("shopLocationMessage").textContent="Enter your shop address first, then open Maps to locate it.";
+    $("shopAddress")?.focus();
+    return;
+  }
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,"_blank","noopener,noreferrer");
+  $("shopLocationMessage").textContent="Maps opened. Use the selected location to get its Latitude and Longitude, then enter them below.";
+});
+function captureGeolocation(latId,longId,messageId){ if(!navigator.geolocation){$(messageId).textContent="Geolocation is not available on this device.";return;} $(messageId).textContent="Getting your location…"; navigator.geolocation.getCurrentPosition(pos=>{ $(latId).value=pos.coords.latitude.toFixed(6); $(longId).value=pos.coords.longitude.toFixed(6); $(messageId).textContent="Location captured."; },err=>{ $(messageId).textContent=err.code===1?"Location permission was denied. Allow location access in your browser/site settings and try again.":"Unable to get your current location."; },{enableHighAccuracy:true,timeout:10000,maximumAge:60000}); }
 
 // ============================================================
 // COMMON HELPERS
