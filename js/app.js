@@ -1371,8 +1371,38 @@ async function renderApplication() {
 // HOME
 // ============================================================
 
+function getHomeGreeting() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Good morning!";
+  if (hour >= 12 && hour < 14) return "Good noon!";
+  if (hour >= 14 && hour < 18) return "Good afternoon!";
+  return "Good evening!";
+}
+
+function getHomeMotivation(metrics) {
+  const active = Number(metrics?.active || 0);
+  const ready = Number(metrics?.ready || 0);
+  const production = Number(metrics?.production || 0);
+  const payments = Number(metrics?.paymentReviews || 0);
+
+  if (payments > 0) {
+    return `${payments} payment review${payments === 1 ? "" : "s"} need${payments === 1 ? "s" : ""} your attention. Keep the momentum going!`;
+  }
+  if (production > 0) {
+    return `${production} order${production === 1 ? "" : "s"} ${production === 1 ? "is" : "are"} in production. Keep things moving!`;
+  }
+  if (ready > 0) {
+    return `${ready} order${ready === 1 ? "" : "s"} ${ready === 1 ? "is" : "are"} ready for handover. Great work!`;
+  }
+  if (active > 0) {
+    return `${active} active order${active === 1 ? "" : "s"} ${active === 1 ? "is" : "are"} underway. You’re doing great!`;
+  }
+  return "Your shop is ready. Keep building great customer experiences today.";
+}
+
 async function renderHome(seller) {
   updateSellerTopbars(seller);
+  $("homeGreeting").textContent = getHomeGreeting();
   $("homeDashboardSubtitle").textContent = "Loading your shop activity…";
   // Never let a logo/network failure prevent the dashboard from appearing.
   showScreen("home");
@@ -1440,7 +1470,7 @@ async function loadHomeDashboard(sellerId) {
   const eventOrders = snapshot.orders.filter(o => o.event_id && upcomingEventIds.has(o.event_id) && !o.cancelled_at).length;
   $("attentionEvents").textContent = String(eventOrders);
   $("attentionUpdates").textContent = String(snapshot.updates.length);
-  $("homeDashboardSubtitle").textContent = `${computed.active} active order${computed.active === 1 ? "" : "s"} · ${computed.ready} ready for handover`;
+  $("homeDashboardSubtitle").textContent = getHomeMotivation(computed);
   renderRecentOrders(snapshot.orders.slice(0, 8), snapshot.payments);
 }
 
