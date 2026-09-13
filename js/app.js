@@ -30,8 +30,6 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
-applySettings(loadSettings());
-
 const bootFallback = document.getElementById("bootFallback");
 function hideBootFallback() { bootFallback?.classList.add("is-hidden"); }
 
@@ -737,9 +735,6 @@ const screens = {
   qr:
     $("qrScreen"),
 
-  settings:
-    $("settingsScreen"),
-
   scanner:
     $("scannerScreen"),
 
@@ -822,7 +817,6 @@ const validRoutes = [
   "products",
   "workflow",
   "qr",
-  "settings",
   "scanner",
   "order-create",
   "order-detail",
@@ -1169,13 +1163,6 @@ async function renderApplication() {
     }
 
 
-    if (getRoute() === "settings") {
-      showScreen("settings");
-      renderSettingsControls();
-      await renderSettingsSync();
-      return;
-    }
-
     if (getRoute() === "production") {
       showScreen("production");
       await renderProductionWork(await getActorContext(true));
@@ -1384,38 +1371,8 @@ async function renderApplication() {
 // HOME
 // ============================================================
 
-function getHomeGreeting() {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return "Good morning!";
-  if (hour >= 12 && hour < 14) return "Good noon!";
-  if (hour >= 14 && hour < 18) return "Good afternoon!";
-  return "Good evening!";
-}
-
-function getHomeMotivation(metrics) {
-  const active = Number(metrics?.active || 0);
-  const ready = Number(metrics?.ready || 0);
-  const production = Number(metrics?.production || 0);
-  const payments = Number(metrics?.paymentReviews || 0);
-
-  if (payments > 0) {
-    return `${payments} payment review${payments === 1 ? "" : "s"} need${payments === 1 ? "s" : ""} your attention. Keep the momentum going!`;
-  }
-  if (production > 0) {
-    return `${production} order${production === 1 ? "" : "s"} ${production === 1 ? "is" : "are"} in production. Keep things moving!`;
-  }
-  if (ready > 0) {
-    return `${ready} order${ready === 1 ? "" : "s"} ${ready === 1 ? "is" : "are"} ready for handover. Great work!`;
-  }
-  if (active > 0) {
-    return `${active} active order${active === 1 ? "" : "s"} ${active === 1 ? "is" : "are"} underway. You’re doing great!`;
-  }
-  return "Your shop is ready. Keep building great customer experiences today.";
-}
-
 async function renderHome(seller) {
   updateSellerTopbars(seller);
-  $("homeGreeting").textContent = getHomeGreeting();
   $("homeDashboardSubtitle").textContent = "Loading your shop activity…";
   // Never let a logo/network failure prevent the dashboard from appearing.
   showScreen("home");
@@ -1483,7 +1440,7 @@ async function loadHomeDashboard(sellerId) {
   const eventOrders = snapshot.orders.filter(o => o.event_id && upcomingEventIds.has(o.event_id) && !o.cancelled_at).length;
   $("attentionEvents").textContent = String(eventOrders);
   $("attentionUpdates").textContent = String(snapshot.updates.length);
-  $("homeDashboardSubtitle").textContent = getHomeMotivation(computed);
+  $("homeDashboardSubtitle").textContent = `${computed.active} active order${computed.active === 1 ? "" : "s"} · ${computed.ready} ready for handover`;
   renderRecentOrders(snapshot.orders.slice(0, 8), snapshot.payments);
 }
 
@@ -1578,51 +1535,176 @@ async function loadOrders(prefilter = null) {
   renderOrdersList(prefilter || window.__ordeliOrdersFilter || "all");
 }
 
+function getOrderListState(order, payments) {
+  const items = (order.order_items || []).filter(i => !i.cancelled_at);
+  const cancelled = Boolean(order.cancelled_at) || ((order.order_items || []).length > 0 && items.length === 0);
+  const productionComplete = items.length > 0 && items.every(isItemProductionComplete);
+  const total = items.reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+  const paid = payments.filter(p => !p.proof_status || p.proof_status === "confirmed")
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const pendingProof = payments.some(p => p.proof_status === "pending_verification");
+  const fullyPaid = paid >= total - 0.005;
+  const ready = productionComplete && fullyPaid && !order.handed_over_at && !cancelled;
+  const completed = (productionComplete && (order.handed_over_at || order.fulfillment_type === "courier") && !cancelled);
+
+  let status = orderProductionLabel(order);
+  let kind = "active";
+  let actionable = false;
+  let actionText = "";
+
+  if (cancelled) {
+    status = "Cancelled";
+    kind = "cancelled";
+  } else if (completed) {
+    status = "Completed";
+    kind = "completed";
+  } else if (pendingProof) {
+    status = "Payment review";
+    kind = "payments";
+    actionable = true;
+    actionText = "Review payment";
+  } else if (!fullyPaid) {
+    status = "Waiting for payment";
+    kind = "waiting";
+  } else if (!productionComplete) {
+    status = "Ready to produce";
+    kind = "production";
+    actionable = true;
+    actionText = "Production";
+  } else if (ready) {
+    status = "Ready for fulfillment";
+    kind = "ready";
+    actionable = true;
+    actionText = "Ready";
+  }
+
+  return { items, cancelled, productionComplete, total, paid, pendingProof, fullyPaid, ready, completed, status, kind, actionable, actionText };
+}
+
 function renderOrdersList(filter) {
   window.__ordeliOrdersFilter = filter;
   const snapshot = window.__ordeliOrdersSnapshot || { orders: [], payments: [] };
   const search = ($( "ordersSearch")?.value || "").trim().toLowerCase();
   document.querySelectorAll("[data-orders-filter]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.ordersFilter === filter));
+
   const paymentsByOrder = new Map();
-  snapshot.payments.forEach(p => paymentsByOrder.set(p.order_id, [...(paymentsByOrder.get(p.order_id)||[]), p]));
-  const filtered = snapshot.orders.filter(order => {
-    const items = (order.order_items || []).filter(i => !i.cancelled_at);
-    const cancelled = Boolean(order.cancelled_at) || (order.order_items || []).every(i => i.cancelled_at);
-    const productionComplete = items.length > 0 && items.every(isItemProductionComplete);
-    const total = items.reduce((sum,i)=>sum+(Number(i.total_price)||0),0);
-    const paid = (paymentsByOrder.get(order.id)||[]).filter(p => !p.proof_status || p.proof_status === "confirmed").reduce((sum,p)=>sum+(Number(p.amount)||0),0);
-    const pendingProof = (paymentsByOrder.get(order.id)||[]).some(p => p.proof_status === "pending_verification");
-    const fullyPaid = paid >= total - 0.005;
-    const ready = productionComplete && fullyPaid && !order.handed_over_at && !cancelled;
-    const matchesSearch = !search || String(order.order_number).includes(search) || String(order.customers?.name || "").toLowerCase().includes(search);
+  snapshot.payments.forEach(p => paymentsByOrder.set(p.order_id, [...(paymentsByOrder.get(p.order_id) || []), p]));
+
+  const baseQueue = [...snapshot.orders]
+    .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+    .map(order => ({ order, state: getOrderListState(order, paymentsByOrder.get(order.id) || []) }));
+
+  const queue = baseQueue.filter(({ order, state }) => {
+    const matchesSearch = !search
+      || String(order.order_number).includes(search)
+      || String(order.customers?.name || "").toLowerCase().includes(search);
     if (!matchesSearch) return false;
-    if (filter === "production") return !productionComplete && !cancelled;
-    if (filter === "payments") return pendingProof;
-    if (filter === "ready") return ready;
-    if (filter === "completed") return (productionComplete && (order.handed_over_at || order.fulfillment_type === "courier") && !cancelled);
-    if (filter === "cancelled") return cancelled;
-    return true;
+
+    if (filter === "production") return state.kind === "production";
+    if (filter === "payments") return state.kind === "payments";
+    if (filter === "ready") return state.kind === "ready";
+    if (filter === "completed") return state.kind === "completed";
+    if (filter === "cancelled") return state.kind === "cancelled";
+    return !state.completed && !state.cancelled;
   });
-  $("ordersSummary").textContent = `${filtered.length} order${filtered.length === 1 ? "" : "s"}`;
-  const list = $("ordersList"); list.replaceChildren(); $("ordersEmptyState").hidden = filtered.length > 0;
-  filtered.forEach(order => list.appendChild(createOrderListCard(order, paymentsByOrder.get(order.id)||[])));
+
+  const firstActionableId = baseQueue.find(({ state }) => !state.cancelled && !state.completed && state.actionable)?.order.id || null;
+  const list = $("ordersList");
+  list.replaceChildren();
+
+  const activeCount = baseQueue.filter(({ state }) => !state.cancelled && !state.completed).length;
+  const actionableCount = baseQueue.filter(({ state }) => !state.cancelled && !state.completed && state.actionable).length;
+  const waitingCount = baseQueue.filter(({ state }) => state.kind === "waiting").length;
+  const summary = $("ordersSummary");
+  summary.innerHTML = `<div class="orders-queue-summary"><div><strong>${activeCount}</strong><span>active</span></div><div><strong>${actionableCount}</strong><span>ready to act</span></div><div><strong>${waitingCount}</strong><span>waiting</span></div><span class="orders-fifo-badge">FIFO · Oldest first</span></div>`;
+
+  $("ordersEmptyState").hidden = queue.length > 0;
+  queue.forEach(({ order, state }, index) => {
+    const queuePosition = baseQueue.findIndex(item => item.order.id === order.id) + 1;
+    list.appendChild(createOrderListCard(order, paymentsByOrder.get(order.id) || [], {
+      state,
+      queuePosition,
+      nextToWorkOn: order.id === firstActionableId
+    }));
+  });
 }
 
-function createOrderListCard(order, payments) {
-  const card = document.createElement("article"); card.className = "seller-order-card";
-  const header = document.createElement("div"); header.className = "seller-order-card-header";
+function createOrderListCard(order, payments, options = {}) {
+  const state = options.state || getOrderListState(order, payments);
+  const card = document.createElement("article");
+  card.className = "seller-order-card compact-order-card" + (options.nextToWorkOn ? " is-next-order" : "");
+
+  const header = document.createElement("div");
+  header.className = "seller-order-card-header";
+
+  const queue = document.createElement("div");
+  queue.className = "order-queue-position";
+  queue.textContent = options.queuePosition ? String(options.queuePosition) : "—";
+
   const title = document.createElement("div");
-  const h = document.createElement("h2"); h.textContent = `#${order.order_number}`;
-  const customer = document.createElement("p"); customer.textContent = order.customers?.name || "Customer"; title.append(h, customer);
-  const badge = document.createElement("span"); badge.className = "order-status-badge"; badge.textContent = order.cancelled_at ? "Cancelled" : orderProductionLabel(order);
-  header.append(title,badge); card.appendChild(header);
-  const itemText = (order.order_items || []).map(i => `${i.product_name} × ${i.quantity}`).join(" · ");
-  const items = document.createElement("p"); items.className = "seller-order-items"; items.textContent = itemText || "No active items"; card.appendChild(items);
-  const total = (order.order_items || []).filter(i=>!i.cancelled_at).reduce((s,i)=>s+(Number(i.total_price)||0),0);
-  const paid = payments.reduce((s,p)=>s+(Number(p.amount)||0),0);
-  const footer = document.createElement("div"); footer.className = "seller-order-card-footer"; footer.innerHTML = `<span>${formatPrice(total)} · ${paid >= total - 0.005 ? "Fully paid" : `${formatPrice(Math.max(0,total-paid))} remaining`}</span>`;
-  const open = document.createElement("button"); open.type="button"; open.textContent="Open Order"; open.addEventListener("click",()=>{currentOrderId=order.id;currentOrderShowProduction=false;navigate("order-detail")});
-  footer.appendChild(open); card.appendChild(footer); return card;
+  title.className = "order-card-title-block";
+  const h = document.createElement("h2");
+  h.textContent = `#${order.order_number}`;
+  const customer = document.createElement("p");
+  customer.textContent = order.customers?.name || "Customer";
+  title.append(h, customer);
+
+  const right = document.createElement("div");
+  right.className = "order-card-status-area";
+  const badge = document.createElement("span");
+  badge.className = "order-status-badge";
+  badge.textContent = state.status;
+  right.appendChild(badge);
+  if (options.nextToWorkOn) {
+    const next = document.createElement("span");
+    next.className = "order-next-badge";
+    next.textContent = "NEXT TO WORK ON";
+    right.appendChild(next);
+  }
+
+  header.append(queue, title, right);
+  card.appendChild(header);
+
+  const meta = document.createElement("div");
+  meta.className = "order-card-meta";
+  const itemText = state.items.map(i => `${i.product_name} × ${i.quantity}`).join(" · ") || "No active items";
+  const items = document.createElement("span");
+  items.textContent = itemText;
+  const created = document.createElement("span");
+  created.textContent = formatOrderAge(order.created_at);
+  meta.append(items, created);
+  card.appendChild(meta);
+
+  const footer = document.createElement("div");
+  footer.className = "seller-order-card-footer";
+  const amount = document.createElement("span");
+  amount.textContent = `${formatPrice(state.total)} · ${state.fullyPaid ? "Fully paid" : `${formatPrice(Math.max(0, state.total - state.paid))} remaining`}`;
+
+  const open = document.createElement("button");
+  open.type = "button";
+  open.textContent = "Open Order";
+  open.addEventListener("click", () => {
+    currentOrderId = order.id;
+    currentOrderShowProduction = false;
+    navigate("order-detail");
+  });
+
+  footer.append(amount, open);
+  card.appendChild(footer);
+  return card;
+}
+
+function formatOrderAge(iso) {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const minutes = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `Waiting ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Waiting ${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `Waiting ${days}d`;
 }
 
 async function loadEvents() {
@@ -1893,7 +1975,8 @@ async function openEventStatusPicker(event, card, orders = []) {
   card.appendChild(picker);
 
   save.addEventListener('click', async () => {
-    setLoading(save, 'Saving…');
+    save.disabled = true;
+    save.textContent = 'Saving…';
     message.hidden = true;
     try {
       const next = select.value;
@@ -1904,7 +1987,8 @@ async function openEventStatusPicker(event, card, orders = []) {
     } catch (error) {
       message.hidden = false;
       message.textContent = error?.message || 'Unable to change event status.';
-      resetButton(save, 'Save Status');
+      save.disabled = false;
+      save.textContent = 'Save Status';
     }
   });
 }
@@ -1964,7 +2048,8 @@ async function openEventReschedulePicker(event, card) {
         reason.focus();
         return;
       }
-      setLoading(save, 'Rescheduling…');
+      save.disabled = true;
+      save.textContent = 'Rescheduling…';
       try {
         const rpc = await supabase.rpc('reschedule_event_orders', {
           p_event_id: event.id,
@@ -1975,7 +2060,8 @@ async function openEventReschedulePicker(event, card) {
         picker.remove();
         await loadEvents();
       } catch (error) {
-        resetButton(save, 'Move Orders');
+        save.disabled = false;
+        save.textContent = 'Move Orders';
         const message = document.createElement('p');
         message.className = 'form-message';
         message.textContent = error?.message || 'Unable to reschedule this event.';
@@ -3470,10 +3556,7 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
   const message = $("teamMemberMessage");
   message.textContent = "";
   message.className = "form-message";
-  const submitButton = $("inviteTeamMemberButton");
-  const submitLabel = editingProductionMemberId ? "Save Changes" : "Create Invitation";
   try {
-    setLoading(submitButton, editingProductionMemberId ? "Saving…" : "Creating…");
     if (editingProductionMemberId) {
       const payload = {
         p_member_id: editingProductionMemberId,
@@ -3577,79 +3660,6 @@ $("homeMenuCloseButton")?.addEventListener("click", closeHomeMenu);
 $("homeMenuBackdrop")?.addEventListener("click", closeHomeMenu);
 $("homeMenuLogoutButton")?.addEventListener("click", async () => { closeHomeMenu(); await logout(); });
 $("homeMenuShopProfileButton")?.addEventListener("click", () => { closeHomeMenu(); navigate("shop-setup"); });
-$("homeMenuSettingsButton")?.addEventListener("click", () => { closeHomeMenu(); navigate("settings"); });
-
-// ============================================================
-// SETTINGS
-// ============================================================
-const SETTINGS_KEY = "ordeli-settings-v1";
-const ACCENTS = {
-  blue: { primary: "#208aef", strong: "#1676d2" },
-  purple: { primary: "#7c5cff", strong: "#6547db" },
-  green: { primary: "#16a34a", strong: "#12823b" },
-  orange: { primary: "#f59e0b", strong: "#d97706" }
-};
-function loadSettings() {
-  try { return { theme: "system", accent: "blue", font: "system", textSize: "default", compact: false, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {}) }; } catch (_) { return { theme: "system", accent: "blue", font: "system", textSize: "default", compact: false }; }
-}
-function applySettings(settings) {
-  const root = document.documentElement;
-  const accent = ACCENTS[settings.accent] || ACCENTS.blue;
-  root.style.setProperty("--primary", accent.primary);
-  root.style.setProperty("--primary-strong", accent.strong);
-  root.dataset.ordeliTheme = settings.theme;
-  root.dataset.ordeliFont = settings.font;
-  root.dataset.ordeliTextSize = settings.textSize;
-  root.dataset.ordeliCompact = settings.compact ? "true" : "false";
-  document.body.dataset.ordeliTheme = settings.theme;
-  document.body.dataset.ordeliFont = settings.font;
-  document.body.dataset.ordeliTextSize = settings.textSize;
-  document.body.dataset.ordeliCompact = settings.compact ? "true" : "false";
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-}
-function renderSettingsControls() {
-  const settings = loadSettings();
-  [ ["settingTheme", settings.theme], ["settingAccent", settings.accent], ["settingFont", settings.font], ["settingTextSize", settings.textSize] ].forEach(([id, value]) => { if ($(id)) $(id).value = value; });
-  if ($("settingCompact")) $("settingCompact").checked = !!settings.compact;
-}
-["settingTheme","settingAccent","settingFont","settingTextSize"].forEach(id => $(id)?.addEventListener("change", () => { const s=loadSettings(); const key={settingTheme:"theme",settingAccent:"accent",settingFont:"font",settingTextSize:"textSize"}[id]; s[key]=$(id).value; applySettings(s); }));
-$("settingCompact")?.addEventListener("change", () => { const s=loadSettings(); s.compact=$("settingCompact").checked; applySettings(s); });
-$("resetAppearanceButton")?.addEventListener("click", () => { const s={ theme:"system", accent:"blue", font:"system", textSize:"default", compact:false }; applySettings(s); renderSettingsControls(); });
-async function renderSettingsSync() {
-  const online = navigator.onLine && !runtimeOffline;
-  const pending = await getPendingSyncCount().catch(() => 0);
-  if ($("settingsConnectionText")) $("settingsConnectionText").textContent = online ? "Online" : "Offline";
-  if ($("settingsSyncText")) $("settingsSyncText").textContent = pending ? `${pending} item${pending === 1 ? "" : "s"} waiting to sync` : "Everything is synced";
-  if ($("settingsPendingCount")) $("settingsPendingCount").textContent = String(pending);
-  if ($("settingsLastCheck")) $("settingsLastCheck").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const dot=$("settingsConnectionDot"); if (dot) dot.dataset.online=online ? "true" : "false";
-}
-$("settingsSyncNowButton")?.addEventListener("click", async (event) => {
-  const button = event.currentTarget;
-  try {
-    setLoading(button, true, "Syncing…");
-    scheduleOfflineSync(0);
-    await new Promise(r => setTimeout(r, 500));
-    await renderSettingsSync();
-    $("settingsSyncMessage").className = "form-message success-message";
-    $("settingsSyncMessage").textContent = navigator.onLine ? "Sync check complete." : "You are offline. Changes will sync when you reconnect.";
-  } catch (error) {
-    $("settingsSyncMessage").className = "form-message";
-    $("settingsSyncMessage").textContent = error?.message || "Unable to start sync.";
-  } finally { setLoading(button, false); }
-});
-$("settingsPasswordForm")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const message=$("settingsPasswordMessage"), button=$("settingsPasswordButton");
-  const password=$("settingsPassword").value; const confirm=$("settingsPasswordConfirm").value;
-  message.textContent=""; message.className="form-message";
-  if(password.length<8){ message.textContent="Password must be at least 8 characters."; return; }
-  if(password!==confirm){ message.textContent="Passwords do not match."; return; }
-  try { setLoading(button,true,"Updating…"); const {error}=await supabase.auth.updateUser({password}); if(error) throw error; event.target.reset(); message.className="form-message success-message"; message.textContent="Password updated successfully."; } catch(error) { message.textContent=error?.message||"Unable to update password."; } finally { setLoading(button,false); }
-});
-$("settingsLogoutButton")?.addEventListener("click", async () => { await logout(); });
-
-
 document.querySelectorAll("[data-home-menu-route]").forEach(button => {
   button.addEventListener("click", () => {
     const route = button.dataset.homeMenuRoute;
@@ -7125,7 +7135,7 @@ async function updateOrderPickupAction(action) {
   if (!currentOrderId) return;
   const button = action === 'handed_over' ? $('orderDetailHandoverButton') : $('orderDetailUnclaimedButton');
   const original = button?.textContent || '';
-  if (button) setLoading(button, action === 'handed_over' ? 'Handing Over…' : 'Saving…');
+  if (button) { button.disabled = true; button.textContent = action === 'handed_over' ? 'Handing Over…' : 'Saving…'; }
   try {
     const { data, error } = await supabase.rpc('update_order_pickup_status', { p_order_id: currentOrderId, p_action: action });
     if (error) throw error;
@@ -7134,7 +7144,7 @@ async function updateOrderPickupAction(action) {
   } catch (error) {
     $('orderDetailMessage').textContent = error?.message || 'Unable to update pickup status.';
   } finally {
-    if (button) resetButton(button, original);
+    if (button) { button.disabled = false; button.textContent = original; }
   }
 }
 
@@ -7899,11 +7909,10 @@ async function viewCustomerPaymentProof(payment) {
   }
 }
 
-async function reviewCustomerPayment(payment, decision, actionButton = null) {
+async function reviewCustomerPayment(payment, decision) {
   const message = decision === "rejected" ? prompt("Reason for rejecting this payment proof (optional):", "") : null;
   if (decision === "rejected" && message === null) return;
   try {
-    if (actionButton) setLoading(actionButton, decision === "confirmed" ? "Confirming…" : "Rejecting…");
     const session = await getSession();
     const user = session?.user;
     if (!user) throw new Error("Please sign in again.");
@@ -7925,7 +7934,6 @@ async function reviewCustomerPayment(payment, decision, actionButton = null) {
   } catch (error) {
     console.error("Payment review failed:", error);
     alert(error?.message || "Unable to update payment proof.");
-    if (actionButton) resetButton(actionButton, decision === "confirmed" ? "Confirm" : "Reject");
   }
 }
 
@@ -8138,10 +8146,7 @@ $("addBranchButton")?.addEventListener("click",()=>openBranchEditor());
 $("cancelBranchButton")?.addEventListener("click",closeBranchEditor);
 $("branchForm")?.addEventListener("submit",async e=>{
   e.preventDefault(); const user=await getCurrentUser(); const name=$("branchName").value.trim(); const address=$("branchAddress").value.trim(); const latitude=Number($("branchLatitude").value); const longitude=Number($("branchLongitude").value); if(!name||!address||!Number.isFinite(latitude)||latitude<-90||latitude>90||!Number.isFinite(longitude)||longitude<-180||longitude>180){$("branchMessage").textContent="Branch name, address, latitude, and longitude are required.";return;}
-  const button=$("saveBranchButton");
-  const label=$("branchId").value ? "Update Branch" : "Save Branch";
-  setLoading(button, label.startsWith("Update") ? "Saving…" : "Saving…");
-  try { const id=$("branchId").value; const payload={name,address,latitude,longitude,is_active:true,updated_at:new Date().toISOString()}; let result; if(id) result=await supabase.from("seller_branches").update(payload).eq("id",id).eq("seller_id",user.id).select().single(); else result=await supabase.from("seller_branches").insert({...payload,seller_id:user.id}).select().single(); if(result.error) throw result.error; closeBranchEditor(); await refreshSellerBranches(); } catch(error){$("branchMessage").textContent=error.message||"Unable to save branch.";} finally { resetButton(button, label); }
+  try { const id=$("branchId").value; const payload={name,address,latitude,longitude,is_active:true,updated_at:new Date().toISOString()}; let result; if(id) result=await supabase.from("seller_branches").update(payload).eq("id",id).eq("seller_id",user.id).select().single(); else result=await supabase.from("seller_branches").insert({...payload,seller_id:user.id}).select().single(); if(result.error) throw result.error; closeBranchEditor(); await refreshSellerBranches(); } catch(error){$("branchMessage").textContent=error.message||"Unable to save branch.";}
 });
 const locationPickerState = { target: null, map: null, marker: null, lat: null, lng: null, zoom: 17 };
 
@@ -8352,26 +8357,31 @@ function safeExtension(
 }
 
 
-function setLoading(button, textOrBusy, legacyText) {
-  if (!button) return;
-  const text = typeof textOrBusy === "string"
-    ? textOrBusy
-    : (typeof legacyText === "string" ? legacyText : "Saving…");
-  button.disabled = true;
-  button.classList.add("is-loading");
-  button.setAttribute("aria-busy", "true");
-  button.dataset.loadingText = text;
-  button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span class="button-loading-label"></span>';
-  button.querySelector(".button-loading-label").textContent = text;
+function setLoading(
+  button,
+  text
+) {
+
+  button.disabled =
+    true;
+
+  button.textContent =
+    text;
+
 }
 
-function resetButton(button, text) {
-  if (!button) return;
-  button.disabled = false;
-  button.classList.remove("is-loading");
-  button.removeAttribute("aria-busy");
-  delete button.dataset.loadingText;
-  button.textContent = text;
+
+function resetButton(
+  button,
+  text
+) {
+
+  button.disabled =
+    false;
+
+  button.textContent =
+    text;
+
 }
 
 

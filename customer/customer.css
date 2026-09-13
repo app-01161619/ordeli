@@ -697,16 +697,3 @@ button:focus-visible {
 .fulfillment-saved-message { display:grid; gap:4px; }
 .fulfillment-saved-message p { margin:0; }
 @media (max-width:640px) { .customer-product-image { max-height:200px; } }
-
-.button-spinner {
-  display:inline-block;
-  width:14px;
-  height:14px;
-  border:2px solid currentColor;
-  border-right-color:transparent;
-  border-radius:50%;
-  animation:ordeli-button-spin .7s linear infinite;
-  flex:0 0 auto;
-}
-button.is-loading { cursor:wait; }
-@keyframes ordeli-button-spin { to { transform:rotate(360deg); } }

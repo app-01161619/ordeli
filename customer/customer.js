@@ -553,7 +553,7 @@ async function rescheduleCustomerPickup() {
     $("customerRescheduleMessage").textContent = error?.message || "Unable to reschedule pickup.";
   } finally {
     customerRescheduleBusy = false;
-    if (button) { button.disabled = false; button.classList.remove("is-loading"); button.removeAttribute("aria-busy"); button.textContent = "Reschedule Pickup"; }
+    if (button) { button.disabled = false; button.textContent = "Reschedule Pickup"; }
   }
 }
 
@@ -850,9 +850,6 @@ async function submitCustomerReview() {
   customerReviewBusy = true;
   const button = $("submitCustomerReviewButton");
   button.disabled = true;
-  button.classList.add("is-loading");
-  button.setAttribute("aria-busy", "true");
-  button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span>Submitting…</span>';
   $("customerReviewMessage").textContent = "Submitting your review…";
   try {
     const { error } = await supabase.rpc("submit_customer_review", {
@@ -869,9 +866,6 @@ async function submitCustomerReview() {
   } finally {
     customerReviewBusy = false;
     button.disabled = false;
-    button.classList.remove("is-loading");
-    button.removeAttribute("aria-busy");
-    button.textContent = "Submit Review";
   }
 }
 
@@ -944,7 +938,7 @@ async function saveCustomerFulfillment() {
 
   fulfillmentBusy = true;
   const button = $("saveFulfillmentButton");
-  if (button) { button.disabled = true; button.classList.add("is-loading"); button.setAttribute("aria-busy", "true"); button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span>Saving…</span>'; }
+  if (button) { button.disabled = true; button.textContent = "Saving…"; }
   try {
     const { data, error } = await supabase.rpc("set_customer_fulfillment", {
       p_public_token: token,
@@ -1002,7 +996,7 @@ async function saveCustomerFulfillment() {
     $("fulfillmentNotice").textContent = error?.message || "Unable to save your fulfillment choice.";
   } finally {
     fulfillmentBusy = false;
-    if (button) { button.disabled = false; button.classList.remove("is-loading"); button.removeAttribute("aria-busy"); button.textContent = "Save Fulfillment"; }
+    if (button) { button.disabled = false; button.textContent = "Save Fulfillment"; }
   }
 }
 
