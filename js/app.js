@@ -759,6 +759,9 @@ const screens = {
   reviews:
     $("reviewsScreen"),
 
+  settings:
+    $("settingsScreen"),
+
 };
 
 
@@ -1209,13 +1212,6 @@ async function renderApplication() {
       return;
     }
 
-    if (getRoute() === "settings") {
-      showScreen("settings");
-      renderSettingsControls();
-      await renderSettingsSync();
-      return;
-    }
-
     if (getRoute() === "events") {
       showScreen("events");
       await loadEvents();
@@ -1231,6 +1227,13 @@ async function renderApplication() {
     if (getRoute() === "reviews") {
       showScreen("reviews");
       await loadReviews();
+      return;
+    }
+
+    if (getRoute() === "settings") {
+      showScreen("settings");
+      renderSettingsControls();
+      await renderSettingsSync();
       return;
     }
 
@@ -1352,7 +1355,7 @@ async function renderApplication() {
       const route = getRoute();
       const screen = route === "order-detail" ? "orderDetail" : route;
       showScreen(screen);
-      const ids = { products: "productMessage", workflow: "workflowMessage", qr: "qrMessage", scanner: "scannerMessage", "order-create": "orderCreateMessage", "order-detail": "orderDetailMessage", "shop-setup": "shopSetupMessage" };
+      const ids = { products: "productMessage", workflow: "workflowMessage", qr: "qrMessage", scanner: "scannerMessage", "order-create": "orderCreateMessage", "order-detail": "orderDetailMessage", "shop-setup": "shopSetupMessage", events: "eventsMessage", updates: "updatesMessage", reviews: "reviewsMessage", settings: "settingsSyncMessage" };
       const target = $(ids[route]);
       if (target) target.textContent = error?.message || "Unable to load this screen.";
     }
@@ -3668,7 +3671,6 @@ $("homeMenuCloseButton")?.addEventListener("click", closeHomeMenu);
 $("homeMenuBackdrop")?.addEventListener("click", closeHomeMenu);
 $("homeMenuLogoutButton")?.addEventListener("click", async () => { closeHomeMenu(); await logout(); });
 $("homeMenuShopProfileButton")?.addEventListener("click", () => { closeHomeMenu(); navigate("shop-setup"); });
-document.querySelectorAll("[data-seller-settings]").forEach(button => button.addEventListener("click", () => navigate("settings")));
 document.querySelectorAll("[data-home-menu-route]").forEach(button => {
   button.addEventListener("click", () => {
     const route = button.dataset.homeMenuRoute;
