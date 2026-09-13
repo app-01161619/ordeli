@@ -8605,3 +8605,79 @@ window.addEventListener(
 // ============================================================
 
 renderApplication();
+
+
+// ============================================================
+// SETTINGS
+// ============================================================
+const SETTINGS_KEY = "ordeli-settings-v1";
+const ACCENTS = {
+  blue: { primary: "#208aef", strong: "#1676d2" },
+  purple: { primary: "#7c5cff", strong: "#6547db" },
+  green: { primary: "#16a34a", strong: "#12823b" },
+  orange: { primary: "#f59e0b", strong: "#d97706" }
+};
+function loadSettings() {
+  try { return { theme: "system", accent: "blue", font: "system", textSize: "default", compact: false, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {}) }; } catch (_) { return { theme: "system", accent: "blue", font: "system", textSize: "default", compact: false }; }
+}
+function applySettings(settings) {
+  const root = document.documentElement;
+  const accent = ACCENTS[settings.accent] || ACCENTS.blue;
+  root.style.setProperty("--primary", accent.primary);
+  root.style.setProperty("--primary-strong", accent.strong);
+  root.dataset.ordeliTheme = settings.theme;
+  root.dataset.ordeliFont = settings.font;
+  root.dataset.ordeliTextSize = settings.textSize;
+  root.dataset.ordeliCompact = settings.compact ? "true" : "false";
+  document.body.dataset.ordeliTheme = settings.theme;
+  document.body.dataset.ordeliFont = settings.font;
+  document.body.dataset.ordeliTextSize = settings.textSize;
+  document.body.dataset.ordeliCompact = settings.compact ? "true" : "false";
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+function renderSettingsControls() {
+  const settings = loadSettings();
+  [ ["settingTheme", settings.theme], ["settingAccent", settings.accent], ["settingFont", settings.font], ["settingTextSize", settings.textSize] ].forEach(([id, value]) => { if ($(id)) $(id).value = value; });
+  if ($("settingCompact")) $("settingCompact").checked = !!settings.compact;
+}
+["settingTheme","settingAccent","settingFont","settingTextSize"].forEach(id => $(id)?.addEventListener("change", () => { const s=loadSettings(); const key={settingTheme:"theme",settingAccent:"accent",settingFont:"font",settingTextSize:"textSize"}[id]; s[key]=$(id).value; applySettings(s); }));
+$("settingCompact")?.addEventListener("change", () => { const s=loadSettings(); s.compact=$("settingCompact").checked; applySettings(s); });
+$("resetAppearanceButton")?.addEventListener("click", () => { const s={ theme:"system", accent:"blue", font:"system", textSize:"default", compact:false }; applySettings(s); renderSettingsControls(); });
+async function renderSettingsSync() {
+  const online = navigator.onLine && !runtimeOffline;
+  const pending = await getPendingSyncCount().catch(() => 0);
+  if ($("settingsConnectionText")) $("settingsConnectionText").textContent = online ? "Online" : "Offline";
+  if ($("settingsSyncText")) $("settingsSyncText").textContent = pending ? `${pending} item${pending === 1 ? "" : "s"} waiting to sync` : "Everything is synced";
+  if ($("settingsPendingCount")) $("settingsPendingCount").textContent = String(pending);
+  if ($("settingsLastCheck")) $("settingsLastCheck").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const dot=$("settingsConnectionDot"); if (dot) dot.dataset.online=online ? "true" : "false";
+}
+$("settingsSyncNowButton")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  try {
+    setLoading(button, true, "Syncing…");
+    scheduleOfflineSync(0);
+    await new Promise(r => setTimeout(r, 500));
+    await renderSettingsSync();
+    $("settingsSyncMessage").className = "form-message success-message";
+    $("settingsSyncMessage").textContent = navigator.onLine ? "Sync check complete." : "You are offline. Changes will sync when you reconnect.";
+  } catch (error) {
+    $("settingsSyncMessage").className = "form-message";
+    $("settingsSyncMessage").textContent = error?.message || "Unable to start sync.";
+  } finally { setLoading(button, false); }
+});
+$("settingsPasswordForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message=$("settingsPasswordMessage"), button=$("settingsPasswordButton");
+  const password=$("settingsPassword").value; const confirm=$("settingsPasswordConfirm").value;
+  message.textContent=""; message.className="form-message";
+  if(password.length<8){ message.textContent="Password must be at least 8 characters."; return; }
+  if(password!==confirm){ message.textContent="Passwords do not match."; return; }
+  try { setLoading(button,true,"Updating…"); const {error}=await supabase.auth.updateUser({password}); if(error) throw error; event.target.reset(); message.className="form-message success-message"; message.textContent="Password updated successfully."; } catch(error) { message.textContent=error?.message||"Unable to update password."; } finally { setLoading(button,false); }
+});
+$("settingsLogoutButton")?.addEventListener("click", async () => { await logout(); });
+
+
+
+
+applySettings(loadSettings());

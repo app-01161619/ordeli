@@ -220,6 +220,32 @@
 </button>
 </div>
 </section>
+<section class="screen" hidden id="settingsScreen">
+<div class="app-container">
+<header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
+<header class="page-header"><div><span class="eyebrow">SELLER SETTINGS</span><h1>Settings</h1><p class="page-subtitle">Personalize Ordeli, check sync, and manage your account.</p></div></header>
+<div class="settings-grid">
+<section class="settings-card"><div class="settings-card-heading"><div><h2>Appearance</h2><p>Choose how Ordeli looks on this device.</p></div></div>
+<div class="settings-row"><div><strong>Theme</strong><small>Light, dark, or follow your system.</small></div><select id="settingTheme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+<div class="settings-row"><div><strong>Accent color</strong><small>Use a color that feels right for your shop.</small></div><select id="settingAccent"><option value="blue">Blue</option><option value="purple">Purple</option><option value="green">Green</option><option value="orange">Orange</option></select></div>
+<div class="settings-row"><div><strong>Font</strong><small>Pick a comfortable reading style.</small></div><select id="settingFont"><option value="system">System</option><option value="inter">Inter</option><option value="poppins">Poppins</option><option value="nunito">Nunito</option></select></div>
+<div class="settings-row"><div><strong>Text size</strong><small>Adjust overall interface text.</small></div><select id="settingTextSize"><option value="small">Small</option><option value="default">Default</option><option value="large">Large</option></select></div>
+<label class="settings-switch-row"><span><strong>Compact mode</strong><small>Reduce spacing in dense work screens.</small></span><input id="settingCompact" type="checkbox"><span class="settings-switch" aria-hidden="true"></span></label>
+<button id="resetAppearanceButton" class="secondary-button settings-secondary" type="button">Reset appearance</button>
+</section>
+<section class="settings-card"><div class="settings-card-heading"><div><h2>Offline &amp; Sync</h2><p>See your current connection and pending work.</p></div></div>
+<div class="settings-status"><span class="settings-status-dot" id="settingsConnectionDot"></span><div><strong id="settingsConnectionText">Checking connection…</strong><small id="settingsSyncText">Checking pending sync…</small></div></div>
+<div class="settings-stat-grid"><div><span>Pending</span><strong id="settingsPendingCount">0</strong></div><div><span>Last check</span><strong id="settingsLastCheck">—</strong></div></div>
+<button id="settingsSyncNowButton" type="button">Sync now</button>
+<p class="form-message" id="settingsSyncMessage" role="status"></p>
+</section>
+<section class="settings-card"><div class="settings-card-heading"><div><h2>Security</h2><p>Manage your password and sign out of this device.</p></div></div>
+<form id="settingsPasswordForm"><div class="form-group"><label for="settingsPassword">New password</label><input id="settingsPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" required></div><div class="form-group"><label for="settingsPasswordConfirm">Confirm new password</label><input id="settingsPasswordConfirm" type="password" minlength="8" autocomplete="new-password" placeholder="Enter it again" required></div><button id="settingsPasswordButton" type="submit">Update password</button><p class="form-message" id="settingsPasswordMessage" role="alert"></p></form>
+<button id="settingsLogoutButton" class="secondary-button settings-logout-button" type="button">Log out of this device</button>
+</section>
+</div>
+</div>
+</section>
 <section class="screen" hidden="" id="scannerScreen">
 <div class="app-container scanner-container"><header class="seller-topbar"><button aria-label="Go to dashboard" class="seller-brand-button" data-seller-home="true" type="button"><span class="seller-topbar-logo" data-seller-logo-wrap="true" hidden="hidden"><img alt="Shop logo" class="seller-topbar-logo-image" data-seller-logo="true"/></span><span class="seller-topbar-text"><strong data-seller-shop-name="true">Shop</strong><small data-seller-shop-address="true"></small></span></button><button aria-controls="homeMenu" aria-expanded="false" aria-label="Open menu" class="app-menu-button" data-app-menu-trigger="true" type="button"><span aria-hidden="true" class="home-menu-glyph"><i></i><i></i><i></i></span></button></header>
 <header class="page-header">
@@ -792,6 +818,7 @@
 <button class="home-menu-item" data-home-menu-route="updates" type="button"><span aria-hidden="true" class="home-menu-icon">✉</span><span><strong>Updates</strong><small>Customer messages waiting to send</small></span></button>
 <button class="home-menu-item" data-home-menu-route="team" type="button"><span aria-hidden="true" class="home-menu-icon">♙</span><span><strong>Production Team</strong><small>Manage team members and permissions</small></span></button>
 <button class="home-menu-item" id="homeMenuShopProfileButton" type="button"><span aria-hidden="true" class="home-menu-icon">⌂</span><span><strong>Shop Profile</strong><small>Update your shop information</small></span></button>
+<button class="home-menu-item" id="homeMenuSettingsButton" type="button"><span aria-hidden="true" class="home-menu-icon">⚙</span><span><strong>Settings</strong><small>Appearance, sync, and security</small></span></button>
 <button class="home-menu-item home-menu-item-danger" id="homeMenuLogoutButton" type="button"><span aria-hidden="true" class="home-menu-icon">↪</span><span><strong>Log Out</strong><small>Sign out of this device</small></span></button>
 </nav>
 </aside><div class="home-menu-backdrop" hidden="" id="homeMenuBackdrop"></div></main>
