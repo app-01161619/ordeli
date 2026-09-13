@@ -8644,8 +8644,17 @@ function applySettings(settings) {
   document.body.dataset.ordeliFont = settings.font;
   document.body.dataset.ordeliTextSize = settings.textSize;
   document.body.dataset.ordeliCompact = settings.compact ? "true" : "false";
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+  const effectiveTheme = settings.theme === "system" ? (prefersDark ? "dark" : "light") : settings.theme;
+  root.dataset.ordeliEffectiveTheme = effectiveTheme;
+  document.body.dataset.ordeliEffectiveTheme = effectiveTheme;
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
+
+window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change", () => {
+  const settings = loadSettings();
+  if (settings.theme === "system") applySettings(settings);
+});
 function renderSettingsControls() {
   const settings = loadSettings();
   [ ["settingTheme", settings.theme], ["settingAccent", settings.accent], ["settingFont", settings.font], ["settingTextSize", settings.textSize] ].forEach(([id, value]) => { if ($(id)) $(id).value = value; });
