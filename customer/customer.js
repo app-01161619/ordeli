@@ -16,6 +16,15 @@ const supabase = createClient(
 );
 
 const $ = (id) => document.getElementById(id);
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 let trackingPayload = null;
 let trackingOrderVisible = false;
 let fulfillmentState = null;
@@ -288,6 +297,22 @@ function fulfillmentLabel(value) {
   return value === "shop" ? "Pickup at Shop" : value === "location" ? "Pickup at Location" : value === "courier" ? "Courier Delivery" : "Not Selected";
 }
 
+function getAvailablePickupEvents(state) {
+  const rawEvents = Array.isArray(state?.events)
+    ? state.events
+    : Array.isArray(trackingPayload?.events)
+      ? trackingPayload.events
+      : [];
+
+  return rawEvents
+    .filter((event) => event?.id)
+    .sort((a, b) => {
+      const dateA = `${a.event_date || ""}T${a.start_time || "00:00:00"}`;
+      const dateB = `${b.event_date || ""}T${b.start_time || "00:00:00"}`;
+      return dateA.localeCompare(dateB);
+    });
+}
+
 function renderFulfillment() {
   const card = $("trackingFulfillmentCard");
   if (!card) return;
@@ -340,17 +365,13 @@ function renderFulfillment() {
     notice.textContent = "";
     savedContent.hidden = false;
 
-    if (lifecycleBlocked) {
-      savedContent.innerHTML = `<p>Your order has been handed over. Thank you for your purchase!</p>`;
-    } else if (state.pickup_status === "unclaimed") {
-      savedContent.innerHTML = `<p>Your pickup was unclaimed. You can reschedule pickup or switch to Courier Delivery below.</p>`;
-    } else if (fulfillmentType === "shop") {
+    if (fulfillmentType === "shop") {
       savedContent.innerHTML = `
         <span class="tracking-kicker">SHOP ADDRESS</span>
         ${shopAddress ? `<strong class="fulfillment-address-value">${escapeHtml(shopAddress)}</strong>` : `<p>The shop address is currently unavailable.</p>`}
         <p>Please pick up your order at the shop.</p>`;
     } else if (fulfillmentType === "location") {
-      const events = Array.isArray(state.events) ? state.events : [];
+      const events = getAvailablePickupEvents(state);
       const event = state.event || events.find((e) => e.id === state.event_id) || events.find((e) => e.id === trackingPayload?.order?.event_id) || null;
       if (event) {
         const date = formatEventDate(event.event_date);
@@ -394,7 +415,7 @@ function renderFulfillment() {
     placeholder.textContent = "Choose an event";
     select.appendChild(placeholder);
 
-    (Array.isArray(state.events) ? state.events : []).forEach((event) => {
+    getAvailablePickupEvents(state).forEach((event) => {
       if (!event?.id) return;
       const option = document.createElement("option");
       option.value = event.id;
@@ -865,7 +886,7 @@ async function saveCustomerFulfillment() {
       event_id: choice === "location" ? eventId : null,
       event: selectedEvent,
       shop: current.shop || trackingPayload?.shop || null,
-      events: current.events || [],
+      events: current.events || getAvailablePickupEvents(current),
       pickup_status: choice === "location" ? "scheduled" : "not_scheduled"
     };
     if (trackingPayload?.order) {
