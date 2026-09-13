@@ -3432,3 +3432,21 @@ a:hover {
   }
   .sync-recovery-notice { right: 10px; bottom: 10px; }
 }
+
+/* Shop location, branches, and product media */
+.shop-location-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.branch-manager { margin-top:24px; padding-top:20px; border-top:1px solid #e5e7eb; }
+.branch-list { display:grid; gap:12px; margin:14px 0; }
+.branch-card { padding:14px; border:1px solid #e5e7eb; border-radius:14px; background:#fff; }
+.branch-card-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.branch-card-head strong { font-size:16px; }
+.branch-card p { margin:8px 0 4px; color:#444; line-height:1.5; }
+.branch-card small { color:#777; }
+.branch-card-actions { display:flex; gap:8px; margin-top:12px; }
+.branch-default-badge { font-size:12px; padding:4px 8px; border-radius:999px; background:#eef2ff; }
+.branch-form { margin-top:14px; padding:16px; border:1px solid #e5e7eb; border-radius:14px; background:#f8fafc; }
+.product-image-preview-container { display:flex; align-items:center; gap:12px; margin-top:10px; }
+.product-image-preview-container img { width:96px; height:96px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb; }
+.product-card-image { width:72px; height:72px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb; flex:none; }
+.product-card.has-product-image { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:12px; }
+@media (max-width:640px) { .shop-location-grid { grid-template-columns:1fr; } .product-card.has-product-image { grid-template-columns:auto 1fr; } .product-card.has-product-image .product-card-actions { grid-column:1 / -1; } }

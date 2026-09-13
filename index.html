@@ -124,10 +124,15 @@
 <input id="shopName" maxlength="150" required="" type="text"/>
 </div>
 <div class="form-group">
-<label for="shopAddress">Shop Address</label>
+<label for="shopAddress">Main Shop Address</label>
 <textarea id="shopAddress" maxlength="500" required="" rows="4"></textarea>
-<p class="field-help">Customers will see this address when they choose <strong>Pickup at Shop</strong>.</p>
+<p class="field-help">Used as the default pickup location when no branches are configured.</p>
 </div>
+<div class="shop-location-grid">
+<div class="form-group"><label for="shopLatitude">Latitude</label><input id="shopLatitude" inputmode="decimal" type="number" min="-90" max="90" step="0.000001" required></div>
+<div class="form-group"><label for="shopLongitude">Longitude</label><input id="shopLongitude" inputmode="decimal" type="number" min="-180" max="180" step="0.000001" required></div>
+</div>
+<button id="useShopLocationButton" class="secondary-button" type="button">Use my current location</button>
 <div class="form-group">
 <label for="shopLogo">Shop Logo <span class="optional">Optional</span></label>
 <div class="shop-logo-uploader" id="shopLogoUploader">
@@ -148,6 +153,20 @@
 <button id="saveShopButton" type="submit">Save &amp; Continue</button>
 <p class="form-message" id="shopSetupMessage" role="alert"></p>
 </form>
+<section class="branch-manager" id="branchManager">
+<div class="section-heading"><div><span class="eyebrow">PICKUP LOCATIONS</span><h3>Your Shop Branches</h3><p class="form-help">Add branches customers can choose from when they select Pickup at Shop.</p></div></div>
+<div class="branch-list" id="branchList"></div>
+<form id="branchForm" class="branch-form" hidden>
+<input id="branchId" type="hidden">
+<div class="form-group"><label for="branchName">Branch Name</label><input id="branchName" maxlength="150" required></div>
+<div class="form-group"><label for="branchAddress">Branch Address</label><textarea id="branchAddress" maxlength="500" rows="3" required></textarea></div>
+<div class="shop-location-grid"><div class="form-group"><label for="branchLatitude">Latitude</label><input id="branchLatitude" inputmode="decimal" type="number" min="-90" max="90" step="0.000001" required></div><div class="form-group"><label for="branchLongitude">Longitude</label><input id="branchLongitude" inputmode="decimal" type="number" min="-180" max="180" step="0.000001" required></div></div>
+<button id="useBranchLocationButton" class="secondary-button" type="button">Use my current location</button>
+<div class="editor-actions"><button id="cancelBranchButton" class="secondary-button" type="button">Cancel</button><button id="saveBranchButton" type="submit">Save Branch</button></div>
+<p class="form-message" id="branchMessage" role="alert"></p>
+</form>
+<button id="addBranchButton" type="button">Add Branch</button>
+</section>
 </div></div>
 </div>
 </section>
@@ -594,6 +613,11 @@
 <div class="form-group">
 <label for="productName">Product Name</label>
 <input id="productName" maxlength="150" required="" type="text"/>
+</div>
+<div class="form-group">
+<label for="productImage">Product Photo <span class="optional">Optional</span></label>
+<input id="productImage" accept="image/jpeg,image/png,image/webp" type="file">
+<div id="productImagePreviewContainer" class="product-image-preview-container" hidden><img id="productImagePreview" alt="Product preview"><button id="removeProductImageButton" class="secondary-button" type="button">Remove Photo</button></div>
 </div>
 <div class="form-group">
 <label for="productPrice">Default Price</label>

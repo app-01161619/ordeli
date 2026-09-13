@@ -120,6 +120,19 @@ function formatPrice(value) {
   }).format(Number(value) || 0);
 }
 
+async function loadCustomerMedia(type, imageEl, wrapEl) {
+  if (!imageEl || !wrapEl) return;
+  const token = getTrackingToken();
+  if (!token) return;
+  try {
+    const response = await fetch(`/api/customer-media?token=${encodeURIComponent(token)}&type=${encodeURIComponent(type)}`, { cache: "no-store" });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.url) { wrapEl.hidden = true; return; }
+    imageEl.src = data.url;
+    wrapEl.hidden = false;
+  } catch (_) { wrapEl.hidden = true; }
+}
+
 function trackingProductionStatusLabel(value) {
   switch (value) {
     case "completed": return "Completed";
@@ -348,6 +361,8 @@ function renderFulfillment() {
   const savedContent = $("fulfillmentSavedContent");
   const options = $("fulfillmentOptions");
   const eventPicker = $("fulfillmentEventPicker");
+  const branchPicker = $("fulfillmentBranchPicker");
+  const branchSelect = $("fulfillmentBranchSelect");
   const saveButton = $("saveFulfillmentButton");
   const notice = $("fulfillmentNotice");
   const statusCard = $("trackingFulfillmentNoticeCard");
@@ -362,6 +377,7 @@ function renderFulfillment() {
     requirement.textContent = "Your fulfillment method has been saved.";
     options.hidden = true;
     eventPicker.hidden = true;
+    if (branchPicker) branchPicker.hidden = true;
     saveButton.hidden = true;
     if (notice) notice.textContent = "";
 
@@ -369,18 +385,29 @@ function renderFulfillment() {
     wrapper.className = "fulfillment-saved-message";
 
     if (fulfillmentType === "shop") {
+      const branch = state.pickup_branch || (Array.isArray(state.branches) ? state.branches.find((b) => b.id === state.pickup_branch_id) : null);
+      const pickupName = branch?.name || shopName;
+      const pickupAddress = branch?.address || shopAddress;
+      const latitude = branch?.latitude ?? shop.latitude;
+      const longitude = branch?.longitude ?? shop.longitude;
       const message = document.createElement("p");
-      message.textContent = "Please pick up your order at the shop.";
-
+      message.textContent = `Please pick up your order at ${pickupName}.`;
       const label = document.createElement("span");
       label.className = "fulfillment-detail-label";
-      label.textContent = "Shop address";
-
+      label.textContent = branch ? "Pickup branch" : "Shop address";
       const address = document.createElement("strong");
       address.className = "fulfillment-address-value";
-      address.textContent = shopAddress || "The shop address is currently unavailable.";
-
+      address.textContent = pickupAddress || "The pickup address is currently unavailable.";
       wrapper.append(message, label, address);
+      if (Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))) {
+        const mapLink = document.createElement("a");
+        mapLink.className = "fulfillment-map-link";
+        mapLink.href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${latitude},${longitude}`)}`;
+        mapLink.target = "_blank";
+        mapLink.rel = "noopener noreferrer";
+        mapLink.textContent = "Open location in Maps";
+        wrapper.appendChild(mapLink);
+      }
     } else if (fulfillmentType === "location") {
       const events = getAvailablePickupEvents(state);
       const selectedEventId = state.event_id || trackingPayload?.order?.event_id || null;
@@ -413,6 +440,8 @@ function renderFulfillment() {
   savedContent.hidden = true;
   options.hidden = !ready;
   eventPicker.hidden = true;
+  if (branchPicker) branchPicker.hidden = true;
+  if (branchSelect) branchSelect.replaceChildren();
   saveButton.hidden = !ready;
 
   if (!ready) {
@@ -428,6 +457,26 @@ function renderFulfillment() {
   requirement.textContent = "Your order is ready for fulfillment selection.";
   if (notice) notice.textContent = "";
   document.querySelectorAll("input[name='fulfillmentType']").forEach((r) => { r.checked = false; });
+
+  const branches = Array.isArray(state.branches) ? state.branches.filter((branch) => branch?.id && branch.is_active !== false) : [];
+  if (branchPicker && branchSelect) {
+    branchSelect.replaceChildren();
+    if (branches.length) {
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Choose a branch";
+      branchSelect.appendChild(placeholder);
+      branches.forEach((branch) => {
+        const option = document.createElement("option");
+        option.value = branch.id;
+        option.textContent = `${branch.name} · ${branch.address}`;
+        branchSelect.appendChild(option);
+      });
+      branchPicker.hidden = false;
+    } else {
+      branchPicker.hidden = true;
+    }
+  }
 
   const select = $("fulfillmentEventSelect");
   if (select) {
@@ -881,8 +930,11 @@ async function saveCustomerFulfillment() {
   if (!token) return;
   const choice = document.querySelector("input[name='fulfillmentType']:checked")?.value || "";
   const eventId = choice === "location" ? $("fulfillmentEventSelect")?.value || "" : null;
+  const branchId = choice === "shop" ? $("fulfillmentBranchSelect")?.value || null : null;
+  const availableBranches = Array.isArray(fulfillmentState?.branches) ? fulfillmentState.branches : [];
   if (!choice) { $("fulfillmentNotice").textContent = "Choose a fulfillment option."; return; }
   if (choice === "location" && !eventId) { $("fulfillmentNotice").textContent = "Choose a pickup event."; return; }
+  if (choice === "shop" && availableBranches.length && !branchId) { const notice=$("fulfillmentNotice"); if (notice) notice.textContent = "Choose a shop branch."; return; }
 
   fulfillmentBusy = true;
   const button = $("saveFulfillmentButton");
@@ -891,7 +943,8 @@ async function saveCustomerFulfillment() {
     const { data, error } = await supabase.rpc("set_customer_fulfillment", {
       p_public_token: token,
       p_fulfillment_type: choice,
-      p_event_id: eventId
+      p_event_id: eventId,
+      p_branch_id: branchId
     });
     if (error) throw error;
 
@@ -906,6 +959,8 @@ async function saveCustomerFulfillment() {
       fulfillment_type: choice,
       event_id: choice === "location" ? eventId : null,
       event: selectedEvent,
+      pickup_branch_id: choice === "shop" ? branchId : null,
+      pickup_branch: choice === "shop" ? availableBranches.find((branch) => branch.id === branchId) || null : null,
       shop: current.shop || trackingPayload?.shop || null,
       events: current.events || getAvailablePickupEvents(current),
       pickup_status: choice === "location" ? "scheduled" : "not_scheduled"
@@ -914,6 +969,7 @@ async function saveCustomerFulfillment() {
       trackingPayload.order.fulfillment_type = choice;
       trackingPayload.order.pickup_status = fulfillmentState.pickup_status;
       trackingPayload.order.event_id = choice === "location" ? eventId : null;
+      trackingPayload.order.pickup_branch_id = choice === "shop" ? branchId : null;
     }
 
     renderFulfillment();
@@ -978,8 +1034,12 @@ function renderCustomerTracking(payload) {
   const payment = payload?.payment || {};
 
   $("trackingShopName").textContent = shop.name || "Shop";
+  $("trackingShopLogoWrap").hidden = true;
+  if (shop.logo_path) loadCustomerMedia("shop-logo", $("trackingShopLogo"), $("trackingShopLogoWrap"));
   $("trackingOrderNumber").textContent = `#${order.order_number ?? "—"}`;
   $("trackingProductName").textContent = item.product_name || "Product";
+  $("trackingProductImageWrap").hidden = true;
+  if (item.product_image_path) loadCustomerMedia("product-image", $("trackingProductImage"), $("trackingProductImageWrap"));
   $("trackingProductQuantity").textContent = `Quantity: ${Number(item.quantity) || 0}`;
 
   const itemCancelled = Boolean(item.cancelled_at);
@@ -1100,7 +1160,11 @@ document.querySelectorAll("input[name='fulfillmentType']").forEach((radio) => {
   radio.addEventListener("change", () => {
     const selected = document.querySelector("input[name='fulfillmentType']:checked")?.value;
     $("fulfillmentEventPicker").hidden = selected !== "location";
-    $("fulfillmentNotice").textContent = "";
+    const branchPicker = $("fulfillmentBranchPicker");
+    const hasBranches = Array.isArray(fulfillmentState?.branches) && fulfillmentState.branches.length > 0;
+    if (branchPicker) branchPicker.hidden = !(selected === "shop" && hasBranches);
+    const notice = $("fulfillmentNotice");
+    if (notice) notice.textContent = "";
   });
 });
 $("saveFulfillmentButton")?.addEventListener("click", saveCustomerFulfillment);

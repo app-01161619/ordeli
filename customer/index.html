@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#208aef">
   <meta name="description" content="Ordeli customer order tracking">
   <title>Ordeli — Order Tracking</title>
-  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-13-13">
+  <link rel="stylesheet" href="/customer/customer.css?v=2026-09-13-05">
 </head>
 <body>
   <main id="customerApp">
@@ -35,8 +35,10 @@
 
       <section id="trackingContent" hidden>
         <section class="tracking-card tracking-shop-card">
-          <span class="tracking-kicker">SHOP</span>
-          <h1 id="trackingShopName">Shop</h1>
+          <div class="customer-shop-identity">
+            <div class="customer-shop-logo-wrap" id="trackingShopLogoWrap" hidden><img id="trackingShopLogo" alt="Shop logo" class="customer-shop-logo"></div>
+            <div><span class="tracking-kicker">SHOP</span><h1 id="trackingShopName">Shop</h1></div>
+          </div>
         </section>
 
         <section class="tracking-card tracking-item-card">
@@ -49,6 +51,7 @@
           </div>
 
           <div class="tracking-product-heading">
+            <div class="customer-product-media" id="trackingProductImageWrap" hidden><img id="trackingProductImage" alt="Product photo" class="customer-product-image"></div>
             <h2 id="trackingProductName">Product</h2>
             <p id="trackingProductQuantity">Quantity: 1</p>
           </div>
@@ -71,7 +74,12 @@
             </div>
             <strong id="fulfillmentCurrent">Not selected yet</strong>
           </div>
-          <div id="fulfillmentSavedContent" class="fulfillment-saved-content"></div>
+          <div id="fulfillmentSavedContent" class="fulfillment-saved-content" hidden></div>
+          <div id="fulfillmentBranchPicker" class="form-group fulfillment-branch-picker" hidden>
+            <label for="fulfillmentBranchSelect">Pickup Branch</label>
+            <select id="fulfillmentBranchSelect" class="tracking-select"></select>
+            <small class="field-help">Choose the branch where you want to pick up your order.</small>
+          </div>
           <div id="fulfillmentOptions" class="fulfillment-options" hidden>
             <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="shop"><span><strong>Pickup at Shop</strong><small>Pick up from the seller's shop.</small></span></label>
             <label class="fulfillment-option"><input type="radio" name="fulfillmentType" value="location"><span><strong>Pickup at Location</strong><small>Choose one of the seller's upcoming pickup events.</small></span></label>
@@ -216,6 +224,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="/customer/customer.js?v=2026-09-13-13"></script>
+  <script type="module" src="/customer/customer.js?v=2026-09-13-05"></script>
 </body>
 </html>

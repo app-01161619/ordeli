@@ -989,7 +989,7 @@ async function getSeller(userId) {
           await ensureSupabase();
           const { data, error } = await supabase
             .from("sellers")
-            .select(`id, email, login_method, google_id, shop_name, shop_address, shop_logo_path`)
+            .select(`id, email, login_method, google_id, shop_name, shop_address, shop_logo_path, shop_latitude, shop_longitude`)
             .eq("id", userId)
             .maybeSingle();
           if (!error && data) await cacheNamed(cacheKey, data);
@@ -1003,7 +1003,7 @@ async function getSeller(userId) {
 
   try {
     await ensureSupabase();
-    const { data, error } = await supabase.from("sellers").select(`id, email, login_method, google_id, shop_name, shop_address, shop_logo_path`).eq("id", userId).maybeSingle();
+    const { data, error } = await supabase.from("sellers").select(`id, email, login_method, google_id, shop_name, shop_address, shop_logo_path, shop_latitude, shop_longitude`).eq("id", userId).maybeSingle();
     if (error) throw error;
     if (data) await cacheNamed(cacheKey, data);
     return data;
@@ -1019,7 +1019,9 @@ function shopComplete(
 
   return Boolean(
     seller?.shop_name?.trim() &&
-    seller?.shop_address?.trim()
+    seller?.shop_address?.trim() &&
+    Number.isFinite(Number(seller?.shop_latitude)) &&
+    Number.isFinite(Number(seller?.shop_longitude))
   );
 
 }
@@ -2595,13 +2597,15 @@ $("shopSetupForm")
 
 
       if (!address) {
-
-        $("shopSetupMessage")
-          .textContent =
-            "Shop address is required.";
-
+        $("shopSetupMessage").textContent = "Shop address is required.";
         return;
+      }
 
+      const shopLatitude = Number($("shopLatitude").value);
+      const shopLongitude = Number($("shopLongitude").value);
+      if (!Number.isFinite(shopLatitude) || shopLatitude < -90 || shopLatitude > 90 || !Number.isFinite(shopLongitude) || shopLongitude < -180 || shopLongitude > 180) {
+        $("shopSetupMessage").textContent = "Shop latitude and longitude are required.";
+        return;
       }
 
 
@@ -2744,6 +2748,12 @@ $("shopSetupForm")
 
             shop_address:
               address,
+
+            shop_latitude:
+              Number($("shopLatitude").value),
+
+            shop_longitude:
+              Number($("shopLongitude").value),
 
             shop_logo_path:
               logoPath,
@@ -3586,7 +3596,7 @@ async function loadProducts() {
       const result = await supabase
         .from("products")
         .select(`
-          id, seller_id, name, default_price,
+          id, seller_id, name, default_price, image_path,
           customer_cancellable_until_stage, is_active,
           created_at, updated_at
         `)
@@ -3767,6 +3777,17 @@ function createProductCard(
   );
 
 
+  if (product.image_path) {
+    const image = document.createElement("img");
+    image.className = "product-card-image";
+    image.alt = product.name ? `${product.name} photo` : "Product photo";
+    image.loading = "lazy";
+    image.dataset.productImagePath = product.image_path;
+    loadSellerStorageImage(product.image_path, image).catch(() => {});
+    card.classList.add("has-product-image");
+    card.append(image);
+  }
+
   card.append(
     info,
     actions
@@ -3808,6 +3829,15 @@ async function openProductEditor(
         Number(
           product.default_price
         ).toFixed(2);
+    $("productImage").value = "";
+    $("removeProductImageButton").dataset.remove = "false";
+    if (product.image_path) {
+      $("productImagePreviewContainer").hidden = false;
+      loadSellerStorageImage(product.image_path, $("productImagePreview")).catch(() => {});
+    } else {
+      $("productImagePreviewContainer").hidden = true;
+      $("productImagePreview").removeAttribute("src");
+    }
 
   } else {
 
@@ -3828,6 +3858,10 @@ async function openProductEditor(
     $("productPrice")
       .value =
         "";
+    $("productImage").value = "";
+    $("removeProductImageButton").dataset.remove = "false";
+    $("productImagePreviewContainer").hidden = true;
+    $("productImagePreview").removeAttribute("src");
 
   }
 
@@ -3884,7 +3918,10 @@ function closeProductEditor() {
   $("productPrice")
     .value =
       "";
-
+  if ($("productImage")) $("productImage").value = "";
+  if ($("productImagePreview")) $("productImagePreview").removeAttribute("src");
+  if ($("productImagePreviewContainer")) $("productImagePreviewContainer").hidden = true;
+  if ($("removeProductImageButton")) $("removeProductImageButton").dataset.remove = "false";
 
   $("productMessage")
     .textContent =
@@ -3943,6 +3980,35 @@ async function populateProductCancellationOptions(productId, selectedValue = "")
     console.warn("Unable to load cancellation stages:", error);
   }
 }
+
+function validateProductImage(file) {
+  const allowed = ["image/png", "image/jpeg", "image/webp"];
+  if (!allowed.includes(file.type)) throw new Error("Product photo must be PNG, JPEG, or WebP.");
+  if (file.size > 8 * 1024 * 1024) throw new Error("Product photo must be 8 MB or smaller.");
+}
+
+async function loadSellerStorageImage(path, imageEl) {
+  if (!path || !imageEl) return;
+  const user = await getCurrentUser();
+  const { data, error } = await supabase.storage.from("product-images").createSignedUrl(path, 300);
+  if (error) throw error;
+  imageEl.src = data.signedUrl;
+}
+
+$("productImage")?.addEventListener("change", () => {
+  const file = $("productImage").files?.[0];
+  if (!file) return;
+  try { validateProductImage(file); } catch (error) { $("productImage").value = ""; $("productMessage").textContent = error.message; return; }
+  $("removeProductImageButton").dataset.remove = "false";
+  $("productImagePreview").src = URL.createObjectURL(file);
+  $("productImagePreviewContainer").hidden = false;
+});
+$("removeProductImageButton")?.addEventListener("click", () => {
+  $("productImage").value = "";
+  $("removeProductImageButton").dataset.remove = "true";
+  $("productImagePreview").removeAttribute("src");
+  $("productImagePreviewContainer").hidden = true;
+});
 
 async function saveProduct() {
 
@@ -4019,10 +4085,33 @@ async function saveProduct() {
 
 
   try {
+    const imageFile = $("productImage")?.files?.[0] || null;
+    const removeImage = $("removeProductImageButton")?.dataset?.remove === "true";
+    let imagePath = null;
+    if (editingProductId) {
+      const existing = (await supabase.from("products").select("image_path").eq("id", editingProductId).eq("seller_id", user.id).single()).data;
+      imagePath = existing?.image_path || null;
+      if (imageFile) {
+        validateProductImage(imageFile);
+        const ext = safeExtension(imageFile.name);
+        const newPath = `${user.id}/${crypto.randomUUID()}.${ext}`;
+        const upload = await supabase.storage.from("product-images").upload(newPath, imageFile, { contentType: imageFile.type, cacheControl: "3600", upsert: false });
+        if (upload.error) throw upload.error;
+        const oldPath = imagePath; imagePath = newPath;
+        if (oldPath) await supabase.storage.from("product-images").remove([oldPath]);
+      } else if (removeImage && imagePath) {
+        await supabase.storage.from("product-images").remove([imagePath]);
+        imagePath = null;
+      }
+    } else if (imageFile) {
+      validateProductImage(imageFile);
+      const ext = safeExtension(imageFile.name);
+      imagePath = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const upload = await supabase.storage.from("product-images").upload(imagePath, imageFile, { contentType: imageFile.type, cacheControl: "3600", upsert: false });
+      if (upload.error) throw upload.error;
+    }
 
-    if (
-      editingProductId
-    ) {
+    if (editingProductId) {
 
       const {
         data,
@@ -4038,6 +4127,8 @@ async function saveProduct() {
 
           default_price:
             price,
+
+          image_path: imagePath,
 
           customer_cancellable_until_stage:
             $("productCancellationEnabled")?.checked && $("productCancellationCutoff")?.value
@@ -4095,6 +4186,8 @@ async function saveProduct() {
 
           default_price:
             price,
+
+          image_path: imagePath,
 
           customer_cancellable_until_stage:
             $("productCancellationEnabled")?.checked && $("productCancellationCutoff")?.value
@@ -7825,40 +7918,68 @@ async function loadReviews() {
 }
 
 // ============================================================
+// SHOP BRANCHES
+// ============================================================
+let sellerBranches = [];
+
+async function refreshSellerBranches() {
+  const user = await getCurrentUser();
+  const list = $("branchList");
+  if (!list) return;
+  const { data, error } = await supabase.from("seller_branches").select("id,seller_id,name,address,latitude,longitude,is_active,is_default,created_at,updated_at").eq("seller_id", user.id).eq("is_active", true).order("is_default", { ascending: false }).order("name", { ascending: true });
+  if (error) throw error;
+  sellerBranches = data || [];
+  list.replaceChildren();
+  if (!sellerBranches.length) { const p=document.createElement("p"); p.className="form-help"; p.textContent="No branches added yet. The main shop location above will be used."; list.appendChild(p); return; }
+  sellerBranches.forEach(branch => {
+    const card=document.createElement("article"); card.className="branch-card";
+    const head=document.createElement("div"); head.className="branch-card-head";
+    const title=document.createElement("strong"); title.textContent=branch.name;
+    if (branch.is_default) { const badge=document.createElement("span"); badge.className="branch-default-badge"; badge.textContent="Default"; head.append(title,badge); } else head.appendChild(title);
+    const address=document.createElement("p"); address.textContent=branch.address;
+    const coords=document.createElement("small"); coords.textContent=`${Number(branch.latitude).toFixed(6)}, ${Number(branch.longitude).toFixed(6)}`;
+    const actions=document.createElement("div"); actions.className="branch-card-actions";
+    const edit=document.createElement("button"); edit.type="button"; edit.className="secondary-button"; edit.textContent="Edit"; edit.addEventListener("click",()=>openBranchEditor(branch));
+    const del=document.createElement("button"); del.type="button"; del.className="secondary-button"; del.textContent="Remove"; del.addEventListener("click",()=>deleteBranch(branch));
+    actions.append(edit,del); card.append(head,address,coords,actions); list.appendChild(card);
+  });
+}
+
+function openBranchEditor(branch=null) {
+  const form=$("branchForm"); if (!form) return; form.hidden=false; $("branchMessage").textContent="";
+  $("branchId").value=branch?.id||""; $("branchName").value=branch?.name||""; $("branchAddress").value=branch?.address||""; $("branchLatitude").value=branch?.latitude??""; $("branchLongitude").value=branch?.longitude??"";
+  $("saveBranchButton").textContent=branch?"Update Branch":"Save Branch";
+}
+function closeBranchEditor(){ const f=$("branchForm"); if(!f) return; f.hidden=true; f.reset(); $("branchMessage").textContent=""; $("branchId").value=""; $("saveBranchButton").textContent="Save Branch"; }
+async function deleteBranch(branch){
+  if(!window.confirm(`Remove ${branch.name}? Existing orders using this branch will keep their saved location.`)) return;
+  try { const {error}=await supabase.from("seller_branches").update({is_active:false,updated_at:new Date().toISOString()}).eq("id",branch.id).eq("seller_id",(await getCurrentUser()).id); if(error) throw error; await refreshSellerBranches(); } catch(error){ $("branchMessage").textContent=error.message||"Unable to remove branch."; }
+}
+$("addBranchButton")?.addEventListener("click",()=>openBranchEditor());
+$("cancelBranchButton")?.addEventListener("click",closeBranchEditor);
+$("branchForm")?.addEventListener("submit",async e=>{
+  e.preventDefault(); const user=await getCurrentUser(); const name=$("branchName").value.trim(); const address=$("branchAddress").value.trim(); const latitude=Number($("branchLatitude").value); const longitude=Number($("branchLongitude").value); if(!name||!address||!Number.isFinite(latitude)||latitude<-90||latitude>90||!Number.isFinite(longitude)||longitude<-180||longitude>180){$("branchMessage").textContent="Branch name, address, latitude, and longitude are required.";return;}
+  try { const id=$("branchId").value; const payload={name,address,latitude,longitude,is_active:true,updated_at:new Date().toISOString()}; let result; if(id) result=await supabase.from("seller_branches").update(payload).eq("id",id).eq("seller_id",user.id).select().single(); else result=await supabase.from("seller_branches").insert({...payload,seller_id:user.id}).select().single(); if(result.error) throw result.error; closeBranchEditor(); await refreshSellerBranches(); } catch(error){$("branchMessage").textContent=error.message||"Unable to save branch.";}
+});
+$("useShopLocationButton")?.addEventListener("click",()=>captureGeolocation("shopLatitude","shopLongitude","shopSetupMessage"));
+$("useBranchLocationButton")?.addEventListener("click",()=>captureGeolocation("branchLatitude","branchLongitude","branchMessage"));
+function captureGeolocation(latId,longId,messageId){ if(!navigator.geolocation){$(messageId).textContent="Geolocation is not available on this device.";return;} $(messageId).textContent="Getting your location…"; navigator.geolocation.getCurrentPosition(pos=>{ $(latId).value=pos.coords.latitude.toFixed(6); $(longId).value=pos.coords.longitude.toFixed(6); $(messageId).textContent="Location captured."; },err=>{ $(messageId).textContent=err.code===1?"Location permission was denied.":"Unable to get your current location."; },{enableHighAccuracy:true,timeout:10000,maximumAge:60000}); }
+
+// ============================================================
 // COMMON HELPERS
 // ============================================================
 
 function populateShopForm(
   seller
 ) {
-
-  $("shopName")
-    .value =
-      seller?.shop_name ||
-      "";
-
-
-  $("shopAddress")
-    .value =
-      seller?.shop_address ||
-      "";
-
-
-  $("shopLogo")
-    .value =
-      "";
-
-
-  $("shopLogoPreviewContainer")
-    .hidden =
-      true;
-
-
-  $("shopLogoPreview")
-    .removeAttribute(
-      "src"
-    );
-
+  $("shopName").value = seller?.shop_name || "";
+  $("shopAddress").value = seller?.shop_address || "";
+  $("shopLatitude").value = seller?.shop_latitude ?? "";
+  $("shopLongitude").value = seller?.shop_longitude ?? "";
+  $("shopLogo").value = "";
+  $("shopLogoPreviewContainer").hidden = true;
+  $("shopLogoPreview").removeAttribute("src");
+  refreshSellerBranches().catch(error => console.warn("Branch list refresh failed:", error));
 }
 
 

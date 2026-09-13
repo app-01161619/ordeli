@@ -2,7 +2,7 @@ const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=()",
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=(self), payment=()",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://accounts.google.com https://kbgdxhshxkhuelbxlggc.supabase.co; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; connect-src 'self' https://kbgdxhshxkhuelbxlggc.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; img-src 'self' data: blob: https://kbgdxhshxkhuelbxlggc.supabase.co; media-src 'self' blob: https://kbgdxhshxkhuelbxlggc.supabase.co; style-src 'self'; font-src 'self' data:; manifest-src 'self'; worker-src 'self' blob:"
 };
@@ -147,6 +147,35 @@ async function handleCustomerPaymentProof(request, env) {
   return json({ success: true, payment: submitResult });
 }
 
+
+async function handleCustomerMedia(request, env) {
+  if (request.method !== "GET") return json({ error: "Method not allowed." }, 405, { Allow: "GET" });
+  const url = new URL(request.url);
+  const token = (url.searchParams.get("token") || "").trim();
+  const type = (url.searchParams.get("type") || "").trim();
+  const serviceKey = getServiceKey(env);
+  const base = getSupabaseBase(env);
+  if (token.length < 16 || token.length > 256 || !["shop-logo", "product-image"].includes(type)) return json({ error: "Invalid media request." }, 400);
+  if (!serviceKey || !base) return json({ error: "Media service is not configured." }, 503);
+  const rpcResponse = await supabaseRpc(base, serviceKey, "get_customer_tracking", { p_public_token: token });
+  const tracking = await rpcResponse.json().catch(() => null);
+  if (!rpcResponse.ok) return json({ error: tracking?.message || "Tracking link unavailable." }, 404);
+  const path = type === "shop-logo" ? tracking?.shop?.logo_path : tracking?.item?.product_image_path;
+  const bucket = type === "shop-logo" ? "shop-logos" : "product-images";
+  if (!path || typeof path !== "string") return json({ error: "Media not available." }, 404);
+  const encodedPath = path.split("/").map(part => encodeURIComponent(part)).join("/");
+  const signResponse = await fetch(`${base}/storage/v1/object/sign/${bucket}/${encodedPath}`, {
+    method: "POST",
+    headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ expiresIn: 600 })
+  });
+  const signed = await signResponse.json().catch(() => null);
+  const signedPath = signed?.signedURL || signed?.signedUrl || signed?.signed_url;
+  if (!signResponse.ok || !signedPath) return json({ error: "Unable to create media URL." }, 502);
+  const signedUrl = signedPath.startsWith("http") ? signedPath : `${base}${signedPath.startsWith("/storage/v1/") ? "" : "/storage/v1"}${signedPath}`;
+  return json({ url: signedUrl }, 200, { "Cache-Control": "private, max-age=300" });
+}
+
 async function handleCustomerStageProof(request, env) {
   if (request.method !== "GET") return json({ error: "Method not allowed." }, 405, { Allow: "GET" });
   const url = new URL(request.url);
@@ -191,6 +220,11 @@ export default {
       const customerUrl = new URL("/customer/", url);
       customerUrl.hash = `token=${encodeURIComponent(token)}`;
       return Response.redirect(customerUrl.toString(), 302);
+    }
+
+    if (pathname === "/api/customer-media") {
+      try { return await handleCustomerMedia(request, env); }
+      catch (error) { console.error("Customer media endpoint failed:", error); return json({ error: "Unable to load media." }, 500); }
     }
 
     if (pathname === "/api/customer-stage-proof") {
