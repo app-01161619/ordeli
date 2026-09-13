@@ -3453,7 +3453,8 @@ a:hover {
 
 /* Precise shop/branch location picker */
 .shop-location-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 10px; }
-.location-status { min-height:1.25em; margin:0 0 14px; color:#667085; font-size:13px; line-height:1.45; }
+.location-status-wrap { min-height:1.25em; margin:2px 0 18px; }
+.location-status { margin:0; color:#667085; font-size:13px; line-height:1.45; }
 .map-picker-modal { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px; }
 .map-picker-modal[hidden] { display:none; }
 .map-picker-backdrop { position:absolute; inset:0; background:rgba(15,23,42,.58); backdrop-filter:blur(2px); }
