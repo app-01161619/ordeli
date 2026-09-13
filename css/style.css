@@ -4073,3 +4073,177 @@ button.is-loading {
 @keyframes ordeli-button-spin {
   to { transform: rotate(360deg); }
 }
+
+
+/* ============================================================
+   Dark theme contrast hardening
+   Override legacy light-only component colors without changing
+   the light theme.
+   ============================================================ */
+[data-ordeli-effective-theme="dark"] body,
+[data-ordeli-effective-theme="dark"] .app-container,
+[data-ordeli-effective-theme="dark"] .screen {
+  background: var(--background);
+  color: var(--text);
+}
+
+[data-ordeli-effective-theme="dark"] h1,
+[data-ordeli-effective-theme="dark"] h2,
+[data-ordeli-effective-theme="dark"] h3,
+[data-ordeli-effective-theme="dark"] h4,
+[data-ordeli-effective-theme="dark"] strong,
+[data-ordeli-effective-theme="dark"] label,
+[data-ordeli-effective-theme="dark"] legend,
+[data-ordeli-effective-theme="dark"] .section-heading,
+[data-ordeli-effective-theme="dark"] .home-header,
+[data-ordeli-effective-theme="dark"] .dashboard-panel,
+[data-ordeli-effective-theme="dark"] .production-panel,
+[data-ordeli-effective-theme="dark"] .order-detail-panel,
+[data-ordeli-effective-theme="dark"] .auth-card {
+  color: var(--text);
+}
+
+[data-ordeli-effective-theme="dark"] p,
+[data-ordeli-effective-theme="dark"] small,
+[data-ordeli-effective-theme="dark"] .form-help,
+[data-ordeli-effective-theme="dark"] .qr-help,
+[data-ordeli-effective-theme="dark"] .location-status,
+[data-ordeli-effective-theme="dark"] .product-photo-copy small,
+[data-ordeli-effective-theme="dark"] .production-work-toolbar span,
+[data-ordeli-effective-theme="dark"] .production-work-card span,
+[data-ordeli-effective-theme="dark"] .production-task-details,
+[data-ordeli-effective-theme="dark"] .production-task-customer,
+[data-ordeli-effective-theme="dark"] .production-proof-label,
+[data-ordeli-effective-theme="dark"] .item-production-summary-row span,
+[data-ordeli-effective-theme="dark"] .item-production-stage-meta,
+[data-ordeli-effective-theme="dark"] .item-production-stage-note,
+[data-ordeli-effective-theme="dark"] .branch-card p,
+[data-ordeli-effective-theme="dark"] .branch-card small,
+[data-ordeli-effective-theme="dark"] .map-picker-help,
+[data-ordeli-effective-theme="dark"] .map-picker-details span,
+[data-ordeli-effective-theme="dark"] .qr-series-card p,
+[data-ordeli-effective-theme="dark"] .qr-series-status,
+[data-ordeli-effective-theme="dark"] .order-card-meta span,
+[data-ordeli-effective-theme="dark"] .orders-queue-summary span,
+[data-ordeli-effective-theme="dark"] .product-image-preview-container small,
+[data-ordeli-effective-theme="dark"] .settings-card-heading p,
+[data-ordeli-effective-theme="dark"] .settings-row small,
+[data-ordeli-effective-theme="dark"] .settings-switch-row small {
+  color: var(--text-muted) !important;
+}
+
+[data-ordeli-effective-theme="dark"] .dashboard-panel,
+[data-ordeli-effective-theme="dark"] .production-panel,
+[data-ordeli-effective-theme="dark"] .order-detail-panel,
+[data-ordeli-effective-theme="dark"] .order-card,
+[data-ordeli-effective-theme="dark"] .product-card,
+[data-ordeli-effective-theme="dark"] .event-card,
+[data-ordeli-effective-theme="dark"] .review-card,
+[data-ordeli-effective-theme="dark"] .updates-summary-card,
+[data-ordeli-effective-theme="dark"] .sms-draft-card,
+[data-ordeli-effective-theme="dark"] .qr-create-card,
+[data-ordeli-effective-theme="dark"] .qr-series-card,
+[data-ordeli-effective-theme="dark"] .branch-card,
+[data-ordeli-effective-theme="dark"] .branch-form,
+[data-ordeli-effective-theme="dark"] .product-photo-card,
+[data-ordeli-effective-theme="dark"] .product-image-preview-container,
+[data-ordeli-effective-theme="dark"] .item-production-detail-card,
+[data-ordeli-effective-theme="dark"] .item-production-stage-detail,
+[data-ordeli-effective-theme="dark"] .item-production-stage-detail.is-current,
+[data-ordeli-effective-theme="dark"] .event-reschedule-picker,
+[data-ordeli-effective-theme="dark"] .sms-draft-message,
+[data-ordeli-effective-theme="dark"] .settings-card,
+[data-ordeli-effective-theme="dark"] .settings-status,
+[data-ordeli-effective-theme="dark"] .settings-stat-grid > div,
+[data-ordeli-effective-theme="dark"] .map-picker-details > div,
+[data-ordeli-effective-theme="dark"] .production-work-toolbar,
+[data-ordeli-effective-theme="dark"] .production-work-card,
+[data-ordeli-effective-theme="dark"] .team-create-card,
+[data-ordeli-effective-theme="dark"] .team-list-panel,
+[data-ordeli-effective-theme="dark"] .team-member-card {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+[data-ordeli-effective-theme="dark"] .orders-queue-summary,
+[data-ordeli-effective-theme="dark"] .orders-filter-bar,
+[data-ordeli-effective-theme="dark"] .order-card-meta,
+[data-ordeli-effective-theme="dark"] .order-card-footer,
+[data-ordeli-effective-theme="dark"] .order-item,
+[data-ordeli-effective-theme="dark"] .order-item-summary,
+[data-ordeli-effective-theme="dark"] .product-list-row,
+[data-ordeli-effective-theme="dark"] .event-order-summary,
+[data-ordeli-effective-theme="dark"] .team-permission-summary span {
+  background: var(--surface-muted) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+[data-ordeli-effective-theme="dark"] input,
+[data-ordeli-effective-theme="dark"] textarea,
+[data-ordeli-effective-theme="dark"] select,
+[data-ordeli-effective-theme="dark"] .qr-create-card select,
+[data-ordeli-effective-theme="dark"] .qr-create-card input,
+[data-ordeli-effective-theme="dark"] .production-scanned-item textarea,
+[data-ordeli-effective-theme="dark"] .event-reschedule-picker > input,
+[data-ordeli-effective-theme="dark"] .event-reschedule-picker > select {
+  background: #11161d !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
+  color-scheme: dark;
+}
+
+[data-ordeli-effective-theme="dark"] input::placeholder,
+[data-ordeli-effective-theme="dark"] textarea::placeholder {
+  color: #7f8a98 !important;
+}
+
+[data-ordeli-effective-theme="dark"] a,
+[data-ordeli-effective-theme="dark"] .order-item-stage-link {
+  color: #65b5ff !important;
+}
+
+[data-ordeli-effective-theme="dark"] button:not(.button-danger):not(.secondary-button),
+[data-ordeli-effective-theme="dark"] .primary-button {
+  border-color: transparent;
+}
+
+[data-ordeli-effective-theme="dark"] .secondary-button,
+[data-ordeli-effective-theme="dark"] .home-menu-button,
+[data-ordeli-effective-theme="dark"] .home-menu-item {
+  background: #20262f !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
+}
+
+[data-ordeli-effective-theme="dark"] .secondary-button:hover,
+[data-ordeli-effective-theme="dark"] .home-menu-button:hover,
+[data-ordeli-effective-theme="dark"] .home-menu-item:hover {
+  background: #2a333e !important;
+  color: #ffffff !important;
+}
+
+[data-ordeli-effective-theme="dark"] .item-production-stage-badge,
+[data-ordeli-effective-theme="dark"] .orders-fifo-badge,
+[data-ordeli-effective-theme="dark"] .branch-default-badge,
+[data-ordeli-effective-theme="dark"] .sms-draft-badge,
+[data-ordeli-effective-theme="dark"] .team-permission-summary span {
+  border: 1px solid var(--border) !important;
+  filter: none;
+}
+
+[data-ordeli-effective-theme="dark"] .team-permission-summary .team-permission-disabled {
+  background: #20252c !important;
+  color: #929cab !important;
+}
+
+[data-ordeli-effective-theme="dark"] .homeDashboardSubtitle,
+[data-ordeli-effective-theme="dark"] #homeDashboardSubtitle,
+[data-ordeli-effective-theme="dark"] #homeGreeting {
+  color: var(--text) !important;
+}
+
+[data-ordeli-effective-theme="dark"] #homeDashboardSubtitle {
+  color: var(--text-muted) !important;
+}

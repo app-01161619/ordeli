@@ -1483,7 +1483,7 @@ async function loadHomeDashboard(sellerId) {
   const eventOrders = snapshot.orders.filter(o => o.event_id && upcomingEventIds.has(o.event_id) && !o.cancelled_at).length;
   $("attentionEvents").textContent = String(eventOrders);
   $("attentionUpdates").textContent = String(snapshot.updates.length);
-  $("homeDashboardSubtitle").textContent = `${computed.active} active order${computed.active === 1 ? "" : "s"} · ${computed.ready} ready for handover`;
+  $("homeDashboardSubtitle").textContent = getHomeMotivation(computed);
   renderRecentOrders(snapshot.orders.slice(0, 8), snapshot.payments);
 }
 
