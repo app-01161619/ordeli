@@ -1850,8 +1850,7 @@ async function openEventStatusPicker(event, card, orders = []) {
   card.appendChild(picker);
 
   save.addEventListener('click', async () => {
-    save.disabled = true;
-    save.textContent = 'Saving…';
+    setLoading(save, 'Saving…');
     message.hidden = true;
     try {
       const next = select.value;
@@ -1862,8 +1861,7 @@ async function openEventStatusPicker(event, card, orders = []) {
     } catch (error) {
       message.hidden = false;
       message.textContent = error?.message || 'Unable to change event status.';
-      save.disabled = false;
-      save.textContent = 'Save Status';
+      resetButton(save, 'Save Status');
     }
   });
 }
@@ -1923,8 +1921,7 @@ async function openEventReschedulePicker(event, card) {
         reason.focus();
         return;
       }
-      save.disabled = true;
-      save.textContent = 'Rescheduling…';
+      setLoading(save, 'Rescheduling…');
       try {
         const rpc = await supabase.rpc('reschedule_event_orders', {
           p_event_id: event.id,
@@ -1935,8 +1932,7 @@ async function openEventReschedulePicker(event, card) {
         picker.remove();
         await loadEvents();
       } catch (error) {
-        save.disabled = false;
-        save.textContent = 'Move Orders';
+        resetButton(save, 'Move Orders');
         const message = document.createElement('p');
         message.className = 'form-message';
         message.textContent = error?.message || 'Unable to reschedule this event.';
@@ -3431,7 +3427,10 @@ $("teamMemberForm")?.addEventListener("submit", async event => {
   const message = $("teamMemberMessage");
   message.textContent = "";
   message.className = "form-message";
+  const submitButton = $("inviteTeamMemberButton");
+  const submitLabel = editingProductionMemberId ? "Save Changes" : "Create Invitation";
   try {
+    setLoading(submitButton, editingProductionMemberId ? "Saving…" : "Creating…");
     if (editingProductionMemberId) {
       const payload = {
         p_member_id: editingProductionMemberId,
@@ -7010,7 +7009,7 @@ async function updateOrderPickupAction(action) {
   if (!currentOrderId) return;
   const button = action === 'handed_over' ? $('orderDetailHandoverButton') : $('orderDetailUnclaimedButton');
   const original = button?.textContent || '';
-  if (button) { button.disabled = true; button.textContent = action === 'handed_over' ? 'Handing Over…' : 'Saving…'; }
+  if (button) setLoading(button, action === 'handed_over' ? 'Handing Over…' : 'Saving…');
   try {
     const { data, error } = await supabase.rpc('update_order_pickup_status', { p_order_id: currentOrderId, p_action: action });
     if (error) throw error;
@@ -7019,7 +7018,7 @@ async function updateOrderPickupAction(action) {
   } catch (error) {
     $('orderDetailMessage').textContent = error?.message || 'Unable to update pickup status.';
   } finally {
-    if (button) { button.disabled = false; button.textContent = original; }
+    if (button) resetButton(button, original);
   }
 }
 
@@ -7784,10 +7783,11 @@ async function viewCustomerPaymentProof(payment) {
   }
 }
 
-async function reviewCustomerPayment(payment, decision) {
+async function reviewCustomerPayment(payment, decision, actionButton = null) {
   const message = decision === "rejected" ? prompt("Reason for rejecting this payment proof (optional):", "") : null;
   if (decision === "rejected" && message === null) return;
   try {
+    if (actionButton) setLoading(actionButton, decision === "confirmed" ? "Confirming…" : "Rejecting…");
     const session = await getSession();
     const user = session?.user;
     if (!user) throw new Error("Please sign in again.");
@@ -7809,6 +7809,7 @@ async function reviewCustomerPayment(payment, decision) {
   } catch (error) {
     console.error("Payment review failed:", error);
     alert(error?.message || "Unable to update payment proof.");
+    if (actionButton) resetButton(actionButton, decision === "confirmed" ? "Confirm" : "Reject");
   }
 }
 
@@ -8021,7 +8022,10 @@ $("addBranchButton")?.addEventListener("click",()=>openBranchEditor());
 $("cancelBranchButton")?.addEventListener("click",closeBranchEditor);
 $("branchForm")?.addEventListener("submit",async e=>{
   e.preventDefault(); const user=await getCurrentUser(); const name=$("branchName").value.trim(); const address=$("branchAddress").value.trim(); const latitude=Number($("branchLatitude").value); const longitude=Number($("branchLongitude").value); if(!name||!address||!Number.isFinite(latitude)||latitude<-90||latitude>90||!Number.isFinite(longitude)||longitude<-180||longitude>180){$("branchMessage").textContent="Branch name, address, latitude, and longitude are required.";return;}
-  try { const id=$("branchId").value; const payload={name,address,latitude,longitude,is_active:true,updated_at:new Date().toISOString()}; let result; if(id) result=await supabase.from("seller_branches").update(payload).eq("id",id).eq("seller_id",user.id).select().single(); else result=await supabase.from("seller_branches").insert({...payload,seller_id:user.id}).select().single(); if(result.error) throw result.error; closeBranchEditor(); await refreshSellerBranches(); } catch(error){$("branchMessage").textContent=error.message||"Unable to save branch.";}
+  const button=$("saveBranchButton");
+  const label=$("branchId").value ? "Update Branch" : "Save Branch";
+  setLoading(button, label.startsWith("Update") ? "Saving…" : "Saving…");
+  try { const id=$("branchId").value; const payload={name,address,latitude,longitude,is_active:true,updated_at:new Date().toISOString()}; let result; if(id) result=await supabase.from("seller_branches").update(payload).eq("id",id).eq("seller_id",user.id).select().single(); else result=await supabase.from("seller_branches").insert({...payload,seller_id:user.id}).select().single(); if(result.error) throw result.error; closeBranchEditor(); await refreshSellerBranches(); } catch(error){$("branchMessage").textContent=error.message||"Unable to save branch.";} finally { resetButton(button, label); }
 });
 const locationPickerState = { target: null, map: null, marker: null, lat: null, lng: null, zoom: 17 };
 
@@ -8232,31 +8236,26 @@ function safeExtension(
 }
 
 
-function setLoading(
-  button,
-  text
-) {
-
-  button.disabled =
-    true;
-
-  button.textContent =
-    text;
-
+function setLoading(button, textOrBusy, legacyText) {
+  if (!button) return;
+  const text = typeof textOrBusy === "string"
+    ? textOrBusy
+    : (typeof legacyText === "string" ? legacyText : "Saving…");
+  button.disabled = true;
+  button.classList.add("is-loading");
+  button.setAttribute("aria-busy", "true");
+  button.dataset.loadingText = text;
+  button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span class="button-loading-label"></span>';
+  button.querySelector(".button-loading-label").textContent = text;
 }
 
-
-function resetButton(
-  button,
-  text
-) {
-
-  button.disabled =
-    false;
-
-  button.textContent =
-    text;
-
+function resetButton(button, text) {
+  if (!button) return;
+  button.disabled = false;
+  button.classList.remove("is-loading");
+  button.removeAttribute("aria-busy");
+  delete button.dataset.loadingText;
+  button.textContent = text;
 }
 
 

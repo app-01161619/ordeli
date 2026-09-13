@@ -3735,3 +3735,23 @@ a:hover {
 .order-detail-page-header .page-subtitle {
   margin-top: 0;
 }
+
+/* Unified async-action button loading state */
+.button-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ordeli-button-spin .7s linear infinite;
+  flex: 0 0 auto;
+}
+
+button.is-loading {
+  cursor: wait;
+}
+
+@keyframes ordeli-button-spin {
+  to { transform: rotate(360deg); }
+}
