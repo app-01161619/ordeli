@@ -354,6 +354,7 @@ function renderFulfillment() {
 
   if (statusCard) statusCard.hidden = true;
 
+  // Optional inline notice; older customer markup does not include this element.
   current.textContent = savedSelection ? fulfillmentLabel(fulfillmentType) : "Not selected yet";
   savedContent.replaceChildren();
 
@@ -362,7 +363,7 @@ function renderFulfillment() {
     options.hidden = true;
     eventPicker.hidden = true;
     saveButton.hidden = true;
-    notice.textContent = "";
+    if (notice) notice.textContent = "";
 
     const wrapper = document.createElement("div");
     wrapper.className = "fulfillment-saved-message";
@@ -420,12 +421,12 @@ function renderFulfillment() {
       : fullyPaid
         ? "Your order is ready for fulfillment selection."
         : "Production is complete. Fulfillment options will unlock after payment is fully confirmed.";
-    notice.textContent = "";
+    if (notice) notice.textContent = "";
     return;
   }
 
   requirement.textContent = "Your order is ready for fulfillment selection.";
-  notice.textContent = "";
+  if (notice) notice.textContent = "";
   document.querySelectorAll("input[name='fulfillmentType']").forEach((r) => { r.checked = false; });
 
   const select = $("fulfillmentEventSelect");
