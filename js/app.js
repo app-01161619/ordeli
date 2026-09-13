@@ -1382,8 +1382,39 @@ async function renderApplication() {
 // HOME
 // ============================================================
 
+function getHomeGreeting() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Good morning!";
+  if (hour >= 12 && hour < 14) return "Good noon!";
+  if (hour >= 14 && hour < 18) return "Good afternoon!";
+  return "Good evening!";
+}
+
+function getHomeMotivation(metrics) {
+  const active = Number(metrics?.active || 0);
+  const ready = Number(metrics?.ready || 0);
+  const production = Number(metrics?.production || 0);
+  const payments = Number(metrics?.paymentReviews || 0);
+
+  if (payments > 0) {
+    return `${payments} payment review${payments === 1 ? "" : "s"} need${payments === 1 ? "s" : ""} your attention. Keep the momentum going!`;
+  }
+  if (production > 0) {
+    return `${production} order${production === 1 ? "" : "s"} ${production === 1 ? "is" : "are"} in production. Keep things moving!`;
+  }
+  if (ready > 0) {
+    return `${ready} order${ready === 1 ? "" : "s"} ${ready === 1 ? "is" : "are"} ready for handover. Great work!`;
+  }
+  if (active > 0) {
+    return `${active} active order${active === 1 ? "" : "s"} ${active === 1 ? "is" : "are"} underway. You’re doing great!`;
+  }
+  return "Your shop is ready. Keep building great customer experiences today.";
+}
+
 async function renderHome(seller) {
   updateSellerTopbars(seller);
+  const greeting = $("homeGreeting");
+  if (greeting) greeting.textContent = getHomeGreeting();
   $("homeDashboardSubtitle").textContent = "Loading your shop activity…";
   // Never let a logo/network failure prevent the dashboard from appearing.
   showScreen("home");
@@ -1434,6 +1465,7 @@ async function loadHomeDashboard(sellerId) {
   }
   snapshot = snapshot || { orders: [], payments: [], events: [], updates: [] };
   const computed = computeOrderMetrics(snapshot.orders, snapshot.payments);
+  $("homeDashboardSubtitle").textContent = getHomeMotivation(computed);
   const pendingProofIds = new Set((snapshot.payments || [])
     .filter(payment => payment.proof_status === "pending_verification")
     .map(payment => payment.id));
@@ -7146,7 +7178,7 @@ async function updateOrderPickupAction(action) {
   if (!currentOrderId) return;
   const button = action === 'handed_over' ? $('orderDetailHandoverButton') : $('orderDetailUnclaimedButton');
   const original = button?.textContent || '';
-  if (button) { button.disabled = true; button.textContent = action === 'handed_over' ? 'Handing Over…' : 'Saving…'; }
+  if (button) setLoading(button, action === 'handed_over' ? 'Handing Over…' : 'Saving…');
   try {
     const { data, error } = await supabase.rpc('update_order_pickup_status', { p_order_id: currentOrderId, p_action: action });
     if (error) throw error;
@@ -8368,17 +8400,30 @@ function safeExtension(
 }
 
 
-function setLoading(
-  button,
-  text
-) {
-
-  button.disabled =
-    true;
-
-  button.textContent =
-    text;
-
+function setLoading(button, textOrBusy, legacyText) {
+  if (!button) return;
+  const busy = typeof textOrBusy === "boolean" ? textOrBusy : true;
+  if (!busy) {
+    const originalText = button.dataset.originalText ?? button.dataset.loadingResetText ?? button.textContent ?? "Save";
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    button.removeAttribute("aria-busy");
+    delete button.dataset.loadingText;
+    delete button.dataset.originalText;
+    delete button.dataset.loadingResetText;
+    button.textContent = originalText;
+    return;
+  }
+  const text = typeof textOrBusy === "string"
+    ? textOrBusy
+    : (typeof legacyText === "string" ? legacyText : "Saving…");
+  if (!button.dataset.originalText) button.dataset.originalText = button.textContent || "";
+  button.disabled = true;
+  button.classList.add("is-loading");
+  button.setAttribute("aria-busy", "true");
+  button.dataset.loadingText = text;
+  button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span><span class="button-loading-label"></span>';
+  button.querySelector(".button-loading-label").textContent = text;
 }
 
 
