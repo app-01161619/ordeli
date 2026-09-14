@@ -3454,9 +3454,21 @@ $("productionManualQrButton")?.addEventListener("click", async () => {
 
 async function loadTeamMembers() {
   const user = await getCurrentUser();
-  const { data, error } = await supabase.from("production_members").select("id,name,email,section_label,role,can_view_production,can_scan_qr,can_finish_stage,can_upload_proof,is_active,invite_status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false });
-  if (error) throw error;
-  return data || [];
+  const cacheKey = `team-members:${user.id}`;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const { data, error } = await supabase.from("production_members").select("id,name,email,section_label,role,can_view_production,can_scan_qr,can_finish_stage,can_upload_proof,is_active,invite_status,created_at").eq("seller_id", user.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      const members = data || [];
+      await cacheNamed(cacheKey, members);
+      return members;
+    } catch (error) {
+      const cached = await getCachedSnapshot(cacheKey);
+      if (cached) return cached;
+      throw error;
+    }
+  }
+  return (await getCachedSnapshot(cacheKey)) || [];
 }
 
 async function renderTeam() {
@@ -7993,28 +8005,36 @@ async function loadSmsUpdates() {
   $("updatesMessage").textContent = "";
   $("updatesEmptyState").hidden = true;
 
+  const cacheKey = `sms-updates:${user.id}`;
+  let drafts;
   try {
-    const result = await supabase
-      .from("sms_update_drafts")
-      .select("id,order_id,triggered_by_user_id,message_text,status,created_at,sent_marked_at,orders(order_number,customers(name,phone))")
-      .eq("seller_id", user.id)
-      .is("sent_marked_at", null)
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (result.error) throw result.error;
-    const drafts = result.data || [];
-    $("updatesCount").textContent = `${drafts.length} update${drafts.length === 1 ? "" : "s"}`;
-
-    if (!drafts.length) {
-      $("updatesEmptyState").hidden = false;
-      return;
+    if (!runtimeOffline && navigator.onLine) {
+      const result = await supabase
+        .from("sms_update_drafts")
+        .select("id,order_id,triggered_by_user_id,message_text,status,created_at,sent_marked_at,orders(order_number,customers(name,phone))")
+        .eq("seller_id", user.id)
+        .is("sent_marked_at", null)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (result.error) throw result.error;
+      drafts = result.data || [];
+      await cacheNamed(cacheKey, drafts);
+    } else {
+      drafts = (await getCachedSnapshot(cacheKey)) || [];
     }
-
-    drafts.forEach(draft => list.appendChild(createSmsDraftCard(draft)));
   } catch (error) {
-    $("updatesMessage").textContent = error?.message || "Unable to load seller updates.";
+    drafts = await getCachedSnapshot(cacheKey);
+    if (!drafts) { $("updatesMessage").textContent = error?.message || "Unable to load seller updates."; return; }
   }
+
+  $("updatesCount").textContent = `${drafts.length} update${drafts.length === 1 ? "" : "s"}`;
+
+  if (!drafts.length) {
+    $("updatesEmptyState").hidden = false;
+    return;
+  }
+
+  drafts.forEach(draft => list.appendChild(createSmsDraftCard(draft)));
 }
 
 function createSmsDraftCard(draft) {
@@ -8107,14 +8127,26 @@ async function loadReviews() {
   list.replaceChildren();
   $("reviewsEmptyState").hidden = true;
   $("reviewsMessage").textContent = "";
+  const cacheKey = `reviews:${user.id}`;
+  let reviews;
   try {
-    const result = await supabase
-      .from("reviews")
-      .select("id,order_id,rating,review_text,created_at,orders(order_number,customers(name))")
-      .eq("seller_id", user.id)
-      .order("created_at", { ascending: false });
-    if (result.error) throw result.error;
-    const reviews = result.data || [];
+    if (!runtimeOffline && navigator.onLine) {
+      const result = await supabase
+        .from("reviews")
+        .select("id,order_id,rating,review_text,created_at,orders(order_number,customers(name))")
+        .eq("seller_id", user.id)
+        .order("created_at", { ascending: false });
+      if (result.error) throw result.error;
+      reviews = result.data || [];
+      await cacheNamed(cacheKey, reviews);
+    } else {
+      reviews = (await getCachedSnapshot(cacheKey)) || [];
+    }
+  } catch (error) {
+    reviews = await getCachedSnapshot(cacheKey);
+    if (!reviews) { $("reviewsMessage").textContent = error?.message || "Unable to load reviews."; return; }
+  }
+  {
     const average = reviews.length ? reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length : 0;
     $("reviewsAverage").textContent = reviews.length ? `${average.toFixed(1)} / 5` : "—";
     $("reviewsCount").textContent = `${reviews.length} review${reviews.length === 1 ? "" : "s"}`;
@@ -8145,9 +8177,6 @@ async function loadReviews() {
       }
       list.appendChild(card);
     });
-  } catch (error) {
-    console.error("Reviews load failed:", error);
-    $("reviewsMessage").textContent = "Unable to load reviews right now.";
   }
 }
 
@@ -8160,8 +8189,21 @@ async function refreshSellerBranches() {
   const user = await getCurrentUser();
   const list = $("branchList");
   if (!list) return;
-  const { data, error } = await supabase.from("seller_branches").select("id,seller_id,name,address,latitude,longitude,is_active,is_default,created_at,updated_at").eq("seller_id", user.id).eq("is_active", true).order("is_default", { ascending: false }).order("name", { ascending: true });
-  if (error) throw error;
+  const cacheKey = `branches:${user.id}`;
+  let data;
+  if (!runtimeOffline && navigator.onLine) {
+    try {
+      const result = await supabase.from("seller_branches").select("id,seller_id,name,address,latitude,longitude,is_active,is_default,created_at,updated_at").eq("seller_id", user.id).eq("is_active", true).order("is_default", { ascending: false }).order("name", { ascending: true });
+      if (result.error) throw result.error;
+      data = result.data || [];
+      await cacheNamed(cacheKey, data);
+    } catch (error) {
+      data = await getCachedSnapshot(cacheKey);
+      if (!data) throw error;
+    }
+  } else {
+    data = (await getCachedSnapshot(cacheKey)) || [];
+  }
   sellerBranches = data || [];
   list.replaceChildren();
   if (!sellerBranches.length) { const p=document.createElement("p"); p.className="form-help"; p.textContent="No branches added yet. The main shop location above will be used."; list.appendChild(p); return; }
