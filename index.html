@@ -240,6 +240,16 @@
 <button id="settingsSyncNowButton" type="button">Sync now</button>
 <p class="form-message" id="settingsSyncMessage" role="status"></p>
 </section>
+<section class="settings-card"><div class="settings-card-heading"><div><h2>Notifications</h2><p>Get notified for important updates even when the app isn't open.</p></div></div>
+<label class="settings-switch-row"><span><strong>Push notifications</strong><small id="notificationPermissionHint">Allow Ordeli to notify this device.</small></span><input id="settingNotificationsEnabled" type="checkbox"><span class="settings-switch" aria-hidden="true"></span></label>
+<div id="notificationCategoryRows" hidden>
+<label class="settings-switch-row"><span><strong>New orders</strong></span><input id="settingNotifyNewOrder" type="checkbox"><span class="settings-switch" aria-hidden="true"></span></label>
+<label class="settings-switch-row"><span><strong>Payments submitted</strong></span><input id="settingNotifyPaymentSubmitted" type="checkbox"><span class="settings-switch" aria-hidden="true"></span></label>
+<label class="settings-switch-row"><span><strong>Production stage done</strong></span><input id="settingNotifyStageFinished" type="checkbox"><span class="settings-switch" aria-hidden="true"></span></label>
+<label class="settings-switch-row"><span><strong>Item cancelled</strong></span><input id="settingNotifyItemCancelled" type="checkbox"><span class="settings-switch" aria-hidden="true"></span></label>
+</div>
+<p class="form-message" id="settingsNotificationMessage" role="status"></p>
+</section>
 <section class="settings-card"><div class="settings-card-heading"><div><h2>Security</h2><p>Manage your password and sign out of this device.</p></div></div>
 <form id="settingsPasswordForm"><div class="form-group"><label for="settingsPassword">New password</label><input id="settingsPassword" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" required></div><div class="form-group"><label for="settingsPasswordConfirm">Confirm new password</label><input id="settingsPasswordConfirm" type="password" minlength="8" autocomplete="new-password" placeholder="Enter it again" required></div><button id="settingsPasswordButton" type="submit">Update password</button><p class="form-message" id="settingsPasswordMessage" role="alert"></p></form>
 <button id="settingsLogoutButton" class="secondary-button settings-logout-button" type="button">Log out of this device</button>

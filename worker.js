@@ -209,6 +209,167 @@ async function handleCustomerStageProof(request, env) {
   return json({ available: true, url: signedUrl, stage_name: proof.stage_name || `Stage ${stageOrder}` }, 200, { "Cache-Control": "private, no-store" });
 }
 
+// ==========================================================================
+// Web Push (RFC 8291 message encryption + RFC 8292 VAPID), implemented with
+// only the standard Web Crypto API so it runs in the Worker with no external
+// push library. Reference: web.dev/push-notifications and RFC 8291/8292.
+// ==========================================================================
+
+function b64urlToBytes(str) {
+  const padded = str.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((str.length + 3) % 4);
+  const raw = atob(padded);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+function bytesToB64url(bytes) {
+  let str = "";
+  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function concatBytes(...arrays) {
+  const total = arrays.reduce((sum, a) => sum + a.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const a of arrays) { out.set(a, offset); offset += a.length; }
+  return out;
+}
+
+async function hmacSha256(keyBytes, dataBytes) {
+  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, dataBytes));
+}
+
+async function hkdf(salt, ikm, info, length) {
+  const prk = await hmacSha256(salt, ikm);
+  const infoWithCounter = concatBytes(info, new Uint8Array([1]));
+  const okm = await hmacSha256(prk, infoWithCounter);
+  return okm.slice(0, length);
+}
+
+async function signVapidJwt(audience, vapidPublicKeyB64, vapidPrivateKeyB64) {
+  const publicBytes = b64urlToBytes(vapidPublicKeyB64);
+  const x = publicBytes.slice(1, 33);
+  const y = publicBytes.slice(33, 65);
+  const jwk = {
+    kty: "EC", crv: "P-256", ext: true,
+    x: bytesToB64url(x), y: bytesToB64url(y), d: vapidPrivateKeyB64
+  };
+  const privateKey = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+
+  const header = { typ: "JWT", alg: "ES256" };
+  const claims = { aud: audience, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: "mailto:support@ordeli.app" };
+  const encoder = new TextEncoder();
+  const unsigned = `${bytesToB64url(encoder.encode(JSON.stringify(header)))}.${bytesToB64url(encoder.encode(JSON.stringify(claims)))}`;
+  const signature = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, encoder.encode(unsigned)));
+  return `${unsigned}.${bytesToB64url(signature)}`;
+}
+
+async function encryptPushPayload(payloadBytes, p256dhB64, authB64) {
+  const uaPublicRaw = b64urlToBytes(p256dhB64);
+  const authSecret = b64urlToBytes(authB64);
+
+  const uaPublicKey = await crypto.subtle.importKey("raw", uaPublicRaw, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const asKeyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const asPublicRaw = new Uint8Array(await crypto.subtle.exportKey("raw", asKeyPair.publicKey));
+
+  const sharedSecret = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaPublicKey }, asKeyPair.privateKey, 256));
+
+  const encoder = new TextEncoder();
+  const keyInfo = concatBytes(encoder.encode("WebPush: info\0"), uaPublicRaw, asPublicRaw);
+  const ikm = await hkdf(authSecret, sharedSecret, keyInfo, 32);
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cekInfo = encoder.encode("Content-Encoding: aes128gcm\0");
+  const nonceInfo = encoder.encode("Content-Encoding: nonce\0");
+  const cek = await hkdf(salt, ikm, cekInfo, 16);
+  const nonce = await hkdf(salt, ikm, nonceInfo, 12);
+
+  const record = concatBytes(payloadBytes, new Uint8Array([2])); // delimiter octet, no padding
+  const cekKey = await crypto.subtle.importKey("raw", cek, { name: "AES-GCM" }, false, ["encrypt"]);
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, cekKey, record));
+
+  const recordSize = new Uint8Array(4);
+  new DataView(recordSize.buffer).setUint32(0, 4096, false);
+  const header = concatBytes(salt, recordSize, new Uint8Array([asPublicRaw.length]), asPublicRaw);
+  return concatBytes(header, ciphertext);
+}
+
+async function sendWebPush(subscription, payloadObj, env) {
+  const vapidPublic = env.VAPID_PUBLIC_KEY;
+  const vapidPrivate = env.VAPID_PRIVATE_KEY;
+  if (!vapidPublic || !vapidPrivate) throw new Error("VAPID keys are not configured.");
+
+  const endpointUrl = new URL(subscription.endpoint);
+  const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
+  const jwt = await signVapidJwt(audience, vapidPublic, vapidPrivate);
+  const body = await encryptPushPayload(new TextEncoder().encode(JSON.stringify(payloadObj)), subscription.p256dh, subscription.auth_key);
+
+  return fetch(subscription.endpoint, {
+    method: "POST",
+    headers: {
+      "Authorization": `vapid t=${jwt}, k=${vapidPublic}`,
+      "Content-Type": "application/octet-stream",
+      "Content-Encoding": "aes128gcm",
+      "TTL": "86400",
+      "Urgency": "normal"
+    },
+    body
+  });
+}
+
+async function handleSendPush(request, env) {
+  if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+
+  const providedSecret = request.headers.get("x-ordeli-push-secret") || "";
+  const expectedSecret = env.PUSH_TRIGGER_SECRET || "";
+  if (!expectedSecret || providedSecret !== expectedSecret) return json({ error: "Unauthorized." }, 401);
+
+  const body = await request.json().catch(() => null);
+  const sellerId = String(body?.seller_id || "");
+  const title = String(body?.title || "Ordeli").slice(0, 120);
+  const message = String(body?.body || "").slice(0, 500);
+  const url = String(body?.url || "/");
+  if (!sellerId || !message) return json({ error: "seller_id and body are required." }, 400);
+
+  const base = getSupabaseBase(env);
+  const serviceKey = getServiceKey(env);
+  const subsResponse = await fetch(`${base}/rest/v1/push_subscriptions?seller_id=eq.${encodeURIComponent(sellerId)}&select=id,endpoint,p256dh,auth_key`, {
+    headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+  });
+  if (!subsResponse.ok) return json({ error: await upstreamError(subsResponse, "Unable to load push subscriptions.") }, 502);
+  const subscriptions = await subsResponse.json().catch(() => []);
+
+  const staleIds = [];
+  let sent = 0;
+  for (const sub of subscriptions) {
+    try {
+      const pushResponse = await sendWebPush(sub, { title, body: message, url }, env);
+      if (pushResponse.status === 404 || pushResponse.status === 410) {
+        staleIds.push(sub.id);
+      } else if (pushResponse.ok) {
+        sent++;
+      } else {
+        console.error("Push send failed:", pushResponse.status, await pushResponse.text().catch(() => ""));
+      }
+    } catch (error) {
+      console.error("Push send error:", error);
+    }
+  }
+
+  if (staleIds.length) {
+    const filter = staleIds.map(id => `"${id}"`).join(",");
+    await fetch(`${base}/rest/v1/push_subscriptions?id=in.(${filter})`, {
+      method: "DELETE",
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+    }).catch(() => {});
+  }
+
+  return json({ sent, stale_removed: staleIds.length, total: subscriptions.length });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -220,6 +381,11 @@ export default {
       const customerUrl = new URL("/customer/", url);
       customerUrl.hash = `token=${encodeURIComponent(token)}`;
       return Response.redirect(customerUrl.toString(), 302);
+    }
+
+    if (pathname === "/api/send-push") {
+      try { return await handleSendPush(request, env); }
+      catch (error) { console.error("Send push endpoint failed:", error); return json({ error: "Unable to send notification." }, 500); }
     }
 
     if (pathname === "/api/customer-media") {

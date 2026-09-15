@@ -1238,6 +1238,7 @@ async function renderApplication() {
       showScreen("settings");
       renderSettingsControls();
       await renderSettingsSync();
+      renderNotificationSettings().catch(() => {});
       return;
     }
 
@@ -3184,6 +3185,7 @@ function productionTaskCard(task, actor) {
   proofLabel.className = "production-proof-label";
   proofLabel.textContent = "Optional proof photo";
   proofLabel.appendChild(photo);
+  proofLabel.hidden = actor.can_upload_proof === false;
 
   const finish = document.createElement("button");
   finish.type = "button";
@@ -5811,6 +5813,12 @@ $("scannerManualButton")
 async function startQrScanner() {
 
   if (scannerInstance) return;
+
+  const actor = await getActorContext().catch(() => null);
+  if (actor && isProductionMemberActor(actor) && actor.can_scan_qr === false) {
+    $("scannerMessage").textContent = "You do not have permission to scan QR codes.";
+    return;
+  }
 
   try {
     await ensureExternalScript("scanner");
@@ -8714,10 +8722,10 @@ renderApplication();
 // ============================================================
 const SETTINGS_KEY = "ordeli-settings-v1";
 const ACCENTS = {
-  blue: { primary: "#208aef", strong: "#1676d2" },
-  purple: { primary: "#7c5cff", strong: "#6547db" },
-  green: { primary: "#16a34a", strong: "#12823b" },
-  orange: { primary: "#f59e0b", strong: "#d97706" }
+  blue:   { primary: "#208aef", strong: "#1676d2", tintBg: "#eef5ff", tintBorder: "#cdddf2", tintBgDark: "rgba(74, 163, 255, .15)", tintBorderDark: "rgba(74, 163, 255, .38)" },
+  purple: { primary: "#7c5cff", strong: "#6547db", tintBg: "#f3f0ff", tintBorder: "#d9cffb", tintBgDark: "rgba(167, 139, 250, .18)", tintBorderDark: "rgba(167, 139, 250, .4)" },
+  green:  { primary: "#16a34a", strong: "#12823b", tintBg: "#e8f5ec", tintBorder: "#bfe3cc", tintBgDark: "rgba(67, 196, 122, .15)", tintBorderDark: "rgba(67, 196, 122, .38)" },
+  orange: { primary: "#f59e0b", strong: "#d97706", tintBg: "#fff7ed", tintBorder: "#ead7a1", tintBgDark: "rgba(244, 182, 74, .16)", tintBorderDark: "rgba(244, 182, 74, .4)" }
 };
 function loadSettings() {
   try { return { theme: "system", accent: "blue", font: "system", textSize: "default", compact: false, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {}) }; } catch (_) { return { theme: "system", accent: "blue", font: "system", textSize: "default", compact: false }; }
@@ -8739,6 +8747,8 @@ function applySettings(settings) {
   const effectiveTheme = settings.theme === "system" ? (prefersDark ? "dark" : "light") : settings.theme;
   root.dataset.ordeliEffectiveTheme = effectiveTheme;
   document.body.dataset.ordeliEffectiveTheme = effectiveTheme;
+  root.style.setProperty("--primary-tint-bg", effectiveTheme === "dark" ? accent.tintBgDark : accent.tintBg);
+  root.style.setProperty("--primary-tint-border", effectiveTheme === "dark" ? accent.tintBorderDark : accent.tintBorder);
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
@@ -8777,6 +8787,135 @@ $("settingsSyncNowButton")?.addEventListener("click", async (event) => {
     $("settingsSyncMessage").textContent = error?.message || "Unable to start sync.";
   } finally { setLoading(button, false); }
 });
+
+// ---- Push notifications ----------------------------------------------
+const VAPID_PUBLIC_KEY = "BCgUTCZcyXiO2ajJB5OwWEaZd5dq7v0D2biD7L4_-4hd18_syTALERzg3WcxGWNdVOMb7yt1Vf3GkGNm4Ef_Y_I";
+const NOTIFICATION_CATEGORIES = [
+  ["settingNotifyNewOrder", "new_order"],
+  ["settingNotifyPaymentSubmitted", "payment_submitted"],
+  ["settingNotifyStageFinished", "stage_finished"],
+  ["settingNotifyItemCancelled", "item_cancelled"]
+];
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function getExistingPushSubscription() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
+  const registration = await navigator.serviceWorker.ready.catch(() => null);
+  if (!registration) return null;
+  return registration.pushManager.getSubscription();
+}
+
+async function subscribeToPush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Push notifications are not supported on this device.");
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") throw new Error("Notification permission was not granted.");
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+  }
+  const user = await getCurrentUser();
+  const json = subscription.toJSON();
+  const { error } = await supabase.from("push_subscriptions").upsert({
+    seller_id: user.id,
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth_key: json.keys.auth,
+    user_agent: navigator.userAgent.slice(0, 300),
+    last_seen_at: new Date().toISOString()
+  }, { onConflict: "endpoint" });
+  if (error) throw error;
+  return subscription;
+}
+
+async function unsubscribeFromPush() {
+  const subscription = await getExistingPushSubscription();
+  if (subscription) {
+    try { await supabase.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint); } catch (_) {}
+    await subscription.unsubscribe().catch(() => {});
+  }
+}
+
+async function renderNotificationSettings() {
+  const enabledToggle = $("settingNotificationsEnabled");
+  const categoryRows = $("notificationCategoryRows");
+  const hint = $("notificationPermissionHint");
+  if (!enabledToggle) return;
+
+  const supported = "serviceWorker" in navigator && "PushManager" in window;
+  if (!supported) {
+    enabledToggle.disabled = true;
+    if (hint) hint.textContent = "Not supported on this browser/device.";
+    return;
+  }
+
+  const permission = typeof Notification !== "undefined" ? Notification.permission : "default";
+  const subscription = await getExistingPushSubscription();
+  const isOn = Boolean(subscription) && permission === "granted";
+  enabledToggle.checked = isOn;
+  categoryRows.hidden = !isOn;
+  if (hint) hint.textContent = permission === "denied" ? "Blocked in your browser settings. Enable it there first." : "Allow Ordeli to notify this device.";
+
+  try {
+    const seller = await getSeller(await (await getCurrentUser()).id);
+    const prefs = seller?.notification_prefs || {};
+    for (const [id, key] of NOTIFICATION_CATEGORIES) {
+      const el = $(id);
+      if (el) el.checked = prefs[key] !== false;
+    }
+  } catch (_) {}
+}
+
+async function saveNotificationPrefs() {
+  const prefs = {};
+  for (const [id, key] of NOTIFICATION_CATEGORIES) prefs[key] = Boolean($(id)?.checked);
+  const user = await getCurrentUser();
+  await supabase.from("sellers").update({ notification_prefs: prefs }).eq("id", user.id);
+}
+
+$("settingNotificationsEnabled")?.addEventListener("change", async (event) => {
+  const toggle = event.currentTarget;
+  const message = $("settingsNotificationMessage");
+  message.className = "form-message"; message.textContent = "";
+  try {
+    if (toggle.checked) {
+      await subscribeToPush();
+      message.className = "form-message success-message";
+      message.textContent = "Push notifications are on for this device.";
+    } else {
+      await unsubscribeFromPush();
+      message.textContent = "Push notifications are off for this device.";
+    }
+    await renderNotificationSettings();
+  } catch (error) {
+    toggle.checked = !toggle.checked;
+    message.textContent = error?.message || "Unable to update notification settings.";
+  }
+});
+
+NOTIFICATION_CATEGORIES.forEach(([id]) => {
+  $(id)?.addEventListener("change", async () => {
+    try { await saveNotificationPrefs(); } catch (error) { console.error("Save notification prefs failed:", error); }
+  });
+});
+
+navigator.serviceWorker?.addEventListener?.("message", (event) => {
+  if (event.data?.type === "ordeli-notification-click" && event.data.url) {
+    const hash = event.data.url.startsWith("/#") ? event.data.url.slice(1) : event.data.url;
+    if (hash.startsWith("#")) { window.location.hash = hash; }
+  }
+});
+// ------------------------------------------------------------------------
+
 $("settingsPasswordForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message=$("settingsPasswordMessage"), button=$("settingsPasswordButton");

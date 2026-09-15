@@ -1,7 +1,7 @@
 /* Ordeli seller PWA service worker.
    Customer tracking pages (/t/<token> and /customer/) do not use this worker. */
 
-const CACHE_VERSION = "ordeli-v2026-09-13-08";
+const CACHE_VERSION = "ordeli-v2026-09-15-01";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -10,7 +10,7 @@ const APP_SHELL = [
   "/js/boot.js",
   "/js/register-sw.js",
   "/js/supabase.js",
-  "/js/app.js?v=2026-09-13-08"
+  "/js/app.js?v=2026-09-15-01"
 ];
 
 self.addEventListener("install", (event) => {
@@ -85,7 +85,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 
-const CDN_CACHE = "ordeli-cdn-v2026-09-13-08";
+const CDN_CACHE = "ordeli-cdn-v2026-09-15-01";
 const CDN_HOSTS = new Set(["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com"]);
 
 self.addEventListener("fetch", (event) => {
@@ -106,6 +106,36 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         throw _;
       }
+    })
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (_) { data = { title: "Ordeli", body: event.data ? event.data.text() : "" }; }
+  const title = data.title || "Ordeli";
+  const options = {
+    body: data.body || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: data.url || "/" },
+    tag: data.tag || undefined
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ("focus" in client) {
+          client.postMessage({ type: "ordeli-notification-click", url: targetUrl });
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });
