@@ -3980,6 +3980,9 @@ body[data-ordeliCompact="true"] .dashboard-order-list { gap:5px; margin-top:10px
 [data-ordeli-effective-theme="dark"] .production-work-card,
 [data-ordeli-effective-theme="dark"] .production-scanner-panel,
 [data-ordeli-effective-theme="dark"] .production-scanned-item,
+[data-ordeli-effective-theme="dark"] .workflow-intro-card,
+[data-ordeli-effective-theme="dark"] .workflow-card,
+[data-ordeli-effective-theme="dark"] .workflow-editor-heading,
 [data-ordeli-effective-theme="dark"] .team-create-card,
 [data-ordeli-effective-theme="dark"] .team-list-panel,
 [data-ordeli-effective-theme="dark"] .team-member-card,
@@ -4186,6 +4189,17 @@ button.is-loading {
   background: var(--surface) !important;
   color: var(--text) !important;
   border-color: var(--border) !important;
+}
+
+[data-ordeli-effective-theme="dark"] .workflow-intro-card {
+  background: linear-gradient(135deg, #172536, #171b21);
+  border-color: var(--border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .24);
+}
+
+[data-ordeli-effective-theme="dark"] .workflow-editor-heading {
+  background: rgba(23, 27, 33, .96);
+  border-bottom-color: var(--border);
 }
 
 [data-ordeli-effective-theme="dark"] .orders-queue-summary,
