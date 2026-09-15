@@ -3978,6 +3978,8 @@ body[data-ordeliCompact="true"] .dashboard-order-list { gap:5px; margin-top:10px
 /* Existing operational cards were authored primarily for the light theme. */
 [data-ordeli-effective-theme="dark"] .production-work-toolbar,
 [data-ordeli-effective-theme="dark"] .production-work-card,
+[data-ordeli-effective-theme="dark"] .production-scanner-panel,
+[data-ordeli-effective-theme="dark"] .production-scanned-item,
 [data-ordeli-effective-theme="dark"] .team-create-card,
 [data-ordeli-effective-theme="dark"] .team-list-panel,
 [data-ordeli-effective-theme="dark"] .team-member-card,
@@ -4176,6 +4178,8 @@ button.is-loading {
 [data-ordeli-effective-theme="dark"] .map-picker-details > div,
 [data-ordeli-effective-theme="dark"] .production-work-toolbar,
 [data-ordeli-effective-theme="dark"] .production-work-card,
+[data-ordeli-effective-theme="dark"] .production-scanner-panel,
+[data-ordeli-effective-theme="dark"] .production-scanned-item,
 [data-ordeli-effective-theme="dark"] .team-create-card,
 [data-ordeli-effective-theme="dark"] .team-list-panel,
 [data-ordeli-effective-theme="dark"] .team-member-card {
