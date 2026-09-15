@@ -2199,7 +2199,7 @@ a:hover {
 
 .dashboard-panels {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, .8fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -2404,6 +2404,10 @@ a:hover {
   .attention-grid { grid-template-columns: 1fr 1fr; }
   .attention-card { padding: 13px; }
   .attention-icon { width: 36px; height: 36px; }
+  .dashboard-panel .section-heading { align-items: flex-start; flex-direction: column; }
+  .dashboard-panel .section-heading .secondary-button { width: 100%; }
+  .dashboard-order-row { align-items: flex-start; gap: 10px; }
+  .dashboard-order-row > div:first-child { min-width: 0; }
   .orders-toolbar { align-items: stretch; }
   .orders-filter-tabs { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
   .orders-filter { flex: 0 0 auto; }
